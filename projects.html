@@ -1,0 +1,873 @@
+<!-- projects.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>R4N</title>
+  <link rel="icon" type="image/png" href="assets/icon.png">
+
+  <style>
+    :root{
+      --bg:#fefefe;
+      --fg:#111111;
+      --muted:rgba(17,17,17,0.65);
+      --select: rgba(17,17,17,0.55);
+      --padX: 28px;   /* desktop left padding */
+      --padY: 10px;   /* top alignment padding */
+    }
+
+    *{margin:0;padding:0;box-sizing:border-box;}
+
+    body{
+      background:var(--bg);
+      color:var(--fg);
+      min-height:100vh;
+      overflow:hidden;
+      position:relative;
+
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:13px;
+      font-weight:400;
+      letter-spacing:0.2px;
+    }
+
+    /* Header row: BACK (left) + centered logo (same line) */
+    .topBar{
+      position:relative;
+      width:100%;
+      height:92px;          /* gives a stable row to align to */
+      padding-top:var(--padY);
+      z-index:5;
+    }
+
+    .backFixed{
+      position:absolute;
+      left:var(--padX);
+      top:50%;
+      transform:translateY(-50%);
+      text-decoration:none;
+      color:var(--muted);
+      font-size:13px;
+      letter-spacing:2px;
+      font-weight:500;
+      white-space:normal;       /* allow wrap */
+      line-height:1.2;
+      max-width:38vw;           /* so it can wrap on mobile nicely */
+      user-select:none;
+    }
+    .backFixed:hover{ color:rgba(17,17,17,0.90); }
+
+    .fallFixed{
+      position:absolute;
+      right:var(--padX);
+      top:50%;
+      transform:translateY(-50%);
+      text-decoration:none;
+      color:var(--muted);
+      font-size:13px;
+      letter-spacing:2px;
+      font-weight:500;
+      white-space:normal;
+      line-height:1.2;
+      max-width:38vw;
+      user-select:none;
+    
+      display:none;
+    }
+    .fallFixed.is-visible{ display:block; }
+
+    .fallFixed:hover{ color:rgba(17,17,17,0.90); }
+    .fallFixed.is-on{ color:rgba(17,17,17,0.90); }
+
+    .logo{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      width:auto;
+    }
+    .logo a{display:inline-flex;text-decoration:none;}
+    .logo img{
+      width:136px;
+      height:136px;
+      object-fit:contain;
+      display:block;
+    }
+
+    /* Mobile-only: logo closer to top & keep back in same corner area */
+    @media (max-width: 768px){
+      :root{ --padX: 14px; --padY: 2px; }
+      .topBar{ height:78px; }
+      .logo img{ width:136px; height:136px; } /* keep your same logo sizing */
+      .backFixed{ max-width:46vw; }           /* wraps if needed */
+    }
+
+    /* Draggable projects */
+    .drag{
+      position:absolute;
+      z-index:10;
+      user-select:none;
+      cursor:grab;
+      text-align:center;
+      padding:10px;
+      border-radius:0;
+      touch-action:none;
+      visibility:hidden; /* hide until positioned (flicker fix) */
+    }
+    .drag.ready{ visibility:visible; }
+
+/* Physics visuals: outer scales (animated), inner rotates (no lag). */
+.drag{ will-change: left, top, transform; }
+.drag .inner{ display:block; transform-origin:center center; will-change: transform; }
+.drag.physics-on{
+  /* Important: anchor scaling to top-left so left/top match the visual box */
+  transform-origin: top left;
+  transform: scale(0.42);
+  transition: transform 320ms cubic-bezier(.2,.9,.2,1);
+}
+.drag.physics-off{
+  transform-origin: top left;
+  transform: scale(1);
+  transition: transform 320ms cubic-bezier(.2,.9,.2,1);
+}
+    .drag:active{ cursor:grabbing; }
+
+    /* Selection box (no clipping on mobile) */
+    .drag.is-dragging{
+      outline:none;
+      border-radius:0;
+    }
+    .drag.is-dragging::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      border:2px dotted var(--select);
+      pointer-events:none;
+      border-radius:0;
+    }
+
+    /* Desktop size */
+    .drag img{
+      width:210px;
+      height:210px;
+      object-fit:contain;
+      display:block;
+      margin:0 auto;
+      filter:drop-shadow(0 6px 18px rgba(0,0,0,0.16));
+      opacity:0.94;
+      transition:transform 0.15s ease, opacity 0.15s ease;
+    }
+    .drag:hover img{ transform:scale(1.02); opacity:1; }
+
+    .label{
+      margin-top:10px;
+      text-transform:uppercase;
+      color:var(--muted);
+      letter-spacing:1.8px;
+    }
+
+    /* Mobile-only: project buttons same size + title width <= image width */
+    @media (max-width: 768px){
+      .drag img{ width:170px; height:170px; }
+      .drag .label{
+        width:170px;
+        margin-left:auto;
+        margin-right:auto;
+        white-space:normal;
+        word-break:break-word;
+        line-height:1.25;
+      }
+    }
+
+
+    /* Falling mode (physics): shrink buttons */
+    .drag.falling{
+      padding:6px;
+    }
+    .drag.falling img{
+      width:140px;
+      height:140px;
+    }
+    .drag.falling .label{
+      margin-top:6px;
+    }
+    @media (max-width: 768px){
+      .drag.falling img{ width:120px; height:120px; }
+      .drag.falling .label{ width:120px; }
+    }
+
+
+    /* Socials */
+    .socials{
+      position:fixed;
+      left:50%;
+      bottom:36px;
+      transform:translateX(-50%);
+      z-index:50;
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:0.4px;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .socials a{ color:inherit; text-decoration:none; }
+    .socials a:hover{ color:rgba(17,17,17,0.9); }
+
+    a{color:inherit;-webkit-tap-highlight-color:transparent;}
+  </style>
+</head>
+
+<body>
+  <div class="topBar" aria-label="Header">
+    <a class="backFixed" href="index.html" aria-label="Back to home">&lt; - BACK</a>
+    <a class="fallFixed" href="#" id="fallBtn" aria-label="Enable fall physics">FALL</a>
+
+    <div class="logo" id="logoBlock">
+      <a href="index.html" aria-label="Home">
+        <img src="assets/logo.png" alt="Logo">
+      </a>
+    </div>
+  </div>
+
+  <!-- Project 1 -->
+  <a href="https://open.spotify.com/album/2pHA2yqsAC9uum0lE1kyV5?si=qG4s6773SyW9N3YUAzow8w"
+     target="_blank" rel="noopener"
+     id="p1Link" aria-label="TI KNIVER I HJERTET">
+    <div class="drag" id="p1Btn" data-store-key="projects:p1">
+      <img src="assets/project1.png" alt="Project 1">
+      <div class="label">TI KNIVER I HJERTET</div>
+    </div>
+  </a>
+
+  <!-- Project 2 -->
+  <a href="https://open.spotify.com/album/4hGT9RG7lSGz9MtX85Jpta?si=MaSikX3wTL-xhOIH3aTsnQ"
+     target="_blank" rel="noopener"
+     id="p2Link" aria-label="FLAWLESS FASADE">
+    <div class="drag" id="p2Btn" data-store-key="projects:p2">
+      <img src="assets/project2.png" alt="Project 2">
+      <div class="label">FLAWLESS FASADE</div>
+    </div>
+  </a>
+
+  <div class="socials" aria-label="Social links">
+    <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
+    &nbsp;/&nbsp;
+    <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
+    &nbsp;/&nbsp;
+    <a href="mailto:r4nmusic@outlook.com">contact</a>
+  </div>
+
+  <script>
+    // ---------- layering ----------
+    let zCounter = 60;
+
+    // ---------- fall physics toggle ----------
+    let physicsEnabled = false;
+    let physicsRaf = null;
+    function bringToFront(el){
+      zCounter += 1;
+      el.style.zIndex = String(zCounter);
+    }
+
+    // ---------- storage ----------
+    function getStored(key){
+      try { return JSON.parse(localStorage.getItem(key) || "null"); }
+      catch { return null; }
+    }
+    function setStored(key, val){
+      localStorage.setItem(key, JSON.stringify(val));
+    }
+
+    
+// ---------- initial placement ----------
+// Persist positions across refresh like before.
+// But on the *first visit* (no stored positions yet), ensure the two buttons don't spawn on top of each other.
+document.addEventListener("DOMContentLoaded", () => {
+  const p1 = document.getElementById("p1Btn");
+  const p2 = document.getElementById("p2Btn");
+
+  // Wrap contents so we can scale the outer element and rotate the inner contents smoothly.
+  [p1, p2].forEach(el => {
+    if (!el) return;
+    if (!el.querySelector(".inner")) {
+      const inner = document.createElement("div");
+      inner.className = "inner";
+      while (el.firstChild) inner.appendChild(el.firstChild);
+      el.appendChild(inner);
+    }
+  });
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const k1 = p1?.dataset.storeKey;
+  const k2 = p2?.dataset.storeKey;
+  const s1 = k1 ? getStored(k1) : null;
+  const s2 = k2 ? getStored(k2) : null;
+
+  // Default positions (only used when there is NO localStorage yet).
+  // Chosen to match your reference screenshots:
+  // - Desktop: projects sit closer to the upper-middle area.
+  // - Mobile: project1 is upper-left-ish, project2 is lower-right-ish.
+  const isMobile = vw <= 768;
+
+  const def1 = isMobile
+    ? { x: Math.round(vw * 0.08), y: Math.round(vh * 0.17) }
+    : { x: Math.round(vw * 0.33), y: Math.round(vh * 0.20) };
+
+  const def2 = isMobile
+    ? { x: Math.round(vw * 0.38), y: Math.round(vh * 0.55) }
+    : { x: Math.round(vw * 0.56), y: Math.round(vh * 0.26) };
+
+  function applyStoredOrDefault(el, stored, def){
+    if (!el) return;
+    if (stored && typeof stored.x === "number" && typeof stored.y === "number") setElPos(el, stored.x, stored.y);
+    else setElPos(el, def.x, def.y);
+
+    // clamp into viewport after images load
+    const curX = parseFloat(el.style.left || "0");
+    const curY = parseFloat(el.style.top  || "0");
+    const c = clampToViewport(el, curX, curY);
+    setElPos(el, c.x, c.y);
+    el.classList.add("ready");
+  }
+
+  applyStoredOrDefault(p1, s1, def1);
+  applyStoredOrDefault(p2, s2, def2);
+
+
+  // Only enforce "no overlap" on the very first visit (when neither has saved position).
+  if (!s1 && !s2 && p1 && p2){
+    // Give layout a tick to compute sizes
+    requestAnimationFrame(() => {
+      const r1 = p1.getBoundingClientRect();
+      const r2 = p2.getBoundingClientRect();
+
+      const overlapX = Math.min(r1.right, r2.right) - Math.max(r1.left, r2.left);
+      const overlapY = Math.min(r1.bottom, r2.bottom) - Math.max(r1.top, r2.top);
+
+      if (overlapX > 0 && overlapY > 0){
+        // Nudge p2 downward and slightly right until they don't overlap.
+        let nx = parseFloat(p2.style.left || "0") + 20;
+        let ny = parseFloat(p2.style.top  || "0") + (r1.height + 28);
+        const c = clampToViewport(p2, nx, ny);
+        setElPos(p2, c.x, c.y);
+      }
+    });
+  }
+});
+
+function setElPos(el, x, y){
+      el.style.left = `${x}px`;
+      el.style.top  = `${y}px`;
+    }
+
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+    function clampToViewport(el, x, y){
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const w  = el.offsetWidth;
+      const h  = el.offsetHeight;
+      return { x: clamp(x, 0, vw - w), y: clamp(y, 0, vh - h) };
+    }
+
+    // ---------- draggable (projects only) ----------
+    function makeDraggable(el, linkEl, opts = {}){
+      const storeKey = el.dataset.storeKey;
+
+      let dragging = false;
+      let startX = 0, startY = 0;
+      let offsetX = 0, offsetY = 0;
+      let movedEnough = false;
+      const MOVE_THRESHOLD = opts.moveThreshold ?? 7;
+
+      function pointerDown(e){
+        if (physicsEnabled) return;
+        dragging = true;
+        movedEnough = false;
+
+        bringToFront(el);
+        el.setPointerCapture?.(e.pointerId);
+
+        const rect = el.getBoundingClientRect();
+        startX = e.clientX; startY = e.clientY;
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+
+        el.classList.add("is-dragging");
+        el.style.cursor = "grabbing";
+        e.preventDefault();
+      }
+
+      function pointerMove(e){
+        if (physicsEnabled) return;
+        if (!dragging) return;
+
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (!movedEnough && Math.hypot(dx, dy) > MOVE_THRESHOLD) {
+          movedEnough = true;
+          linkEl.dataset.dragging = "1";
+        }
+
+        setElPos(el, e.clientX - offsetX, e.clientY - offsetY);
+        e.preventDefault();
+      }
+
+      function pointerUp(){
+        if (physicsEnabled) return;
+        if (!dragging) return;
+        dragging = false;
+
+        el.classList.remove("is-dragging");
+        el.style.cursor = "grab";
+
+        const left = parseFloat(el.style.left || "0");
+        const top  = parseFloat(el.style.top  || "0");
+        const snapped = clampToViewport(el, left, top);
+
+        setElPos(el, snapped.x, snapped.y);
+
+        // Persist position
+        if (el.dataset.storeKey) setStored(el.dataset.storeKey, { x: snapped.x, y: snapped.y });
+
+        setTimeout(() => { delete linkEl.dataset.dragging; }, 0);
+      }
+
+      linkEl.addEventListener("click", (e) => {
+        if (linkEl.dataset.dragging === "1") {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
+
+      el.addEventListener("pointerdown", pointerDown);
+      window.addEventListener("pointermove", pointerMove, { passive:false });
+      window.addEventListener("pointerup", pointerUp, { passive:false });
+
+      
+function initPos(){
+  const key = el.dataset.storeKey;
+  const stored = key ? getStored(key) : null;
+
+  // If we already positioned it earlier (initial placement block), keep that.
+  const hasInline = (el.style.left && el.style.top);
+
+  let x, y;
+  if (stored && typeof stored.x === "number" && typeof stored.y === "number"){
+    x = stored.x; y = stored.y;
+  } else if (hasInline){
+    x = parseFloat(el.style.left || "0");
+    y = parseFloat(el.style.top  || "0");
+  } else {
+    // Fallback defaults
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+
+    const isMobile = vw <= 768;
+    if (el.id === "p1Btn"){
+      x = isMobile ? (vw * 0.08) : (vw * 0.33);
+      y = isMobile ? (vh * 0.17) : (vh * 0.20);
+    }
+    else if (el.id === "p2Btn"){
+      x = isMobile ? (vw * 0.38) : (vw * 0.56);
+      y = isMobile ? (vh * 0.55) : (vh * 0.26);
+    }
+    else { x = (vw * 0.50) - (w / 2); y = (vh * 0.50) - (h / 2); }
+  }
+
+  const snapped = clampToViewport(el, x, y);
+  setElPos(el, snapped.x, snapped.y);
+
+  bringToFront(el);
+  el.classList.add("ready");
+}
+
+document.addEventListener("DOMContentLoaded", initPos);
+
+
+      window.addEventListener("resize", () => {
+        const left = parseFloat(el.style.left || "0");
+        const top  = parseFloat(el.style.top  || "0");
+        const snapped = clampToViewport(el, left, top);
+        setElPos(el, snapped.x, snapped.y);
+      });
+    }
+
+    makeDraggable(document.getElementById("p1Btn"), document.getElementById("p1Link"));
+    makeDraggable(document.getElementById("p2Btn"), document.getElementById("p2Link"));
+
+
+    // ---------- fall physics (device tilt/motion) ----------
+const fallBtn = document.getElementById("fallBtn");
+const p1 = document.getElementById("p1Btn");
+const p2 = document.getElementById("p2Btn");
+
+const logoBlock = document.getElementById("logoBlock");
+
+// FALL is a mobile-only easter egg: hidden on load, shown only after
+// stacking both projects on top of each other AND on top of the logo for 10s.
+const isMobileEasterEgg = window.matchMedia && (
+  window.matchMedia("(pointer: coarse)").matches ||
+  window.matchMedia("(hover: none)").matches
+);
+
+function rectIntersectionArea(a, b){
+  const x1 = Math.max(a.left, b.left);
+  const y1 = Math.max(a.top,  b.top);
+  const x2 = Math.min(a.right, b.right);
+  const y2 = Math.min(a.bottom,b.bottom);
+  const w = x2 - x1;
+  const h = y2 - y1;
+  return (w > 0 && h > 0) ? (w * h) : 0;
+}
+
+function mostlyOverlapping(a, b){
+  const inter = rectIntersectionArea(a, b);
+  const areaA = Math.max(1, a.width * a.height);
+  const areaB = Math.max(1, b.width * b.height);
+  const minArea = Math.min(areaA, areaB);
+  return (inter / minArea) >= 0.75; // "stacked" threshold
+}
+
+function isOnLogo(rProj, rLogo){
+  // Require a meaningful overlap, not just touching edges.
+  return rectIntersectionArea(rProj, rLogo) >= 600; // ~ 20x30px
+}
+
+function hideFallBtn(){
+  fallBtn.classList.remove("is-visible", "is-on");
+  fallBtn.style.display = "none";
+}
+
+function showFallBtn(){
+  fallBtn.style.display = "block";
+  fallBtn.classList.add("is-visible");
+}
+
+// Always start hidden on refresh.
+hideFallBtn();
+
+let eggStart = null;
+let eggShown = false;
+
+function eggTick(now){
+  if (!isMobileEasterEgg || eggShown || !logoBlock){
+    requestAnimationFrame(eggTick);
+    return;
+  }
+
+  const r1 = p1.getBoundingClientRect();
+  const r2 = p2.getBoundingClientRect();
+  const rL = logoBlock.getBoundingClientRect();
+
+  const ok = mostlyOverlapping(r1, r2) && isOnLogo(r1, rL) && isOnLogo(r2, rL);
+
+  if (ok){
+    if (eggStart == null) eggStart = now;
+    if ((now - eggStart) >= 10000){ // 10 seconds
+      eggShown = true;
+      showFallBtn();
+    }
+  } else {
+    eggStart = null;
+  }
+
+  requestAnimationFrame(eggTick);
+}
+requestAnimationFrame(eggTick);
+
+// Per-element physics state
+const bodies = new Map(); // el -> { x,y,vx,vy,w,h,storeKey }
+function syncBodyFromEl(el){
+  const rect = el.getBoundingClientRect();
+  const left = parseFloat(el.style.left || rect.left || "0");
+  const top  = parseFloat(el.style.top  || rect.top  || "0");
+  const inner = el.querySelector(".inner") || el;
+bodies.set(el, {
+  x: left,
+  y: top,
+  vx: 0,
+  vy: 0,
+  angle: 0,
+  av: 0,          // angular velocity (rad/s-ish)
+  // Use the *visual* size (includes CSS transforms like scale)
+  w: rect.width,
+  h: rect.height,
+  innerEl: inner,
+  storeKey: el.dataset.storeKey
+});
+}
+
+function getVisualSize(el){
+  const r = el.getBoundingClientRect();
+  return { w: r.width, h: r.height };
+}
+
+// Gravity in px/s^2 (screen coords)
+let gx = 0, gy = 950;
+const maxG = 1700;
+const bounce = 0.82;
+const damp = 0.992;
+
+function clampNum(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+function onDeviceOrientation(e){
+  if (e.gamma == null || e.beta == null) return;
+
+  // gamma: left/right tilt (-90..90), beta: front/back (-180..180)
+  // Map tilt to gravity. If it feels "backwards", flip signs here.
+  gx = clampNum((e.gamma / 45) * 950, -maxG, maxG);
+  gy = clampNum((e.beta  / 45) * 950, -maxG, maxG);
+}
+
+function onDeviceMotion(e){
+  const a = e.accelerationIncludingGravity;
+  if (!a) return;
+
+  // Fallback mapping. Different devices may feel rotated; tweak if needed.
+  gx = clampNum(a.x * 430, -maxG, maxG);
+  gy = clampNum(-a.y * 430, -maxG, maxG);
+}
+
+async function requestMotionPermissionIfNeeded(){
+  // iOS requires explicit permission from a user gesture.
+  try{
+    if (typeof DeviceMotionEvent !== "undefined" &&
+        typeof DeviceMotionEvent.requestPermission === "function"){
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== "granted") throw new Error("Motion permission denied");
+    }
+    if (typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function"){
+      const res = await DeviceOrientationEvent.requestPermission();
+      if (res !== "granted") throw new Error("Orientation permission denied");
+    }
+  }catch(err){
+    console.warn(err);
+    alert("Motion/orientation permission was denied. Enable it in Safari settings and try again.");
+    throw err;
+  }
+}
+
+let sensorsAttached = false;
+function attachSensors(){
+  if (sensorsAttached) return;
+  window.addEventListener("deviceorientation", onDeviceOrientation, { passive:true });
+  window.addEventListener("devicemotion", onDeviceMotion, { passive:true });
+  sensorsAttached = true;
+}
+
+function detachSensors(){
+  if (!sensorsAttached) return;
+  window.removeEventListener("deviceorientation", onDeviceOrientation);
+  window.removeEventListener("devicemotion", onDeviceMotion);
+  sensorsAttached = false;
+}
+
+let lastT = 0;
+let lastStoreT = 0;
+
+function setElPosPx(el, x, y){
+  el.style.left = `${x}px`;
+  el.style.top  = `${y}px`;
+}
+
+function physicsStep(t){
+  if (!physicsEnabled) return;
+  if (!lastT) lastT = t;
+  const dt = Math.min(0.033, (t - lastT) / 1000); // cap for stability
+  lastT = t;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  for (const [el, b] of bodies){
+    // refresh *visual* size (so hitboxes match the scaled visuals)
+    const sz = getVisualSize(el);
+    b.w = sz.w;
+    b.h = sz.h;
+
+    // integrate
+    b.vx += gx * dt;
+    b.vy += gy * dt;
+
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+
+    // damping
+    b.vx *= damp;
+    b.vy *= damp;
+
+
+// lightweight spin
+// Add a bit of torque from sideways gravity + current motion.
+b.av += (gx * 0.0006 + b.vx * 0.0025) * dt;
+b.av *= 0.985;
+b.angle += b.av;
+
+    // collide with viewport bounds
+    if (b.x < 0){ b.x = 0; b.vx = -b.vx * bounce; b.av = -b.av * 0.6; }
+    if (b.x + b.w > vw){ b.x = vw - b.w; b.vx = -b.vx * bounce; b.av = -b.av * 0.6; }
+    if (b.y < 0){ b.y = 0; b.vy = -b.vy * bounce; b.av = -b.av * 0.6; }
+    if (b.y + b.h > vh){ b.y = vh - b.h; b.vy = -b.vy * bounce; b.av = -b.av * 0.6; }
+
+    setElPosPx(el, b.x, b.y);
+    if (b.innerEl) b.innerEl.style.transform = `rotate(${b.angle}rad)`;
+  }
+
+  // collide the two buttons with each other (simple AABB + impulse)
+  const bA = bodies.get(p1);
+  const bB = bodies.get(p2);
+  if (bA && bB){
+    const ax1 = bA.x, ay1 = bA.y, ax2 = bA.x + bA.w, ay2 = bA.y + bA.h;
+    const bx1 = bB.x, by1 = bB.y, bx2 = bB.x + bB.w, by2 = bB.y + bB.h;
+
+    const overlapX = Math.min(ax2, bx2) - Math.max(ax1, bx1);
+    const overlapY = Math.min(ay2, by2) - Math.max(ay1, by1);
+
+    if (overlapX > 0 && overlapY > 0){
+      const bodyRestitution = 0.82;
+
+      // Separate along the smaller overlap axis.
+      if (overlapX < overlapY){
+        const push = overlapX / 2;
+        if (ax1 < bx1){ bA.x -= push; bB.x += push; }
+        else { bA.x += push; bB.x -= push; }
+
+        // Exchange x velocity (elastic-ish)
+        const va = bA.vx, vb = bB.vx;
+        bA.vx = vb * bodyRestitution;
+        bB.vx = va * bodyRestitution;
+        const aa = bA.av; bA.av = bB.av; bB.av = aa;
+      } else {
+        const push = overlapY / 2;
+        if (ay1 < by1){ bA.y -= push; bB.y += push; }
+        else { bA.y += push; bB.y -= push; }
+
+        const va = bA.vy, vb = bB.vy;
+        bA.vy = vb * bodyRestitution;
+        bB.vy = va * bodyRestitution;
+        const aa = bA.av; bA.av = bB.av; bB.av = aa;
+      }
+
+      // Clamp after separation
+      const vw2 = window.innerWidth, vh2 = window.innerHeight;
+      bA.x = clampNum(bA.x, 0, Math.max(0, vw2 - bA.w));
+      bA.y = clampNum(bA.y, 0, Math.max(0, vh2 - bA.h));
+      bB.x = clampNum(bB.x, 0, Math.max(0, vw2 - bB.w));
+      bB.y = clampNum(bB.y, 0, Math.max(0, vh2 - bB.h));
+
+      setElPosPx(p1, bA.x, bA.y);
+      setElPosPx(p2, bB.x, bB.y);
+    }
+  }
+
+
+// Persist positions during physics so refresh keeps the latest layout.
+if (t - lastStoreT > 250){
+  for (const [el, b] of bodies){
+    if (b.storeKey) setStored(b.storeKey, { x: b.x, y: b.y });
+  }
+  lastStoreT = t;
+}
+
+  physicsRaf = requestAnimationFrame(physicsStep);
+}
+
+async function enablePhysics(){
+  physicsEnabled = true;
+  fallBtn.classList.add("is-on");
+
+  // initialize bodies from current element positions
+  p1.classList.remove('physics-off');
+  p2.classList.remove('physics-off');
+  p1.classList.add('physics-on');
+  p2.classList.add('physics-on');
+  syncBodyFromEl(p1);
+  syncBodyFromEl(p2);
+
+  // bring them above other UI but below socials
+  bringToFront(p1);
+  bringToFront(p2);
+
+  await requestMotionPermissionIfNeeded();
+  attachSensors();
+
+  lastT = 0;
+  physicsRaf = requestAnimationFrame(physicsStep);
+}
+
+function disablePhysics(){
+  physicsEnabled = false;
+  fallBtn.classList.remove("is-on");
+
+  if (physicsRaf) cancelAnimationFrame(physicsRaf);
+  physicsRaf = null;
+  detachSensors();
+  p1.classList.remove('physics-on');
+  p2.classList.remove('physics-on');
+  p1.classList.add('physics-off');
+  p2.classList.add('physics-off');
+// Clamp positions for full-size buttons so they won't clip outside the viewport
+// when we grow back from the shrunken physics scale.
+const vw = window.innerWidth, vh = window.innerHeight;
+function clampFullyInside(el){
+  const w = el.offsetWidth;   // layout size (unscaled)
+  const h = el.offsetHeight;
+  let x = parseFloat(el.style.left || "0");
+  let y = parseFloat(el.style.top  || "0");
+  x = clampNum(x, 0, Math.max(0, vw - w));
+  y = clampNum(y, 0, Math.max(0, vh - h));
+  setElPosPx(el, x, y);
+  return {x, y};
+}
+const p1Pos = clampFullyInside(p1);
+const p2Pos = clampFullyInside(p2);
+
+  // reset rotation
+  const i1 = p1.querySelector('.inner'); if (i1) i1.style.transform = 'rotate(0rad)';
+  const i2 = p2.querySelector('.inner'); if (i2) i2.style.transform = 'rotate(0rad)';
+
+// Save final (clamped) positions when physics is turned off.
+try{
+  if (p1.dataset.storeKey) setStored(p1.dataset.storeKey, { x: p1Pos.x, y: p1Pos.y });
+  if (p2.dataset.storeKey) setStored(p2.dataset.storeKey, { x: p2Pos.x, y: p2Pos.y });
+}catch{}
+
+bodies.clear();
+}
+
+fallBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
+  // toggle
+  if (!physicsEnabled){
+    try { await enablePhysics(); }
+    catch { disablePhysics(); }
+  } else {
+    disablePhysics();
+  }
+});
+
+// Keep bodies inside viewport on resize while falling
+window.addEventListener("resize", () => {
+  if (!physicsEnabled) return;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  for (const [el, b] of bodies){
+    const sz = getVisualSize(el);
+    b.w = sz.w; b.h = sz.h;
+    b.x = clampNum(b.x, 0, Math.max(0, vw - b.w));
+    b.y = clampNum(b.y, 0, Math.max(0, vh - b.h));
+    setElPosPx(el, b.x, b.y);
+  }
+});
+  </script>
+</body>
+</html>
