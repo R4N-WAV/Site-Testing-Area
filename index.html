@@ -1,0 +1,322 @@
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>R4N</title>
+  <link rel="icon" type="image/png" href="assets/icon.png">
+
+  <style>
+    :root{
+      --bg:#fefefe;
+      --fg:#111111;
+      --muted:rgba(17,17,17,0.65);
+      --red:#d70000;
+      --select: rgba(17,17,17,0.55);
+    }
+
+    *{margin:0;padding:0;box-sizing:border-box;}
+
+    body{
+      background:var(--bg);
+      color:var(--fg);
+      min-height:100vh;
+      overflow:hidden;
+      position:relative;
+
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:13px;
+      font-weight:400;
+      letter-spacing:0.2px;
+    }
+
+    /* Easter egg overlay */
+    .redout{
+      position:fixed;
+      inset:0;
+      background:var(--red);
+      opacity:0;
+      pointer-events:none;
+      z-index:9999;
+      transition: opacity 0.5s ease;
+    }
+    .redout.on{ opacity:1; }
+    .restore .redout{ transition: opacity 1s ease; }
+
+    /* Logo */
+    .logo{
+      width:100%;
+      display:flex;
+      justify-content:center;
+      padding-top:0px;
+      margin-top:-6px;
+      position:relative;
+      z-index:5;
+    }
+    .logo a{display:inline-flex;text-decoration:none;}
+    .logo img{
+      width:136px;
+      height:136px;
+      object-fit:contain;
+      display:block;
+    }
+    @media (max-width: 768px){
+      .logo{ margin-top:-12px; }
+    }
+
+    /* Draggable button */
+    .drag{
+      position:absolute;
+      z-index:10;
+      user-select:none;
+      cursor:grab;
+      text-align:center;
+      padding:10px;
+      border-radius:0;
+      touch-action:none;
+      visibility:hidden;
+    }
+    .drag.ready{ visibility:visible; }
+    .drag:active{cursor:grabbing;}
+
+    /* Selection box (no clipping on mobile) */
+    .drag.is-dragging{
+      outline:none;
+      border-radius:0;
+    }
+    .drag.is-dragging::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      border:2px dotted var(--select);
+      pointer-events:none;
+      border-radius:0;
+    }
+
+    .drag img{
+      width:70px;
+      height:70px;
+      object-fit:contain;
+      display:block;
+      margin:0 auto;
+      filter:drop-shadow(0 6px 18px rgba(0,0,0,0.14));
+      opacity:0.92;
+      transition:transform 0.15s ease, opacity 0.15s ease;
+    }
+    .drag:hover img{transform:scale(1.03);opacity:1;}
+
+    .label{
+      margin-top:10px;
+      text-transform:uppercase;
+      color:var(--muted);
+      letter-spacing:1.8px;
+    }
+
+    /* Socials */
+    .socials{
+      position:fixed;
+      left:50%;
+      bottom:36px;
+      transform:translateX(-50%);
+      z-index:50;
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:0.4px;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .socials a{ color:inherit; text-decoration:none; }
+    .socials a:hover{ color:rgba(17,17,17,0.9); }
+
+    a{color:inherit;-webkit-tap-highlight-color:transparent;}
+  </style>
+</head>
+
+<body>
+  <div class="redout" id="redout"></div>
+
+  <div class="logo" id="logoBlock">
+    <a href="index.html" aria-label="Home">
+      <img src="assets/logo.png" alt="Logo">
+    </a>
+  </div>
+
+  <a href="projects.html" id="projectsLink" aria-label="Projects">
+    <div class="drag" id="projectsBtn" data-store-key="index:projects">
+      <img src="assets/file.png" alt="Projects">
+      <div class="label">PROJECTS</div>
+    </div>
+  </a>
+
+  <div class="socials" aria-label="Social links">
+    <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
+    &nbsp;/&nbsp;
+    <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
+    &nbsp;/&nbsp;
+    <a href="mailto:r4nmusic@outlook.com">contact</a>
+  </div>
+
+  <script>
+    // ---------- layering ----------
+    let zCounter = 60;
+    function bringToFront(el){
+      zCounter += 1;
+      el.style.zIndex = String(zCounter);
+    }
+
+    // ---------- storage ----------
+    function getStored(key){
+      try { return JSON.parse(localStorage.getItem(key) || "null"); }
+      catch { return null; }
+    }
+    function setStored(key, val){
+      localStorage.setItem(key, JSON.stringify(val));
+    }
+
+    function setElPos(el, x, y){
+      el.style.left = `${x}px`;
+      el.style.top  = `${y}px`;
+    }
+
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+    function clampToViewport(el, x, y){
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const w  = el.offsetWidth;
+      const h  = el.offsetHeight;
+      return { x: clamp(x, 0, vw - w), y: clamp(y, 0, vh - h) };
+    }
+
+    // ---------- homepage easter egg ----------
+    let dragStartTime = null;
+    let eggTriggered = false;
+    const redout = document.getElementById("redout");
+
+    function triggerEasterEgg(){
+      if (eggTriggered) return;
+      eggTriggered = true;
+
+      redout.classList.add("on"); // 0.5s
+      setTimeout(() => {
+        document.body.classList.add("restore");
+        redout.classList.remove("on"); // 1s back
+        setTimeout(() => {
+          document.body.classList.remove("restore");
+          eggTriggered = false;
+        }, 1050);
+      }, 1000);
+    }
+
+    // ---------- draggable (improved click) ----------
+    function makeDraggable(el, linkEl, opts = {}){
+      const storeKey = el.dataset.storeKey;
+
+      let dragging = false;
+      let startX = 0, startY = 0;
+      let offsetX = 0, offsetY = 0;
+      let movedEnough = false;
+      const MOVE_THRESHOLD = opts.moveThreshold ?? 7;
+
+      function pointerDown(e){
+        dragging = true;
+        movedEnough = false;
+        dragStartTime = Date.now();
+
+        bringToFront(el);
+        el.setPointerCapture?.(e.pointerId);
+
+        const rect = el.getBoundingClientRect();
+        startX = e.clientX; startY = e.clientY;
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+
+        el.classList.add("is-dragging");
+        el.style.cursor = "grabbing";
+        e.preventDefault();
+      }
+
+      function pointerMove(e){
+        if (!dragging) return;
+
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (!movedEnough && Math.hypot(dx, dy) > MOVE_THRESHOLD) {
+          movedEnough = true;
+          linkEl.dataset.dragging = "1";
+        }
+
+        setElPos(el, e.clientX - offsetX, e.clientY - offsetY);
+
+        if (opts.enableEasterEgg && movedEnough && dragStartTime && (Date.now() - dragStartTime) >= 10000) {
+          triggerEasterEgg();
+          dragStartTime = null;
+        }
+
+        e.preventDefault();
+      }
+
+      function pointerUp(){
+        if (!dragging) return;
+        dragging = false;
+        dragStartTime = null;
+
+        el.classList.remove("is-dragging");
+        el.style.cursor = "grab";
+
+        const left = parseFloat(el.style.left || "0");
+        const top  = parseFloat(el.style.top  || "0");
+        const snapped = clampToViewport(el, left, top);
+
+        setElPos(el, snapped.x, snapped.y);
+        setStored(storeKey, snapped);
+
+        setTimeout(() => { delete linkEl.dataset.dragging; }, 0);
+      }
+
+      linkEl.addEventListener("click", (e) => {
+        if (linkEl.dataset.dragging === "1") {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
+
+      el.addEventListener("pointerdown", pointerDown);
+      window.addEventListener("pointermove", pointerMove, { passive:false });
+      window.addEventListener("pointerup", pointerUp, { passive:false });
+
+      function initPos(){
+        const saved = getStored(storeKey);
+        const defaultX = (window.innerWidth / 2) - (el.offsetWidth / 2);
+        const defaultY = Math.max(160, (window.innerHeight / 2) - (el.offsetHeight / 2));
+
+        const raw = saved ?? { x: defaultX, y: defaultY };
+        const snapped = clampToViewport(el, raw.x, raw.y);
+
+        setElPos(el, snapped.x, snapped.y);
+        setStored(storeKey, snapped);
+
+        bringToFront(el);
+        el.classList.add("ready");
+      }
+
+      document.addEventListener("DOMContentLoaded", initPos);
+
+      window.addEventListener("resize", () => {
+        const left = parseFloat(el.style.left || "0");
+        const top  = parseFloat(el.style.top  || "0");
+        const snapped = clampToViewport(el, left, top);
+        setElPos(el, snapped.x, snapped.y);
+        setStored(storeKey, snapped);
+      });
+    }
+
+    makeDraggable(
+      document.getElementById("projectsBtn"),
+      document.getElementById("projectsLink"),
+      { enableEasterEgg: true }
+    );
+  </script>
+</body>
+</html>
