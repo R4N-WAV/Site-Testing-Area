@@ -1,15 +1,13 @@
 // Everything that makes a record look like a real object:
 // studio lighting for reflections, a cardboard sleeve with paper grain and ring wear,
-// crinkled shrink-wrap, and a vinyl disc with grooves, dead wax and a printed label.
+// and milky, creased shrink-wrap sealing it.
 // All textures are generated here, so a new release only needs its cover art.
 import * as THREE from "three";
 
-// Real proportions: a 12" sleeve is 31.4 cm, the disc 30 cm, the label 10 cm.
+// Real proportions: a 12" sleeve is 31.4 cm square, the disc inside 30 cm.
 export const SLEEVE = 1;
 export const SLEEVE_DEPTH = 0.011;
-export const DISC_R = 0.477;
-export const DISC_PEEK_X = 0.31; // how far the disc sits out of the sleeve
-export const RECORD_WIDTH = SLEEVE / 2 + DISC_PEEK_X + DISC_R; // sleeve + visible disc
+const DISC_R = 0.477; // only used for the ring wear it leaves on the sleeve
 
 // ---------- small helpers ----------
 function mulberry32(seed) {
@@ -113,89 +111,17 @@ function makeEnvironment(renderer) {
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  panel(9, 5.5, 4.5, "#ffffff", [-8, 7, 13]);   // key: big softbox, upper left, in front
-  panel(18, 2.2, 1.4, "#ffffff", [3, 8, 15]);  // long overhead softbox: the band of sheen across the wrap
-  panel(1.3, 13, 6, "#ffffff", [12, 1, 8]);     // strip light on the right (the streak across the grooves)
-  panel(12, 1.4, 2.4, "#ffe6c9", [0, 11, -7]);  // warm top rim from behind
-  panel(7, 7, 0.55, "#9fa8ff", [-12, -2, -7]);  // cool fill from behind left
-  panel(40, 40, 0.035, "#ffffff", [0, -16, 0]); // faint floor bounce
+  // palette: white key, rose and magenta accents
+  panel(9, 5.5, 4.2, "#ffffff", [-8, 7, 13]);   // key: big softbox, upper left, in front
+  panel(18, 2.2, 1.3, "#ffffff", [3, 8, 15]);  // long overhead softbox: the band of sheen across the wrap
+  panel(1.3, 13, 5.5, "#c3a1b2", [12, 1, 8]);   // rose strip light on the right
+  panel(12, 1.4, 3.2, "#c03fbd", [0, 11, -7]);  // magenta rim from behind
+  panel(7, 7, 0.5, "#48353f", [-12, -2, -7]);   // plum fill from behind left
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const tex = pmrem.fromScene(env, 0.03).texture;
   pmrem.dispose();
   return tex;
-}
-
-// ============================================================
-//  Vinyl surface: grooves (anisotropic sheen), track gaps, dead wax, lip.
-//  Shared by every record; only the colour and label change.
-// ============================================================
-const LABEL_R = 0.333;  // label edge (fraction of disc radius)
-const RUNOUT_R = 0.40;  // grooves start here
-const GROOVE_R = 0.962; // grooves end here, then the smooth edge
-function grooveMaps(S = 1024) {
-  const normal = new Uint8Array(S * S * 4);
-  const rough = new Uint8Array(S * S * 4);
-  const aniso = new Uint8Array(S * S * 4);
-  const rnd = mulberry32(7);
-  const gaps = [0.505, 0.585, 0.67, 0.77, 0.875];
-  const trackAmp = [0.9, 1.1, 0.75, 1.0, 1.2, 0.85].map((a) => a * (0.85 + rnd() * 0.3));
-  const R = S / 2;
-
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const dx = (x + 0.5 - R) / R;
-      const dy = (y + 0.5 - R) / R;
-      const r = Math.hypot(dx, dy) || 1e-6;
-      const ux = dx / r, uy = dy / r;
-      let slope = 0, roughness = 0.6, strength = 0;
-
-      if (r < LABEL_R) {
-        roughness = 0.62;                     // paper label
-      } else if (r < RUNOUT_R) {
-        roughness = 0.09; strength = 0.12;    // dead wax: smooth and glossy
-        slope = Math.exp(-(((r - 0.355) / 0.0025) ** 2)) * 0.9; // locked groove
-      } else if (r < GROOVE_R) {
-        let inGap = false;
-        for (const gp of gaps) if (Math.abs(r - gp) < 0.0055) inGap = true;
-        if (inGap) {
-          roughness = 0.08; strength = 0.2;
-        } else {
-          let track = 0;
-          for (const gp of gaps) if (r > gp) track++;
-          const amp = trackAmp[track] * 0.32;
-          slope = Math.cos(r * R * Math.PI * 2 / 2.4) * amp;  // microgrooves
-          roughness = 0.26 + rnd() * 0.04;
-          strength = 1;
-        }
-      } else {
-        roughness = 0.1; strength = 0.1;      // smooth outer edge
-        slope = Math.sin(((r - GROOVE_R) / (1 - GROOVE_R)) * Math.PI) * -0.8; // raised lip
-      }
-
-      const nx = -slope * ux, ny = -slope * uy;
-      const len = Math.hypot(nx, ny, 1);
-      const o = (y * S + x) * 4;
-      normal[o] = (nx / len * 0.5 + 0.5) * 255;
-      normal[o + 1] = (ny / len * 0.5 + 0.5) * 255;
-      normal[o + 2] = (1 / len * 0.5 + 0.5) * 255;
-      normal[o + 3] = 255;
-
-      rough[o] = rough[o + 1] = rough[o + 2] = roughness * 255;
-      rough[o + 3] = 255;
-
-      // groove direction runs around the disc (tangential)
-      aniso[o] = (-uy * 0.5 + 0.5) * 255;
-      aniso[o + 1] = (ux * 0.5 + 0.5) * 255;
-      aniso[o + 2] = strength * 255;
-      aniso[o + 3] = 255;
-    }
-  }
-  return {
-    normal: dataTexture(normal, S),
-    rough: dataTexture(rough, S),
-    aniso: dataTexture(aniso, S),
-  };
 }
 
 // ============================================================
@@ -290,7 +216,24 @@ function wrapNormal(S = 1024, seed = 3) {
     }
   }
   blur(h, S, 3);
-  return dataTexture(heightToNormal(h, S, 7), S);
+
+  // Haze: the plastic is milky everywhere, and goes whiter where it creases or
+  // bunches up at the edges (stretched and folded film scatters more light).
+  const haze = new Uint8Array(S * S * 4);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      const lap = Math.abs(
+        h[y * S + Math.min(S - 1, x + 2)] + h[y * S + Math.max(0, x - 2)] +
+        h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i]
+      );
+      const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
+      const v = 0.1 + Math.min(0.55, lap * 11) + Math.max(0, 0.03 - edge) * 7;
+      haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
+      haze[i * 4 + 3] = 255;
+    }
+  }
+  return { normal: dataTexture(heightToNormal(h, S, 7), S), haze: dataTexture(haze, S) };
 }
 
 // ============================================================
@@ -366,58 +309,22 @@ function spineCanvas(rel, tint) {
   return c;
 }
 
-function discCanvas(image, vinylHex) {
-  const S = 1024, R = S / 2;
-  const c = makeCanvas(S);
-  const g = c.getContext("2d");
-  g.fillStyle = vinylHex;
-  g.fillRect(0, 0, S, S);
-  // grooves read very slightly lighter than the smooth parts
-  g.strokeStyle = "rgba(255,255,255,0.025)";
-  g.lineWidth = R * (GROOVE_R - RUNOUT_R);
-  g.beginPath(); g.arc(R, R, R * (GROOVE_R + RUNOUT_R) / 2, 0, Math.PI * 2); g.stroke();
-  // label
-  const L = R * LABEL_R;
-  g.save();
-  g.beginPath(); g.arc(R, R, L, 0, Math.PI * 2); g.clip();
-  const iw = image.naturalWidth || image.width, ih = image.naturalHeight || image.height;
-  const s = Math.max((L * 2) / iw, (L * 2) / ih);
-  g.drawImage(image, R - (iw * s) / 2, R - (ih * s) / 2, iw * s, ih * s);
-  // printed rim + small text, like a real label
-  g.strokeStyle = "rgba(0,0,0,0.35)";
-  g.lineWidth = 3;
-  g.beginPath(); g.arc(R, R, L - 2, 0, Math.PI * 2); g.stroke();
-  g.fillStyle = "rgba(255,255,255,0.8)";
-  g.shadowColor = "rgba(0,0,0,0.6)"; g.shadowBlur = 4;
-  g.font = "600 13px ui-monospace, Menlo, monospace";
-  g.textAlign = "center";
-  g.fillText("SIDE A  ·  33⅓", R, R + L * 0.78);
-  g.restore();
-  // spindle hole
-  g.fillStyle = "#020202";
-  g.beginPath(); g.arc(R, R, R * 0.024, 0, Math.PI * 2); g.fill();
-  return c;
-}
-
 // ============================================================
 //  Public API
 // ============================================================
 export function createShared(renderer) {
   return {
     env: makeEnvironment(renderer),
-    grooves: grooveMaps(),
     paper: paperBump(),
     wraps: [wrapNormal(1024, 3), wrapNormal(1024, 11)],
     sleeveGeo: new THREE.BoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH),
     wrapGeo: new THREE.BoxGeometry(SLEEVE + 0.008, SLEEVE + 0.008, SLEEVE_DEPTH + 0.005),
-    discGeo: new THREE.CylinderGeometry(DISC_R, DISC_R, 0.0045, 128, 1),
-    hidden: new THREE.MeshBasicMaterial({ visible: false }),
-    inside: new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 0.9 }),
   };
 }
 
-// One record: sleeve in shrink-wrap with the disc partly out of the open side.
-// Returns a group centred on the visible shape.
+// One record: a sealed sleeve. Returns a group centred on it.
+// The sleeve takes almost no light from the studio map, so in the dark it stays dark
+// and only the spotlight brings it out; the wrap keeps the reflections.
 export function buildRecord(rel, shared, index) {
   const tint = averageColor(rel.image);
 
@@ -428,62 +335,57 @@ export function buildRecord(rel, shared, index) {
     sheen: 0.3,
     sheenRoughness: 0.7,
     sheenColor: new THREE.Color(0xffffff),
+    envMapIntensity: 0.18,
   };
   const front = new THREE.MeshPhysicalMaterial({ map: canvasTexture(frontCanvas(rel.image)), ...paper });
   const back = new THREE.MeshPhysicalMaterial({ map: canvasTexture(backCanvas(rel, tint)), ...paper, roughness: 0.7 });
-  const spine = new THREE.MeshPhysicalMaterial({ map: canvasTexture(spineCanvas(rel, tint)), roughness: 0.65 });
-  const edge = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.6), roughness: 0.7 });
+  const spine = new THREE.MeshPhysicalMaterial({ map: canvasTexture(spineCanvas(rel, tint)), roughness: 0.65, envMapIntensity: 0.18 });
+  const edge = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.6), roughness: 0.7, envMapIntensity: 0.18 });
   // box faces: +x (open side), -x (spine), +y, -y, +z (front), -z (back)
-  const sleeve = new THREE.Mesh(shared.sleeveGeo, [shared.inside, spine, edge, edge, front, back]);
+  const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, spine, edge, edge, front, back]);
 
-  const wrapTex = shared.wraps[index % shared.wraps.length].clone();
-  wrapTex.needsUpdate = true;
-  wrapTex.rotation = (index % 4) * (Math.PI / 2);
-  wrapTex.center.set(0.5, 0.5);
-  // Clear plastic: no colour of its own, only reflections, added on top of the sleeve.
-  // (Additive blending keeps the artwork underneath perfectly sharp.)
-  const wrapMat = new THREE.MeshPhysicalMaterial({
+  const maps = shared.wraps[index % shared.wraps.length];
+  const variant = (tex) => {
+    const t = tex.clone();
+    t.needsUpdate = true;
+    t.center.set(0.5, 0.5);
+    t.rotation = (index % 4) * (Math.PI / 2);
+    return t;
+  };
+  // Layer 1: the milky film itself. Lit like any surface, so it's invisible in the dark
+  // and turns hazy-white in the light, strongest along creases and edges.
+  const hazeMat = new THREE.MeshStandardMaterial({
+    color: 0xf4eef2,
+    roughness: 0.55,
+    metalness: 0,
+    alphaMap: variant(maps.haze),
+    normalMap: variant(maps.normal),
+    normalScale: new THREE.Vector2(0.3, 0.3),
+    envMapIntensity: 0.25,
+    transparent: true,
+    depthWrite: false,
+  });
+  // Layer 2: reflections only, added on top so highlights stay bright and crisp.
+  const shineMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000,
     metalness: 0,
     roughness: 0.05,
     ior: 1.5,
     specularIntensity: 1,
-    normalMap: wrapTex,
+    normalMap: variant(maps.normal),
     normalScale: new THREE.Vector2(0.3, 0.3),
-    envMapIntensity: 1.3,
+    envMapIntensity: 1.4,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  // the wrap is slit along the open side, where the disc comes out
-  const wrap = new THREE.Mesh(shared.wrapGeo, [shared.hidden, wrapMat, wrapMat, wrapMat, wrapMat, wrapMat]);
-
-  const discFace = new THREE.MeshPhysicalMaterial({
-    map: canvasTexture(discCanvas(rel.image, rel.vinyl)),
-    roughness: 1,
-    roughnessMap: shared.grooves.rough,
-    normalMap: shared.grooves.normal,
-    normalScale: new THREE.Vector2(0.6, 0.6),
-    anisotropy: 0.95,
-    anisotropyMap: shared.grooves.aniso,
-    metalness: 0,
-    ior: 1.5,
-    specularIntensity: 1,
-    envMapIntensity: 2.2,
-  });
-  const discEdge = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(rel.vinyl), roughness: 0.2, envMapIntensity: 1.2 });
-  const disc = new THREE.Mesh(shared.discGeo, [discEdge, discFace, discFace]);
-  disc.rotation.x = Math.PI / 2;
-  disc.rotation.y = index * 1.7; // labels don't all line up the same way
-  disc.position.x = DISC_PEEK_X;
-
-  const content = new THREE.Group();
-  content.add(sleeve, disc, wrap);
-  // centre the sleeve + visible disc as one shape
-  content.position.x = -(DISC_PEEK_X + DISC_R - SLEEVE / 2) / 2;
+  const haze = new THREE.Mesh(shared.wrapGeo, hazeMat);
+  const shine = new THREE.Mesh(shared.wrapGeo, shineMat);
+  haze.renderOrder = 1;
+  shine.renderOrder = 2;
 
   const group = new THREE.Group();
-  group.add(content);
-  for (const m of [sleeve, disc, wrap]) m.userData.index = index;
-  return { group, pickables: [sleeve, disc, wrap] };
+  group.add(sleeve, haze, shine);
+  for (const m of [sleeve, haze, shine]) m.userData.index = index;
+  return { group, pickables: [sleeve], materials: { front, hazeMat, shineMat } };
 }

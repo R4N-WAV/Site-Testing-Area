@@ -1,23 +1,25 @@
 import * as THREE from "three";
 import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, yearOf } from "./data.js";
-import { createShared, buildRecord, RECORD_WIDTH, SLEEVE } from "./materials.js";
+import { createShared, buildRecord, SLEEVE } from "./materials.js";
 
-const BG = 0x0c0c0e;   // keep in sync with --bg in css/site.css
-const LOGO = 0x060607; // the big centre logo: same tone as the background, darker
+// Palette (from the reference): pitch black, mauve, rose, plum, magenta.
+const BG = 0x000000;
+const ROSE = new THREE.Color("#c3a1b2");
+const MAGENTA = new THREE.Color("#c03fbd");
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const isPhone = () => window.innerWidth <= 768;
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Where the enlarged record sits when a song is open. The info text starts right under it.
 function heroLayout() {
   const W = window.innerWidth, H = window.innerHeight;
-  const top = isPhone() ? 70 : 84;
-  const height = isPhone()
-    ? Math.min((W * 0.84) / RECORD_WIDTH, H * 0.4)
-    : Math.min(H * 0.5, (W * 0.6) / RECORD_WIDTH, 560);
+  const top = isPhone() ? 72 : 88;
+  const height = isPhone() ? Math.min(W * 0.78, H * 0.42) : Math.min(H * 0.52, W * 0.5, 540);
   return { top, height: Math.round(height) };
 }
 function applyHeroLayout() {
@@ -33,6 +35,45 @@ function webglAvailable() {
   } catch { return false; }
 }
 
+// Comic-book halftone glow: dots on a screen-space grid that grow toward the centre.
+function halftoneMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    uniforms: {
+      uStrength: { value: 0 },
+      uCell: { value: 9 },
+      uInner: { value: MAGENTA.clone() },
+      uOuter: { value: ROSE.clone() },
+    },
+    vertexShader: /* glsl */`
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: /* glsl */`
+      uniform float uStrength, uCell;
+      uniform vec3 uInner, uOuter;
+      varying vec2 vUv;
+      void main() {
+        vec2 c = vUv - 0.5;
+        float r = length(c * vec2(1.0, 1.15)) * 2.0;
+        float fall = clamp(1.0 - r, 0.0, 1.0);
+        fall = fall * fall * (3.0 - 2.0 * fall);
+        // dot grid at 45 degrees, like print
+        vec2 p = gl_FragCoord.xy / uCell;
+        p = mat2(0.7071, -0.7071, 0.7071, 0.7071) * p;
+        float d = length(fract(p) - 0.5);
+        float radius = 0.62 * sqrt(fall * uStrength);
+        float dotMask = 1.0 - smoothstep(radius - 0.06, radius, d);
+        vec3 col = mix(uOuter, uInner, smoothstep(0.25, 0.9, fall));
+        gl_FragColor = vec4(col * dotMask * (0.25 + 0.75 * fall) * uStrength, 1.0);
+      }
+    `,
+  });
+}
+
 // ============================================================
 //  THE SPACE
 // ============================================================
@@ -45,7 +86,6 @@ function startSpace(releases, ui) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // "Neutral" keeps cover art colours true while still handling bright reflections
   renderer.toneMapping = THREE.NeutralToneMapping;
-  renderer.toneMappingExposure = 1.0;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 200);
@@ -53,36 +93,30 @@ function startSpace(releases, ui) {
 
   const shared = createShared(renderer);
   scene.environment = shared.env;
-  // direct light so the artwork reads at its true brightness; reflections come from the studio map
-  const key = new THREE.DirectionalLight(0xffffff, 1.55);
-  key.position.set(-2.5, 3.5, 6);
-  scene.add(key);
-  const fill = new THREE.DirectionalLight(0xdfe4ff, 0.5);
-  fill.position.set(4, 1, 3);
-  scene.add(fill);
 
-  // ---------- ring ----------
+  // ---------- ring layout (same perspective as before) ----------
   const n = releases.length;
   const R = Math.max(3.0, (n * 1.55) / (Math.PI * 2));
+  const step = (Math.PI * 2) / Math.max(1, n);
 
-  // ---------- big centre logo, blended into the background ----------
-  const logoTex = new THREE.TextureLoader().load("assets/logo-white.png", (t) => {
-    const aspect = t.image.width / t.image.height;
-    logo.scale.set(logoWidth, logoWidth / aspect, 1);
-  });
-  logoTex.colorSpace = THREE.SRGBColorSpace;
-  logoTex.anisotropy = 8;
-  const logoWidth = R * 1.75;
-  const logo = new THREE.Mesh(
-    new THREE.PlaneGeometry(1, 1),
-    new THREE.MeshBasicMaterial({ map: logoTex, color: LOGO, alphaTest: 0.35, toneMapped: false })
-  );
-  logo.scale.set(logoWidth, logoWidth / 2.2, 1);
-  logo.position.set(0, 0.25, 0);
-  scene.add(logo);
+  // ---------- light: near darkness, one spotlight on the record at the front ----------
+  scene.add(new THREE.AmbientLight(0xffffff, 0.09));
+  const rim = new THREE.DirectionalLight(MAGENTA, 0.9);
+  rim.position.set(-4, 3, -5);
+  scene.add(rim);
+  const spot = new THREE.SpotLight(0xfff6fa, 7, 0, 0.3, 0.75, 0);
+  spot.position.set(-0.6, 4.6, R + 2.6);
+  spot.target.position.set(0, 0, R);
+  scene.add(spot, spot.target);
 
-  // ---------- faint dust for depth ----------
-  const dustCount = reducedMotion ? 200 : 520;
+  // halftone glow behind the front record
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6), halftoneMaterial());
+  glow.position.set(0, 0.05, R - 0.9);
+  glow.renderOrder = -1;
+  scene.add(glow);
+
+  // faint dust for depth
+  const dustCount = reducedMotion ? 150 : 380;
   const dustPos = new Float32Array(dustCount * 3);
   for (let i = 0; i < dustCount; i++) {
     dustPos[i * 3] = (Math.random() - 0.5) * R * 6;
@@ -92,7 +126,7 @@ function startSpace(releases, ui) {
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
-    color: 0xffffff, size: 0.012, transparent: true, opacity: 0.35, depthWrite: false,
+    color: ROSE, size: 0.012, transparent: true, opacity: 0.22, depthWrite: false,
   }));
   scene.add(dust);
 
@@ -102,22 +136,21 @@ function startSpace(releases, ui) {
     const holder = new THREE.Object3D();
     holder.add(rec.group);
     scene.add(holder);
-    const label = document.createElement("div");
-    label.className = "vlabel";
-    label.textContent = rel.title;
-    $("labels").appendChild(label);
+    const seed = i * 2.399;
     return {
-      rel, holder, label, pickables: rec.pickables,
-      slot: (i / Math.max(1, n)) * Math.PI * 2,
-      bobPhase: i * 1.37,
+      rel, holder, pickables: rec.pickables,
+      slot: i * step,
+      // each record drifts on its own slow, cinematic tilt
+      phase: [seed, seed * 1.7 + 1, seed * 0.6 + 2],
+      speed: [0.21 + (i % 3) * 0.03, 0.17 + (i % 2) * 0.04, 0.13],
       hover: 0,
-      blend: 0,        // 0 = in the ring, 1 = enlarged
+      blend: 0,
       blendTarget: 0,
     };
   });
   const pickables = items.flatMap((it) => it.pickables);
 
-  // a veil between the ring and the enlarged record
+  // darkness between the ring and an enlarged record
   const veil = new THREE.Mesh(
     new THREE.PlaneGeometry(40, 40),
     new THREE.MeshBasicMaterial({ color: BG, transparent: true, opacity: 0, depthWrite: false, toneMapped: false })
@@ -126,6 +159,14 @@ function startSpace(releases, ui) {
   veil.position.z = -(HERO_DEPTH + 0.5);
   veil.renderOrder = 10;
   camera.add(veil);
+
+  // the enlarged record gets its own spotlight, carried with the camera
+  const heroSpot = new THREE.SpotLight(0xfff6fa, 0, 0, 0.55, 0.7, 0);
+  heroSpot.position.set(-0.7, 1.3, 0.4);
+  const heroTarget = new THREE.Object3D();
+  heroTarget.position.set(0, 0, -HERO_DEPTH);
+  camera.add(heroSpot, heroTarget);
+  heroSpot.target = heroTarget;
 
   // ---------- camera ----------
   function placeCamera() {
@@ -140,14 +181,23 @@ function startSpace(releases, ui) {
   }
   placeCamera();
 
-  // ---------- state ----------
-  let rot = 0;           // ring rotation
-  let vel = 0;           // flick momentum
-  let auto = reducedMotion ? 0 : 0.06;
+  // ---------- carousel physics ----------
+  // rot = ring angle, vel = angular velocity. Drag, swipe, scroll and arrow keys all
+  // push it; it coasts and loses energy, then settles with a record at the front.
+  let rot = 0;
+  let vel = 0;
+  let focused = 0;
   let hovered = -1;
   let selected = -1;
-  const pointerN = new THREE.Vector2(); // -1..1, for the tilt on the enlarged record
-  const tilt = new THREE.Vector2();
+  const FRICTION = 0.75;   // lower = keeps spinning longer
+  const SNAP_BELOW = 0.45; // start settling below this speed (rad/s)
+
+  const nearestSlotRot = (r) => Math.round(r / step) * step;
+  let goal = null; // set by arrow keys: a specific ring angle to glide to
+  function spinTo(index) {
+    // the shortest way round to put this record at the front
+    goal = rot + wrapAngle(-items[index].slot - rot);
+  }
 
   // ---------- picking & dragging ----------
   const raycaster = new THREE.Raycaster();
@@ -160,21 +210,25 @@ function startSpace(releases, ui) {
   }
 
   let drag = null;
-  const spinPerPx = () => (Math.PI * 1.1) / window.innerWidth;
+  const spinPerPx = () => (Math.PI * 1.0) / Math.min(window.innerWidth, 900);
   canvas.addEventListener("pointerdown", (e) => {
-    drag = { lastX: e.clientX, lastT: performance.now(), moved: 0 };
+    drag = { lastX: e.clientX, lastY: e.clientY, lastT: performance.now(), moved: 0 };
+    goal = null;
     canvas.setPointerCapture?.(e.pointerId);
     ui.dismissHint();
   });
   canvas.addEventListener("pointermove", (e) => {
     if (drag) {
+      // sideways drags and up/down swipes both turn the ring
       const dx = e.clientX - drag.lastX;
+      const dy = e.clientY - drag.lastY;
+      const d = Math.abs(dx) >= Math.abs(dy) ? dx : -dy;
       const now = performance.now();
       const dt = Math.max(8, now - drag.lastT) / 1000;
-      rot += dx * spinPerPx();
-      vel = vel * 0.6 + ((dx * spinPerPx()) / dt) * 0.4;
-      drag.moved += Math.abs(dx);
-      drag.lastX = e.clientX; drag.lastT = now;
+      rot += d * spinPerPx();
+      vel = vel * 0.5 + ((d * spinPerPx()) / dt) * 0.5;
+      drag.moved += Math.hypot(dx, dy);
+      drag.lastX = e.clientX; drag.lastY = e.clientY; drag.lastT = now;
       if (drag.moved > 6) { hovered = -1; document.body.classList.remove("is-hovering"); }
       return;
     }
@@ -186,10 +240,9 @@ function startSpace(releases, ui) {
   const endDrag = (e) => {
     if (!drag) return;
     const wasClick = drag.moved < 6;
-    if (performance.now() - drag.lastT > 90) vel = 0; // held still before letting go
+    if (performance.now() - drag.lastT > 90) vel *= 0.2; // held still before letting go
     drag = null;
     if (wasClick) {
-      vel = 0;
       const i = pick(e.clientX, e.clientY);
       if (i !== -1) select(i);
     }
@@ -197,24 +250,44 @@ function startSpace(releases, ui) {
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", () => { drag = null; });
   canvas.addEventListener("pointerleave", () => { if (!drag) { hovered = -1; document.body.classList.remove("is-hovering"); } });
-  canvas.addEventListener("wheel", (e) => {
-    vel += (e.deltaX + e.deltaY) * 0.0012;
-    vel = clamp(vel, -3, 3);
+  // scrolling down spins the ring further
+  window.addEventListener("wheel", (e) => {
+    if (selected !== -1 || document.body.classList.contains("index-open")) return;
+    const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY + e.deltaX;
+    vel = clamp(vel - delta * 0.0022, -6, 6);
+    goal = null;
+    ui.dismissHint();
   }, { passive: true });
-  window.addEventListener("pointermove", (e) => {
-    pointerN.set((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1);
-  });
 
   function select(i) {
     selected = i;
     items.forEach((it, k) => { it.blendTarget = k === i ? 1 : 0; });
     hovered = -1;
+    heroTilt.set(0, 0); heroTiltVel.set(0, 0);
     document.body.classList.remove("is-hovering");
     ui.showDetail(items[i].rel, i);
   }
   function deselect() {
     selected = -1;
     items.forEach((it) => { it.blendTarget = 0; });
+  }
+
+  // ---------- tilting the enlarged record by dragging ----------
+  // Spring physics; total tilt is capped so the back never comes into view.
+  const heroTilt = new THREE.Vector2();     // x = turn left/right, y = tip up/down (radians)
+  const heroTiltVel = new THREE.Vector2();
+  let tilting = false;
+  const MAX_TILT = 0.95;
+  function capTilt() {
+    const m = heroTilt.length();
+    if (m > MAX_TILT) heroTilt.multiplyScalar(MAX_TILT / m);
+  }
+  function tiltBy(dx, dy) {
+    const k = 3.2 / Math.min(window.innerWidth, 800);
+    heroTilt.x += dx * k;
+    heroTilt.y += dy * k;
+    capTilt();
+    heroTiltVel.set(dx * k * 40, dy * k * 40);
   }
 
   window.addEventListener("resize", () => {
@@ -229,27 +302,29 @@ function startSpace(releases, ui) {
   const heroPos = new THREE.Vector3();
   const heroQuat = new THREE.Quaternion();
   const euler = new THREE.Euler();
-  const tmp = new THREE.Vector3();
+  const q = new THREE.Quaternion();
+  const look = new THREE.Matrix4();
+  const up = new THREE.Vector3(0, 1, 0);
+  let heroScale = 1;
 
   function heroTransform(t) {
     const { top, height } = heroLayout();
-    const W = window.innerWidth, H = window.innerHeight;
+    const H = window.innerHeight;
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const worldPerPx = (2 * HERO_DEPTH * tanV) / H;
     const cy = top + height / 2 - ui.scrollTop();
     heroPos.set(0, -(cy - H / 2) * worldPerPx, -HERO_DEPTH);
+    heroTarget.position.copy(heroPos);
     camera.localToWorld(heroPos);
-    const scale = (height * worldPerPx) / SLEEVE;
-    // slow sway + follows the pointer a little, so the light moves across it
-    const sway = reducedMotion ? 0 : 1;
-    tilt.lerp(pointerN, 0.04);
+    heroScale = (height * worldPerPx) / SLEEVE;
+    const idle = reducedMotion ? 0 : 1;
     euler.set(
-      (Math.sin(t * 0.27) * 0.05 + tilt.y * 0.16) * sway,
-      (Math.sin(t * 0.35) * 0.1 + tilt.x * 0.24) * sway,
-      0
+      heroTilt.y + Math.sin(t * 0.27) * 0.04 * idle,
+      heroTilt.x + Math.sin(t * 0.35) * 0.07 * idle,
+      Math.sin(t * 0.19) * 0.02 * idle,
+      "YXZ"
     );
-    heroQuat.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromEuler(euler));
-    return scale;
+    heroQuat.copy(camera.quaternion).multiply(q.setFromEuler(euler));
   }
 
   function frame() {
@@ -257,38 +332,69 @@ function startSpace(releases, ui) {
     const t = clock.elapsedTime;
     const open = selected !== -1;
 
-    // ring motion: slow drift, stops while hovering or when a song is open
-    const wantAuto = reducedMotion || open || hovered !== -1 ? 0 : 0.06;
-    auto += (wantAuto - auto) * Math.min(1, dt * 2);
-    if (!drag) {
-      rot += (auto + vel) * dt;
-      vel *= Math.exp(-dt * 1.8);
+    // carousel
+    if (!drag && goal !== null) {
+      vel += ((goal - rot) * 9 - vel * 6) * dt;
+      rot += vel * dt;
+      if (Math.abs(goal - rot) < 1e-3 && Math.abs(vel) < 0.01) { rot = goal; vel = 0; goal = null; }
+    } else if (!drag) {
+      rot += vel * dt;
+      vel *= Math.exp(-dt * FRICTION);
+      if (Math.abs(vel) < SNAP_BELOW) {
+        const diff = nearestSlotRot(rot) - rot;
+        vel += (diff * 10 - vel * 4.2) * dt; // gentle spring into place
+        if (Math.abs(diff) < 1e-4 && Math.abs(vel) < 1e-3) { rot += diff; vel = 0; }
+      }
     }
 
-    dust.rotation.y += dt * 0.01;
+    // hero tilt spring (back to rest when not being dragged)
+    if (!tilting) {
+      heroTiltVel.x += (-heroTilt.x * 14 - heroTiltVel.x * 5) * dt;
+      heroTiltVel.y += (-heroTilt.y * 14 - heroTiltVel.y * 5) * dt;
+      heroTilt.x += heroTiltVel.x * dt;
+      heroTilt.y += heroTiltVel.y * dt;
+      capTilt();
+    }
+
+    dust.rotation.y += dt * 0.008;
 
     let veilTarget = 0;
+    let best = -2, bestIdx = 0;
     items.forEach((it, i) => {
-      // blend between ring and enlarged
-      const step = dt / (reducedMotion ? 0.05 : 0.95);
-      it.blend = it.blendTarget > it.blend ? Math.min(it.blendTarget, it.blend + step) : Math.max(it.blendTarget, it.blend - step);
+      const s = dt / (reducedMotion ? 0.05 : 0.95);
+      it.blend = it.blendTarget > it.blend ? Math.min(it.blendTarget, it.blend + s) : Math.max(it.blendTarget, it.blend - s);
       const b = ease(it.blend);
       veilTarget = Math.max(veilTarget, b);
 
       const active = i === hovered && !open;
       it.hover += ((active ? 1 : 0) - it.hover) * Math.min(1, dt * 6);
 
-      // place on the horizontal ring
+      // position on the ring, floating gently
       const th = it.slot + rot;
-      ringPos.set(Math.sin(th) * R, Math.sin(t * 0.6 + it.bobPhase) * 0.04 + it.hover * 0.08, Math.cos(th) * R);
-      const towardCam = Math.atan2(camera.position.x - ringPos.x, camera.position.z - ringPos.z);
-      // mostly facing you, turning slightly outward as they swing round the sides
-      euler.set(0, towardCam + Math.sin(th) * 0.45, 0);
-      ringQuat.setFromEuler(euler);
+      const front = Math.cos(th);
+      if (front > best) { best = front; bestIdx = i; }
+      ringPos.set(
+        Math.sin(th) * R,
+        Math.sin(t * 0.6 + it.phase[0]) * 0.05 + it.hover * 0.06,
+        Math.cos(th) * R
+      );
+
+      // always facing you, with its own slow tilt in every axis, and a lean while the ring moves
+      look.lookAt(camera.position, ringPos, up);
+      ringQuat.setFromRotationMatrix(look);
+      const m = reducedMotion ? 0.3 : 1;
+      const lean = clamp(vel, -3, 3);
+      euler.set(
+        Math.sin(t * it.speed[0] + it.phase[0]) * 0.16 * m,
+        Math.sin(t * it.speed[1] + it.phase[1]) * 0.24 * m + lean * 0.06,
+        Math.sin(t * it.speed[2] + it.phase[2]) * 0.09 * m - lean * 0.035,
+        "YXZ"
+      );
+      ringQuat.multiply(q.setFromEuler(euler));
       const ringScale = 1 + it.hover * 0.05;
 
       if (b > 0) {
-        const heroScale = heroTransform(t);
+        heroTransform(t);
         it.holder.position.lerpVectors(ringPos, heroPos, b);
         it.holder.quaternion.slerpQuaternions(ringQuat, heroQuat, b);
         it.holder.scale.setScalar(ringScale + (heroScale - ringScale) * b);
@@ -297,27 +403,43 @@ function startSpace(releases, ui) {
         it.holder.quaternion.copy(ringQuat);
         it.holder.scale.setScalar(ringScale);
       }
-
-      // title under each record (hidden while a song is open)
-      tmp.copy(ringPos);
-      tmp.y -= 0.62;
-      tmp.project(camera);
-      const front = (Math.cos(th) + 1) / 2;
-      const x = (tmp.x * 0.5 + 0.5) * window.innerWidth;
-      const y = (-tmp.y * 0.5 + 0.5) * window.innerHeight;
-      it.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, 0)`;
-      // only the records on the near half of the ring show a title
-      it.label.style.opacity = open || b > 0.01 ? "0" : String(clamp((front - 0.4) / 0.35, 0, 1));
-      it.label.classList.toggle("is-hot", active);
     });
 
-    veil.material.opacity = veilTarget * 0.94;
+    if (bestIdx !== focused) {
+      focused = bestIdx;
+      ui.setFocused(items[focused].rel, focused, items.length);
+    }
+
+    // the spotlight and glow belong to whichever record is at the front
+    const centred = Math.pow(Math.max(0, best), 40); // 1 only when exactly at the front
+    const ringLight = (1 - veilTarget);
+    spot.intensity = 7 * (0.35 + 0.65 * centred) * ringLight;
+    glow.material.uniforms.uStrength.value = (0.25 + 0.75 * centred) * ringLight;
+    glow.material.uniforms.uCell.value = 9 * renderer.getPixelRatio();
+    heroSpot.intensity = 4.2 * veilTarget;
+    veil.material.opacity = veilTarget * 0.92;
+
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
 
-  return { select, deselect };
+  ui.setFocused(items[0].rel, 0, items.length);
+
+  return {
+    select,
+    deselect,
+    tiltStart() { tilting = true; heroTiltVel.set(0, 0); },
+    tiltBy,
+    tiltEnd() { tilting = false; },
+    spinTo,
+    nudge(dir) { spinTo((focused + dir + items.length) % items.length); },
+    openFocused() { select(focused); },
+    // the very first frame, so the loader can wait until the scene is really on screen
+    firstFrame: () => new Promise((resolve) => {
+      renderer.render(scene, camera);
+      requestAnimationFrame(() => { requestAnimationFrame(frame); resolve(); });
+    }),
+  };
 }
 
 // ============================================================
@@ -326,6 +448,7 @@ function startSpace(releases, ui) {
 function buildUI(releases) {
   const detail = $("detail");
   const scroller = $("detailScroll");
+  const hero = $("detailHero");
   const indexEl = $("index");
   const indexBtn = $("indexBtn");
   let space = null;
@@ -333,12 +456,13 @@ function buildUI(releases) {
 
   // ---------- index list ----------
   const list = $("indexList");
-  if (!releases.length) list.innerHTML = `<li class="index__empty">NOTHING IN ORBIT YET</li>`;
+  if (!releases.length) list.innerHTML = `<li class="index__empty">NOTHING HERE YET</li>`;
   releases.forEach((rel, i) => {
     const li = document.createElement("li");
     li.className = "index__item";
     li.innerHTML = `
       <button type="button">
+        <span class="index__num">${String(i + 1).padStart(2, "0")}</span>
         <img src="${escapeHTML(rel.coverUrl)}" alt="" loading="lazy">
         <span><span class="index__title">${escapeHTML(rel.title)}</span>
         <span class="index__sub">${escapeHTML([rel.type, rel.artist].filter(Boolean).join(" · "))}</span></span>
@@ -356,6 +480,10 @@ function buildUI(releases) {
     if (current !== -1) close();
     setIndex(indexEl.hidden);
   });
+
+  // ---------- caption for the record at the front ----------
+  const caption = $("caption");
+  $("captionOpen").addEventListener("click", () => space?.openFocused());
 
   // ---------- detail ----------
   function open(i) {
@@ -377,6 +505,7 @@ function buildUI(releases) {
     $("dCover").alt = `${rel.title} cover art`;
     $("dMeta").textContent = [rel.type, yearOf(rel)].filter(Boolean).join(" · ");
     $("dTitle").textContent = rel.title;
+    $("dTitle").dataset.text = rel.title;
     $("dArtist").textContent = rel.artist;
     $("dDesc").innerHTML = richText(rel.description);
 
@@ -408,6 +537,29 @@ function buildUI(releases) {
     $("dNext").hidden = !many;
   }
 
+  // drag on the enlarged record to tilt it
+  let tiltDrag = null;
+  hero.addEventListener("pointerdown", (e) => {
+    if (!space || current === -1) return;
+    tiltDrag = { x: e.clientX, y: e.clientY };
+    hero.setPointerCapture?.(e.pointerId);
+    space.tiltStart();
+    hero.classList.add("is-tilting");
+  });
+  hero.addEventListener("pointermove", (e) => {
+    if (!tiltDrag) return;
+    space.tiltBy(e.clientX - tiltDrag.x, e.clientY - tiltDrag.y);
+    tiltDrag = { x: e.clientX, y: e.clientY };
+  });
+  const endTilt = () => {
+    if (!tiltDrag) return;
+    tiltDrag = null;
+    space.tiltEnd();
+    hero.classList.remove("is-tilting");
+  };
+  hero.addEventListener("pointerup", endTilt);
+  hero.addEventListener("pointercancel", endTilt);
+
   const ui = {
     showDetail(rel, i) {
       current = i;
@@ -420,8 +572,17 @@ function buildUI(releases) {
       history.replaceState(null, "", `#${rel.slug}`);
       ui.dismissHint();
     },
+    setFocused(rel, i, total) {
+      $("captionNum").textContent = `${String(i + 1).padStart(2, "0")} / ${String(total).padStart(2, "0")}`;
+      const title = $("captionTitle");
+      title.textContent = rel.title;
+      title.dataset.text = rel.title;
+      caption.classList.remove("is-new");
+      void caption.offsetWidth; // restart the animation
+      caption.classList.add("is-new");
+    },
     scrollTop: () => scroller.scrollTop,
-    dismissHint() { $("hint").style.opacity = "0"; },
+    dismissHint() { $("hint").classList.add("is-gone"); },
     attach(s) { space = s; },
     openBySlug(slug) {
       const i = releases.findIndex((r) => r.slug === slug);
@@ -430,21 +591,61 @@ function buildUI(releases) {
     showIndex: () => setIndex(true),
   };
 
-  const step = (d) => { if (current !== -1) open((current + d + releases.length) % releases.length); };
+  const stepDetail = (d) => { if (current !== -1) open((current + d + releases.length) % releases.length); };
   $("detailClose").addEventListener("click", close);
-  $("dPrev").addEventListener("click", () => step(-1));
-  $("dNext").addEventListener("click", () => step(1));
-  // clicking the empty space around the record/text closes it
-  scroller.addEventListener("click", (e) => {
-    if (e.target === scroller || e.target.classList.contains("detail__hero")) close();
-  });
+  $("dPrev").addEventListener("click", () => stepDetail(-1));
+  $("dNext").addEventListener("click", () => stepDetail(1));
+  // clicking the empty space beside the text closes it
+  scroller.addEventListener("click", (e) => { if (e.target === scroller) close(); });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { if (!indexEl.hidden) setIndex(false); else close(); }
-    if (current !== -1 && e.key === "ArrowRight") step(1);
-    if (current !== -1 && e.key === "ArrowLeft") step(-1);
+    if (e.key === "Escape") { if (!indexEl.hidden) setIndex(false); else close(); return; }
+    if (current !== -1) {
+      if (e.key === "ArrowRight") stepDetail(1);
+      if (e.key === "ArrowLeft") stepDetail(-1);
+      return;
+    }
+    if (!space || !indexEl.hidden) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") space.nudge(1);
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") space.nudge(-1);
+    if (e.key === "Enter") space.openFocused();
   });
 
   return ui;
+}
+
+// ============================================================
+//  LOADER: the logo stamps in letter by letter while things load,
+//  then flies to its place in the corner.
+// ============================================================
+function makeLoader() {
+  const letters = [...document.querySelectorAll(".loader .lt")];
+  let shown = 0;
+  let lastAt = performance.now();
+  const MIN_GAP = reducedMotion ? 0 : 420;
+  return {
+    async reveal(count) {
+      while (shown < Math.min(count, letters.length)) {
+        const since = performance.now() - lastAt;
+        if (since < MIN_GAP) await wait(MIN_GAP - since);
+        letters[shown].classList.add("is-in");
+        shown++;
+        lastAt = performance.now();
+      }
+    },
+    async finish() {
+      await this.reveal(letters.length);
+      await wait(reducedMotion ? 0 : 520);
+      const from = $("loaderLogo").getBoundingClientRect();
+      const to = $("wordmark").getBoundingClientRect();
+      const s = to.width / from.width;
+      const logo = $("loaderLogo");
+      logo.style.transform = `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${s})`;
+      $("loader").classList.add("is-leaving");
+      await wait(reducedMotion ? 0 : 1000);
+      document.body.classList.add("is-loaded");
+      $("loader").classList.add("is-done");
+    },
+  };
 }
 
 // ============================================================
@@ -453,14 +654,19 @@ function buildUI(releases) {
 async function main() {
   applyHeroLayout();
   window.addEventListener("resize", applyHeroLayout);
+  const loader = makeLoader();
+  loader.reveal(1);
 
   const releases = await loadAllReleases();
+  await loader.reveal(2);
   const ui = buildUI(releases);
 
   let has3D = false;
   if (webglAvailable() && releases.length) {
     try {
-      ui.attach(startSpace(releases, ui));
+      const space = startSpace(releases, ui);
+      await space.firstFrame();
+      ui.attach(space);
       has3D = true;
     } catch (err) {
       console.error(err);
@@ -471,12 +677,12 @@ async function main() {
     ui.showIndex();
   }
 
+  await loader.finish();
   const slug = decodeURIComponent(location.hash.slice(1));
-  if (slug) setTimeout(() => ui.openBySlug(slug), 300);
-  $("loader").classList.add("is-done");
+  if (slug) ui.openBySlug(slug);
 }
 
 main().catch((err) => {
   console.error(err);
-  $("loaderText").textContent = "SIGNAL LOST — TRY RELOADING";
+  $("loaderNote").textContent = "SIGNAL LOST — TRY RELOADING";
 });

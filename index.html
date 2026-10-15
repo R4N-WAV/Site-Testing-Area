@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>R4N</title>
   <meta name="description" content="R4N — music." />
-  <meta name="theme-color" content="#0c0c0e" />
+  <meta name="theme-color" content="#000000" />
   <link rel="icon" type="image/png" href="assets/icon.png" />
+  <link rel="preload" as="image" href="assets/logo-r.png" crossorigin />
+  <link rel="preload" as="image" href="assets/logo-4.png" crossorigin />
+  <link rel="preload" as="image" href="assets/logo-n.png" crossorigin />
   <link rel="stylesheet" href="css/site.css" />
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -14,16 +17,23 @@
 </head>
 <body>
   <canvas id="space" aria-hidden="true"></canvas>
-  <div id="labels" aria-hidden="true"></div>
-  <div class="vignette" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
 
   <header class="top">
-    <a href="./" class="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
+    <a href="./" class="logo" id="wordmark" aria-label="R4N home">
+      <span class="lt lt--r"></span><span class="lt lt--4"></span><span class="lt lt--n"></span>
+    </a>
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
 
-  <p class="hint" id="hint">DRAG TO SPIN &nbsp;·&nbsp; CLICK A RECORD</p>
+  <!-- the record at the front of the ring -->
+  <div class="caption" id="caption">
+    <p class="caption__num" id="captionNum"></p>
+    <h2 class="caption__title comic" id="captionTitle"></h2>
+    <button class="textBtn caption__open" id="captionOpen" type="button">OPEN ↗</button>
+  </div>
+
+  <p class="hint" id="hint">SCROLL OR DRAG TO SPIN &nbsp;·&nbsp; CLICK A RECORD</p>
 
   <nav class="socials" aria-label="Social links">
     <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
@@ -42,10 +52,11 @@
   <section class="detail" id="detail" aria-label="Release details" aria-hidden="true">
     <button class="textBtn detail__close" id="detailClose" type="button">CLOSE ✕</button>
     <div class="detail__scroll" id="detailScroll">
-      <div class="detail__hero"><img id="dCover" alt="" /></div>
+      <div class="detail__hero" id="detailHero" title="Drag to tilt"><img id="dCover" alt="" /></div>
       <article class="detail__info">
+        <p class="detail__hint">DRAG THE RECORD TO TILT IT</p>
         <p class="detail__meta" id="dMeta"></p>
-        <h1 class="detail__title" id="dTitle"></h1>
+        <h1 class="detail__title comic" id="dTitle"></h1>
         <p class="detail__artist" id="dArtist"></p>
         <div class="detail__desc" id="dDesc"></div>
         <dl class="detail__credits" id="dCredits"></dl>
@@ -58,7 +69,12 @@
     </div>
   </section>
 
-  <div class="loader" id="loader" role="status"><span id="loaderText">TUNING IN</span></div>
+  <div class="loader" id="loader" role="status" aria-label="Loading">
+    <div class="loader__logo" id="loaderLogo">
+      <span class="lt lt--r"></span><span class="lt lt--4"></span><span class="lt lt--n"></span>
+    </div>
+    <p class="loader__note" id="loaderNote"></p>
+  </div>
 
   <noscript><p class="noscript">This site needs JavaScript. Find R4N on <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr">Spotify</a>.</p></noscript>
 

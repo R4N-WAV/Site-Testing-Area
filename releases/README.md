@@ -1,6 +1,6 @@
 # How to add a new song or project
 
-Every folder in `releases/` is one record in the ring on the site.
+Every folder in `releases/` is one sealed record floating in the ring on the site.
 Add a folder and it joins the ring. Delete the folder and it's gone.
 
 ## Add one from the GitHub website (no computer setup needed)
@@ -30,7 +30,6 @@ Within a minute or two it's live on the site.
 | `description` | Text about the song. Links: `[R4N](https://www.instagram.com/r4n.wav/)`. Bold: `**like this**`. New line: `\n` |
 | `credits` | Lines like "Prod: Rumblin, R4N". Each person can have a link, or leave `url` out |
 | `links` | Listen buttons. Known names: `spotify`, `apple`, `youtube`, `youtubemusic`, `soundcloud`, `tidal`, `deezer`, `bandcamp`, `amazon`, `tiktok`, `instagram`. Any other name works too and shows as written. Empty ones are skipped |
-| `vinyl` | Colour of the disc, as a hex code: `"#0b0b0b"` is classic black, `"#6b0f1a"` deep red |
 | `hidden` | `true` keeps the folder on GitHub but off the site (good for drafts) |
 
 ## Rules of thumb
