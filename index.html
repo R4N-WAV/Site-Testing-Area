@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -13,7 +12,6 @@
       --bg:#fefefe;
       --fg:#111111;
       --muted:rgba(17,17,17,0.65);
-      --red:#d70000;
       --select: rgba(17,17,17,0.55);
     }
 
@@ -32,20 +30,6 @@
       letter-spacing:0.2px;
     }
 
-    /* Easter egg overlay */
-    .redout{
-      position:fixed;
-      inset:0;
-      background:var(--red);
-      opacity:0;
-      pointer-events:none;
-      z-index:9999;
-      transition: opacity 0.5s ease;
-    }
-    .redout.on{ opacity:1; }
-    .restore .redout{ transition: opacity 1s ease; }
-
-    /* Logo */
     .logo{
       width:100%;
       display:flex;
@@ -63,7 +47,6 @@
       display:block;
     }
     @media (max-width: 768px){
-      /* Match the mobile logo positioning from projects.html */
       .logo{
         height:78px;
         padding-top:2px;
@@ -72,7 +55,6 @@
       }
     }
 
-    /* Draggable button */
     .drag{
       position:absolute;
       z-index:10;
@@ -87,7 +69,6 @@
     .drag.ready{ visibility:visible; }
     .drag:active{cursor:grabbing;}
 
-    /* Selection box (no clipping on mobile) */
     .drag.is-dragging{
       outline:none;
       border-radius:0;
@@ -120,7 +101,6 @@
       letter-spacing:1.8px;
     }
 
-    /* Socials */
     .socials{
       position:fixed;
       left:50%;
@@ -141,18 +121,24 @@
 </head>
 
 <body>
-  <div class="redout" id="redout"></div>
-
   <div class="logo" id="logoBlock">
     <a href="./" aria-label="Home">
-      <img src="assets/logo.png" alt="Logo">
+      <!-- Fallback: if your images aren't inside /assets, this will still work -->
+      <img src="assets/logo.png" alt="Logo" onerror="this.onerror=null;this.src='logo.png';">
     </a>
   </div>
 
   <a href="projects/" id="projectsLink" aria-label="Projects">
     <div class="drag" id="projectsBtn" data-store-key="index:projects">
-      <img src="assets/file.png" alt="Projects">
+      <img src="assets/file.png" alt="Projects" onerror="this.onerror=null;this.src='file.png';">
       <div class="label">PROJECTS</div>
+    </div>
+  </a>
+
+  <a href="new/index.html" id="mysteryLink" aria-label="???">
+    <div class="drag" id="mysteryBtn" data-store-key="index:mystery">
+      <img src="assets/new.png" alt="???" onerror="this.onerror=null;this.src='new.png';">
+      <div class="label">???</div>
     </div>
   </a>
 
@@ -195,40 +181,374 @@
       return { x: clamp(x, 0, vw - w), y: clamp(y, 0, vh - h) };
     }
 
-    // ---------- homepage easter egg ----------
-    let dragStartTime = null;
-    let eggTriggered = false;
-    const redout = document.getElementById("redout");
 
-    function triggerEasterEgg(){
-      if (eggTriggered) return;
-      eggTriggered = true;
-
-      redout.classList.add("on"); // 0.5s
-      setTimeout(() => {
-        document.body.classList.add("restore");
-        redout.classList.remove("on"); // 1s back
-        setTimeout(() => {
-          document.body.classList.remove("restore");
-          eggTriggered = false;
-        }, 1050);
-      }, 1000);
+    // ---------- positioning safety (avoid logo/socials + avoid overlapping buttons) ----------
+    function rectsOverlap(a, b, pad = 0){
+      return !(
+        (a.right  + pad) <= b.left  ||
+        (a.left   - pad) >= b.right ||
+        (a.bottom + pad) <= b.top   ||
+        (a.top    - pad) >= b.bottom
+      );
     }
 
-    // ---------- draggable (improved click) ----------
+    function rectForElAt(el, x, y){
+      return { left:x, top:y, right:x + el.offsetWidth, bottom:y + el.offsetHeight };
+    }
+
+    function getForbiddenRects(pad = 18){
+      const out = [];
+      const logo = document.getElementById("logoBlock");
+      const socials = document.querySelector(".socials");
+      if (logo){
+        const r = logo.getBoundingClientRect();
+        out.push({ left:r.left - pad, top:r.top - pad, right:r.right + pad, bottom:r.bottom + pad });
+      }
+      if (socials){
+        const r = socials.getBoundingClientRect();
+        out.push({ left:r.left - pad, top:r.top - pad, right:r.right + pad, bottom:r.bottom + pad });
+      }
+      return out;
+    }
+
+    function resolveSafePosition(el, x, y, avoidEls = [], forbiddenRects = [], pad = 14){
+      // Iteratively nudge down / sideways until it doesn't overlap forbidden areas or other buttons.
+      let pos = clampToViewport(el, x, y);
+      let tries = 0;
+
+      while (tries < 60){
+        const r = rectForElAt(el, pos.x, pos.y);
+
+        // Forbidden areas first
+        let hit = forbiddenRects.find(fr => rectsOverlap(r, fr, 0));
+        if (hit){
+          // Push below the forbidden rect if we are intersecting it; otherwise nudge sideways.
+          const pushDown = hit.bottom + pad;
+          pos = clampToViewport(el, pos.x, pushDown);
+          tries++;
+          continue;
+        }
+
+        // Other draggable buttons
+        let otherHit = null;
+        for (const other of avoidEls){
+          if (!other || other === el) continue;
+          const orc = other.getBoundingClientRect();
+          const obr = { left:orc.left, top:orc.top, right:orc.right, bottom:orc.bottom };
+          if (rectsOverlap(r, obr, pad)){
+            otherHit = obr;
+            break;
+          }
+        }
+        if (otherHit){
+          // Stack it below the other button (keeps them close but not overlapping).
+          const pushDown = otherHit.bottom + pad;
+          pos = clampToViewport(el, pos.x, pushDown);
+
+          // If we hit the bottom, try nudging sideways a bit.
+          if (pos.y >= window.innerHeight - el.offsetHeight - 1){
+            pos = clampToViewport(el, pos.x + (el.offsetWidth * 0.6), pos.y - (el.offsetHeight * 0.6));
+          }
+          tries++;
+          continue;
+        }
+
+        break; // safe
+      }
+
+      return pos;
+    }
+
+    // ---------- draggable (with orbital easter egg) ----------
     function makeDraggable(el, linkEl, opts = {}){
       const storeKey = el.dataset.storeKey;
+      const avoidEls = opts.avoidEls ?? [];
+      const forbiddenRectsFn = opts.forbiddenRectsFn ?? (() => getForbiddenRects(opts.forbiddenPad ?? 18));
+      const safePad = opts.safePad ?? 14;
 
       let dragging = false;
       let startX = 0, startY = 0;
       let offsetX = 0, offsetY = 0;
       let movedEnough = false;
-      const MOVE_THRESHOLD = opts.moveThreshold ?? 7;
+      const MOVE_THRESHOLD = opts.moveThreshold ?? 6;
+
+      // Trigger: >=20 turns within 8 seconds (ovals OK)
+      const ORBIT_WINDOW_MS = 8000;
+      const ORBIT_TARGET_TURNS = 20;
+      const MIN_POINTS = 90;
+      const MAX_POINTS = 1800;
+
+      // Energy-based orbit speed (fast)
+      const ENERGY_SCALE = opts.energyScale ?? 0.95;
+      const OMEGA_MIN = opts.omegaMin ?? 5.0;
+      const OMEGA_MAX = opts.omegaMax ?? 22.0;
+      const ORBIT_STOP_SPEED = opts.orbitStopSpeed ?? 0.30;
+      const ORBIT_STOP_AFTER_SEC = opts.orbitStopAfterSec ?? 10;
+
+      // Ellipse fit: keep it close to user's path (no "bonus" scaling)
+      const AXIS_ENVELOPE = opts.axisEnvelope ?? 1.0; // 1.0 = do not inflate
+
+      let orbitArmed = true;
+      let orbitMode = false;
+      let orbitAnimRaf = null;
+
+      let samples = []; // {t,x,y}
+      let orbitModel = null; // {cx,cy,u,v,a,b,phase,omega,k}
+
+      function now(){ return performance.now(); }
+
+      function recordSample(x, y){
+        const t = now();
+        samples.push({ t, x, y });
+        if (samples.length > MAX_POINTS) samples.shift();
+
+        const cutoff = t - ORBIT_WINDOW_MS;
+        while (samples.length && samples[0].t < cutoff) samples.shift();
+      }
+
+      function meanXY(pts){
+        let sx = 0, sy = 0;
+        for (const p of pts){ sx += p.x; sy += p.y; }
+        const n = pts.length || 1;
+        return { cx: sx / n, cy: sy / n };
+      }
+
+      function unwrapAngles(angles){
+        if (angles.length === 0) return angles;
+        const out = [angles[0]];
+        for (let i = 1; i < angles.length; i++){
+          const a = angles[i];
+          const prev = out[i-1];
+          const basePrev = prev % (Math.PI * 2);
+          let da = a - basePrev;
+          while (da > Math.PI) da -= Math.PI * 2;
+          while (da < -Math.PI) da += Math.PI * 2;
+          out.push(prev + da);
+        }
+        return out;
+      }
+
+      function fitEllipsePCA(pts, cx, cy){
+        // Covariance of centered points
+        let sxx = 0, sxy = 0, syy = 0;
+        const n = pts.length || 1;
+        for (const p of pts){
+          const dx = p.x - cx;
+          const dy = p.y - cy;
+          sxx += dx * dx;
+          sxy += dx * dy;
+          syy += dy * dy;
+        }
+        sxx /= n; sxy /= n; syy /= n;
+
+        // Eigen decomposition of [[sxx,sxy],[sxy,syy]]
+        const trace = sxx + syy;
+        const det = sxx * syy - sxy * sxy;
+        const disc = Math.max(0, trace * trace - 4 * det);
+        const root = Math.sqrt(disc);
+        const l1 = (trace + root) / 2;
+
+        // Major eigenvector
+        let ux, uy;
+        if (Math.abs(sxy) > 1e-9){
+          ux = l1 - syy;
+          uy = sxy;
+        } else {
+          ux = (sxx >= syy) ? 1 : 0;
+          uy = (sxx >= syy) ? 0 : 1;
+        }
+        const un = Math.hypot(ux, uy) || 1;
+        ux /= un; uy /= un;
+
+        const vx = -uy;
+        const vy = ux;
+
+        // RMS along axes
+        let su2 = 0, sv2 = 0;
+        for (const p of pts){
+          const dx = p.x - cx;
+          const dy = p.y - cy;
+          const pu = dx * ux + dy * uy;
+          const pv = dx * vx + dy * vy;
+          su2 += pu * pu;
+          sv2 += pv * pv;
+        }
+        su2 /= n; sv2 /= n;
+
+        // Convert RMS to a representative ellipse envelope (no inflation by default)
+        const a = Math.max(12, Math.sqrt(2 * su2) * AXIS_ENVELOPE);
+        const b = Math.max(12, Math.sqrt(2 * sv2) * AXIS_ENVELOPE);
+
+        return { u:{x:ux,y:uy}, v:{x:vx,y:vy}, a, b };
+      }
+
+      function ellipsePoint(phase){
+        const ct = Math.cos(phase);
+        const st = Math.sin(phase);
+        const x = orbitModel.cx + orbitModel.a * ct * orbitModel.u.x + orbitModel.b * st * orbitModel.v.x;
+        const y = orbitModel.cy + orbitModel.a * ct * orbitModel.u.y + orbitModel.b * st * orbitModel.v.y;
+        return { x, y };
+      }
+
+      function stopOrbit(){
+        orbitMode = false;
+        if (orbitAnimRaf) cancelAnimationFrame(orbitAnimRaf);
+        orbitAnimRaf = null;
+        orbitModel = null;
+
+        // allow link to be clickable again unless currently dragging
+        if (!dragging) {
+          setTimeout(() => { delete linkEl.dataset.dragging; }, 0);
+        }
+        el.style.cursor = dragging ? "grabbing" : "grab";
+      }
+
+      function tryTriggerOrbit(){
+        if (!opts.enableOrbitEgg) return false;
+        if (!orbitArmed || orbitMode) return false;
+        if (samples.length < MIN_POINTS) return false;
+
+        const pts = samples;
+        const { cx, cy } = meanXY(pts);
+
+        // Count turns around centroid
+        const anglesRaw = [];
+        const times = [];
+        for (const p of pts){
+          anglesRaw.push(Math.atan2(p.y - cy, p.x - cx));
+          times.push(p.t);
+        }
+        const unwrapped = unwrapAngles(anglesRaw);
+
+        // Direction consistency + total turns
+        let pos = 0, neg = 0;
+        for (let i = 1; i < unwrapped.length; i++){
+          const d = unwrapped[i] - unwrapped[i-1];
+          if (d > 0) pos++;
+          else if (d < 0) neg++;
+        }
+        const dirTotal = pos + neg;
+        if (dirTotal < 8) return false;
+
+        const dirCons = Math.max(pos, neg) / dirTotal;
+        if (dirCons < 0.70) return false;
+
+        const totalTurns = Math.abs((unwrapped[unwrapped.length - 1] - unwrapped[0]) / (Math.PI * 2));
+        if (totalTurns < ORBIT_TARGET_TURNS) return false;
+
+        // Energy from gesture (angular velocity)
+        const dt = Math.max(0.06, (times[times.length - 1] - times[0]) / 1000);
+        const dtheta = unwrapped[unwrapped.length - 1] - unwrapped[0];
+        const omegaUser = (dtheta / dt) * ENERGY_SCALE;
+
+        let omega0 = clamp(omegaUser, -OMEGA_MAX, OMEGA_MAX);
+        if (Math.abs(omega0) < OMEGA_MIN) omega0 = Math.sign(omega0 || 1) * OMEGA_MIN;
+
+        // Fit ellipse close to the user path
+        const fit = fitEllipsePCA(pts, cx, cy);
+
+        // Make sure orbit starts EXACTLY where the user is holding it (no jump):
+        // scale ellipse uniformly so the current point lies on the ellipse.
+        const rect = el.getBoundingClientRect();
+        const curX = rect.left + rect.width / 2;
+        const curY = rect.top  + rect.height / 2;
+
+        const dx = curX - cx;
+        const dy = curY - cy;
+        const pu = dx * fit.u.x + dy * fit.u.y;
+        const pv = dx * fit.v.x + dy * fit.v.y;
+
+        // Current point in normalized ellipse coords:
+        const nu = pu / fit.a;
+        const nv = pv / fit.b;
+        const s = Math.sqrt(nu*nu + nv*nv) || 1;
+        // If s != 1, scale a & b so the ellipse passes through the current point.
+        fit.a *= s;
+        fit.b *= s;
+
+        // Start phase so the ellipse point matches current point (now it will)
+        const pu2 = pu / fit.a;
+        const pv2 = pv / fit.b;
+        const phase0 = Math.atan2(pv2, pu2);
+
+        // Damping constant: reach stop speed around ORBIT_STOP_AFTER_SEC
+        const k = Math.log(Math.abs(omega0) / ORBIT_STOP_SPEED) / Math.max(1, ORBIT_STOP_AFTER_SEC);
+
+        orbitModel = {
+          cx, cy,
+          u: fit.u,
+          v: fit.v,
+          a: fit.a,
+          b: fit.b,
+          phase: phase0,
+          omega: omega0,
+          k
+        };
+
+        enableOrbitMode();
+        return true;
+      }
+
+      function enableOrbitMode(){
+        orbitMode = true;
+        orbitArmed = false;
+
+        el.classList.remove("is-dragging");
+        el.style.cursor = "default";
+        linkEl.dataset.dragging = "1";
+
+        let lastT = now();
+        function tick(){
+          if (!orbitMode) return;
+
+          const t = now();
+          const dt = Math.min(0.05, (t - lastT) / 1000);
+          lastT = t;
+
+          // Exponential damping
+          const damp = Math.exp(-orbitModel.k * dt);
+          orbitModel.omega *= damp;
+
+          if (Math.abs(orbitModel.omega) < ORBIT_STOP_SPEED){
+            stopOrbit();
+
+            // Persist final resting spot
+            const left = parseFloat(el.style.left || "0");
+            const top  = parseFloat(el.style.top  || "0");
+            const snapped = clampToViewport(el, left, top);
+            setElPos(el, snapped.x, snapped.y);
+            setStored(storeKey, snapped);
+            return;
+          }
+
+          orbitModel.phase += orbitModel.omega * dt;
+
+          const p = ellipsePoint(orbitModel.phase);
+
+          const halfW = el.offsetWidth / 2;
+          const halfH = el.offsetHeight / 2;
+          let x = p.x - halfW;
+          let y = p.y - halfH;
+
+          const snapped = clampToViewport(el, x, y);
+          setElPos(el, snapped.x, snapped.y);
+
+          orbitAnimRaf = requestAnimationFrame(tick);
+        }
+
+        orbitAnimRaf = requestAnimationFrame(tick);
+      }
 
       function pointerDown(e){
+        // Allow grabbing while orbiting: stop orbit immediately and return to normal drag behavior.
+        if (orbitMode){
+          stopOrbit();
+        }
+
         dragging = true;
         movedEnough = false;
-        dragStartTime = Date.now();
+        orbitArmed = true;
+        samples = [];
 
         bringToFront(el);
         el.setPointerCapture?.(e.pointerId);
@@ -255,9 +575,12 @@
 
         setElPos(el, e.clientX - offsetX, e.clientY - offsetY);
 
-        if (opts.enableEasterEgg && movedEnough && dragStartTime && (Date.now() - dragStartTime) >= 10000) {
-          triggerEasterEgg();
-          dragStartTime = null;
+        if (opts.enableOrbitEgg && movedEnough){
+          const rect = el.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top  + rect.height / 2;
+          recordSample(cx, cy);
+          tryTriggerOrbit();
         }
 
         e.preventDefault();
@@ -266,14 +589,16 @@
       function pointerUp(){
         if (!dragging) return;
         dragging = false;
-        dragStartTime = null;
 
         el.classList.remove("is-dragging");
         el.style.cursor = "grab";
 
         const left = parseFloat(el.style.left || "0");
         const top  = parseFloat(el.style.top  || "0");
-        const snapped = clampToViewport(el, left, top);
+        let snapped = clampToViewport(el, left, top);
+        // After the user drags, allow overlapping/stacking with other buttons.
+        // Still keep it inside the viewport and away from logo/socials.
+        snapped = resolveSafePosition(el, snapped.x, snapped.y, [], forbiddenRectsFn(), safePad);
 
         setElPos(el, snapped.x, snapped.y);
         setStored(storeKey, snapped);
@@ -292,37 +617,78 @@
       window.addEventListener("pointermove", pointerMove, { passive:false });
       window.addEventListener("pointerup", pointerUp, { passive:false });
 
-      function initPos(){
+      function initPos(defaultX, defaultY){
         const saved = getStored(storeKey);
-        const defaultX = (window.innerWidth / 2) - (el.offsetWidth / 2);
-        const defaultY = Math.max(160, (window.innerHeight / 2) - (el.offsetHeight / 2));
 
-        const raw = saved ?? { x: defaultX, y: defaultY };
-        const snapped = clampToViewport(el, raw.x, raw.y);
-
-        setElPos(el, snapped.x, snapped.y);
-        setStored(storeKey, snapped);
+        // If the user already positioned it before, restore that exact position (only clamp to viewport).
+        // If it's the first visit, place it safely (avoid logo/socials + other floating buttons).
+        if (saved){
+          const snapped = clampToViewport(el, saved.x, saved.y);
+          setElPos(el, snapped.x, snapped.y);
+          setStored(storeKey, snapped);
+        } else {
+          const raw = { x: defaultX, y: defaultY };
+          let snapped = clampToViewport(el, raw.x, raw.y);
+          snapped = resolveSafePosition(el, snapped.x, snapped.y, avoidEls, forbiddenRectsFn(), safePad);
+          setElPos(el, snapped.x, snapped.y);
+          setStored(storeKey, snapped);
+        }
 
         bringToFront(el);
         el.classList.add("ready");
+        el.style.cursor = "grab";
       }
-
-      document.addEventListener("DOMContentLoaded", initPos);
 
       window.addEventListener("resize", () => {
         const left = parseFloat(el.style.left || "0");
         const top  = parseFloat(el.style.top  || "0");
-        const snapped = clampToViewport(el, left, top);
+        let snapped = clampToViewport(el, left, top);
+        // Keep resize from forcing buttons apart; allow stacking.
+        snapped = resolveSafePosition(el, snapped.x, snapped.y, [], forbiddenRectsFn(), safePad);
         setElPos(el, snapped.x, snapped.y);
         setStored(storeKey, snapped);
       });
+
+      return { initPos, el, linkEl, storeKey };
     }
 
-    makeDraggable(
+    // ---------- init both floating buttons (non-overlapping on first load) ----------
+    const floatingEls = [];
+
+    const projectsDrag = makeDraggable(
       document.getElementById("projectsBtn"),
       document.getElementById("projectsLink"),
-      { enableEasterEgg: true }
+      {
+        enableOrbitEgg: true,
+        avoidEls: floatingEls
+      }
     );
+
+    const mysteryDrag = makeDraggable(
+      document.getElementById("mysteryBtn"),
+      document.getElementById("mysteryLink"),
+      {
+        enableOrbitEgg: true,
+        avoidEls: floatingEls
+      }
+    );
+
+    floatingEls.push(projectsDrag.el, mysteryDrag.el);
+    document.addEventListener("DOMContentLoaded", () => {
+      // base center placement, then the safety resolver will keep them away from logo/socials + each other.
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      const w1 = projectsDrag.el.offsetWidth;
+      const h1 = projectsDrag.el.offsetHeight;
+
+      const cx = (vw / 2) - (w1 / 2);
+      const cy = Math.max(160, (vh / 2) - (h1 / 2));
+
+      // Put them near each other but not overlapping on first entry.
+      projectsDrag.initPos(cx - 90, cy);
+      mysteryDrag.initPos(cx + 90, cy + 20);
+    });
   </script>
 </body>
 </html>

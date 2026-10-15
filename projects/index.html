@@ -243,6 +243,211 @@
     .socials a:hover{ color:rgba(17,17,17,0.9); }
 
     a{color:inherit;-webkit-tap-highlight-color:transparent;}
+  
+    /* ---------- Project overlay modal ---------- */
+    .projOverlay{
+      position:fixed;
+      inset:0;
+      z-index:999; /* above everything */
+      visibility:hidden;
+      pointer-events:none;
+    }
+    .projOverlay.is-open{
+      visibility:visible;
+      pointer-events:auto;
+    }
+    /* During close animation we keep it visible, but non-interactive */
+    .projOverlay.is-closing{
+      visibility:visible;
+      pointer-events:none;
+    }
+
+    .projOverlay.is-closing .projOverlay__backdrop{ opacity:0; }
+    .projOverlay.is-closing .projOverlay__panel{
+      opacity:0;
+      transform:translate(-50%,-50%) scale(0.98);
+    }
+
+    .projOverlay__backdrop{
+      position:absolute;
+      inset:0;
+      /* slightly darker, per your request */
+      /* darker (less transparent) per latest feedback */
+      background:rgba(0,0,0,0.72);
+      opacity:0;
+      transition:opacity 220ms ease;
+    }
+
+    .projOverlay__panel{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%) scale(0.98);
+      width:min(1180px, calc(100vw - 56px));
+      background:transparent;
+      border:0;
+      box-shadow:none;
+      opacity:0;
+      transition:opacity 220ms ease, transform 300ms cubic-bezier(.2,.9,.2,1);
+      padding:0;
+      max-height:calc(100vh - 56px);
+      overflow:visible;
+    }
+
+    .projOverlay.is-open .projOverlay__backdrop{ opacity:1; }
+    .projOverlay.is-open .projOverlay__panel{
+      opacity:1;
+      transform:translate(-50%,-50%) scale(1);
+    }
+
+    .projOverlay__close{
+      position:absolute;
+      right:16px;
+      top:10px;
+      background:transparent;
+      border:0;
+      font-size:26px;
+      line-height:1;
+      cursor:pointer;
+      color:rgba(255,255,255,0.75);
+      z-index:60; /* stay above the enlarged image */
+      width:44px;
+      height:44px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+    }
+    .projOverlay__close:hover{ color:rgba(255,255,255,1); }
+
+    .projOverlay__grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:34px;
+      align-items:start;
+    }
+
+    .projOverlay__media{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .projOverlay__media img{
+      width:100%;
+      height:100%;
+      max-height:72vh;
+      object-fit:contain;
+      display:block;
+    }
+
+    .projOverlay__title{
+      font-size:34px;
+      letter-spacing:1.2px;
+      font-weight:500;
+      margin-bottom:16px;
+      color:#ffffff;
+      text-shadow:0 2px 18px rgba(0,0,0,0.45);
+    }
+
+    .projOverlay__desc{
+      font-size:16px;
+      line-height:1.6;
+      color:rgba(255,255,255,0.88);
+      text-shadow:0 2px 18px rgba(0,0,0,0.45);
+      margin-bottom:22px;
+      white-space:pre-wrap; /* lets you add line breaks if you want */
+    }
+
+    
+    .projOverlay__desc a{
+      color:rgba(255,255,255,0.98);
+      font-weight:700;
+      text-decoration:none;
+      border-bottom:1px solid rgba(255,255,255,0.35);
+      padding-bottom:1px;
+    }
+    .projOverlay__desc a:hover{
+      border-bottom-color:rgba(255,255,255,0.85);
+    }
+.projOverlay__buttons{
+      display:flex;
+      gap:18px;
+      align-items:center;
+      width:100%;
+      max-width:440px; /* keep buttons comfortably within the close 'X' / content area */
+    }
+
+    .listenBtn{
+      flex:1;
+      height:62px;
+      min-width:0;
+      border:1px solid rgba(255,255,255,0.45);
+      background:transparent;
+      background-repeat:no-repeat;
+      background-position:center;
+      background-size:contain;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      text-decoration:none;
+    }
+    .listenBtn:hover{ border-color:rgba(255,255,255,0.85); }
+
+    /* You’ll add these images later (keep the filenames you requested) */
+    .listenBtn--spotify{ background-image:url("../assets/ListenSpotify.png"); }
+    .listenBtn--apple{ background-image:url("../assets/ListenApple.png"); }
+
+    /* Button images: fill the full button area (logos come from different source crops) */
+    .listenBtn{
+      background-size:cover;
+      background-position:center;
+    }
+    /* Spotify image has more empty space around the logo, so we zoom it in a bit */
+    .listenBtn--spotify{ background-size:140% auto; }
+    .listenBtn--apple{ background-size:cover; }
+/* slightly larger to match Spotify */
+
+    /* Mobile: match your sketch (image on top, text below, buttons side-by-side) */
+    @media (max-width: 768px){
+      .projOverlay__panel{
+        width:calc(100vw - 32px);
+        max-height:calc(100vh - 32px);
+        overflow:auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .projOverlay__grid{ grid-template-columns:1fr; gap:16px; }
+      .projOverlay__media{ min-height:0; }
+      .projOverlay__media img{ max-height:46vh; }
+      .projOverlay__title{ font-size:28px; }
+      .projOverlay__desc{ font-size:15px; }
+      .projOverlay__buttons{ max-width:360px; gap:14px; }
+      .listenBtn{ height:54px; }
+      /* On mobile the close button could overlap the image; lift it a bit and keep it tappable */
+      .projOverlay__close{ top:-6px; right:6px; }
+    }
+
+    /* FLIP animation clone */
+    .projFlipClone{
+      position:fixed;
+      margin:0;
+      z-index:1000;
+      will-change: transform;
+      pointer-events:none;
+      filter:drop-shadow(0 10px 40px rgba(0,0,0,0.25));
+      transition: transform 420ms cubic-bezier(.2,.9,.2,1);
+    }
+
+    /* prevent layout shifts while we animate */
+    #projImg{ will-change: opacity; }
+
+    /* While modal is open, don't let background be interactive */
+    body.modal-open .drag,
+    body.modal-open .backFixed,
+    body.modal-open .fallFixed,
+    body.modal-open .socials{
+      pointer-events:none;
+    }
+
   </style>
 </head>
 
@@ -259,9 +464,15 @@
   </div>
 
   <!-- Project 1 -->
-  <a href="https://open.spotify.com/album/2pHA2yqsAC9uum0lE1kyV5?si=qG4s6773SyW9N3YUAzow8w"
-     target="_blank" rel="noopener"
-     id="p1Link" aria-label="TI KNIVER I HJERTET">
+  <a href="#"
+     id="p1Link"
+     class="projectLink"
+     aria-label="TI KNIVER I HJERTET"
+     data-project-name="TI KNIVER I HJERTET"
+     data-project-desc="<a href='https://www.instagram.com/r4n.wav/' target='_blank' rel='noopener noreferrer'>R4N</a> debuterer sammen med <a href='https://www.instagram.com/bhaai________/' target='_blank' rel='noopener noreferrer'>Bhaai</a> med en låt om tillit som sprekker og sårbarhet som blir gjemt bort. Den treffer akkurat der folk vanligvis later som ingenting.<br><strong>Prod:</strong> <a href='https://www.instagram.com/rumblinmusic/' target='_blank' rel='noopener noreferrer'>Rumblin</a>, <a href='https://www.instagram.com/r4n.wav/' target='_blank' rel='noopener noreferrer'>R4N</a>."
+     data-project-img="../assets/project1.png"
+     data-spotify-url="https://open.spotify.com/album/2pHA2yqsAC9uum0lE1kyV5?si=qG4s6773SyW9N3YUAzow8w"
+     data-apple-url="https://music.apple.com/no/song/ti-kniver-i-hjertet/1820238689">
     <div class="drag" id="p1Btn" data-store-key="projects:p1">
       <img src="../assets/project1.png" alt="Project 1">
       <div class="label">TI KNIVER I HJERTET</div>
@@ -269,21 +480,51 @@
   </a>
 
   <!-- Project 2 -->
-  <a href="https://open.spotify.com/album/4hGT9RG7lSGz9MtX85Jpta?si=MaSikX3wTL-xhOIH3aTsnQ"
-     target="_blank" rel="noopener"
-     id="p2Link" aria-label="FLAWLESS FASADE">
+  <a href="#"
+     id="p2Link"
+     class="projectLink"
+     aria-label="FLAWLESS FASADE"
+     data-project-name="FLAWLESS FASADE"
+     data-project-desc="<a href='https://www.instagram.com/r4n.wav/' target='_blank' rel='noopener noreferrer'>R4N</a> slipper sin første sololåt, skrevet som 17-åring. En historie om å putte på en rolle og kalle det “seg selv”, der teksten avslører fasaden linje for linje.<br><strong>Prod:</strong> <a href='https://www.instagram.com/rumblinmusic/' target='_blank' rel='noopener noreferrer'>RumblinMusic</a>, <a href='https://www.instagram.com/r4n.wav/' target='_blank' rel='noopener noreferrer'>R4N</a>."
+     data-project-img="../assets/project2.png"
+     data-spotify-url="https://open.spotify.com/album/4hGT9RG7lSGz9MtX85Jpta?si=MaSikX3wTL-xhOIH3aTsnQ"
+     data-apple-url="https://music.apple.com/no/song/flawless-fasade/1829146937">
     <div class="drag" id="p2Btn" data-store-key="projects:p2">
       <img src="../assets/project2.png" alt="Project 2">
       <div class="label">FLAWLESS FASADE</div>
     </div>
   </a>
-
-  <div class="socials" aria-label="Social links">
+<div class="socials" aria-label="Social links">
     <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
     &nbsp;/&nbsp;
     <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
     &nbsp;/&nbsp;
     <a href="mailto:r4nmusic@outlook.com">contact</a>
+  </div>
+
+  <!-- Project overlay modal -->
+  <div class="projOverlay" id="projOverlay" aria-hidden="true">
+    <div class="projOverlay__backdrop" id="projBackdrop"></div>
+
+    <div class="projOverlay__panel" role="dialog" aria-modal="true" aria-labelledby="projTitle">
+      <button class="projOverlay__close" id="projClose" aria-label="Close project">&times;</button>
+
+      <div class="projOverlay__grid">
+        <div class="projOverlay__media">
+          <img id="projImg" src="" alt="Project image enlarged">
+        </div>
+
+        <div class="projOverlay__content">
+          <h2 class="projOverlay__title" id="projTitle">PROJECT NAME</h2>
+          <p class="projOverlay__desc" id="projDesc"></p>
+
+          <div class="projOverlay__buttons">
+            <a class="listenBtn listenBtn--spotify" id="projSpotifyBtn" href="#" target="_blank" rel="noopener" aria-label="Listen on Spotify"></a>
+            <a class="listenBtn listenBtn--apple" id="projAppleBtn" href="#" target="_blank" rel="noopener" aria-label="Listen on Apple Music"></a>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -298,7 +539,198 @@
       el.style.zIndex = String(zCounter);
     }
 
-    // ---------- storage ----------
+    
+    // ---------- project overlay modal ----------
+    const overlay = document.getElementById("projOverlay");
+    const backdrop = document.getElementById("projBackdrop");
+    const closeBtn = document.getElementById("projClose");
+    const projTitle = document.getElementById("projTitle");
+    const projDesc  = document.getElementById("projDesc");
+    const projImg   = document.getElementById("projImg");
+    const spotifyBtn = document.getElementById("projSpotifyBtn");
+    const appleBtn   = document.getElementById("projAppleBtn");
+
+    let overlayOpen = false;
+    let overlayClosing = false;
+    let activeProjectEl = null;
+    let activeProjectImgEl = null;
+
+    function openProjectOverlay(linkEl, projectBtnEl){
+      if (!overlay || overlayOpen || overlayClosing) return;
+      if (physicsEnabled) return;
+
+      const name = linkEl.dataset.projectName || "PROJECT NAME";
+      const desc = linkEl.dataset.projectDesc || "";
+      const imgSrc = linkEl.dataset.projectImg || "";
+      const spotifyUrl = linkEl.dataset.spotifyUrl || "#";
+      const appleUrl   = linkEl.dataset.appleUrl   || "#";
+
+      // Origin thumbnail (for FLIP)
+      const fromImg = projectBtnEl?.querySelector("img") || null;
+      const fromRect = fromImg ? fromImg.getBoundingClientRect() : null;
+
+      // Populate overlay content
+      projTitle.textContent = name;
+      projDesc.innerHTML = desc;
+      projImg.src = imgSrc;
+      spotifyBtn.href = spotifyUrl;
+      appleBtn.href   = appleUrl;
+
+      // Open overlay (fade in) — do this AFTER capturing fromRect
+      overlay.classList.remove("is-closing");
+      overlay.classList.add("is-open");
+      overlay.setAttribute("aria-hidden", "false");
+      document.body.classList.add("modal-open");
+      overlayOpen = true;
+
+      // Hide the clicked project in the background so it "becomes" the enlarged image
+      activeProjectEl = projectBtnEl || null;
+      activeProjectImgEl = fromImg;
+      if (activeProjectEl){
+        activeProjectEl.style.opacity = "0";
+      }
+
+      if (!fromImg || !fromRect){
+        projImg.style.opacity = "1";
+        return;
+      }
+
+      // Keep layout stable but hide the real target image until animation completes
+      projImg.style.opacity = "0";
+
+      const decodePromise = (projImg.decode && !projImg.complete)
+        ? projImg.decode().catch(() => {})
+        : Promise.resolve();
+
+      // Wait for:
+      //  - image decode (prevents last-millisecond intrinsic resize)
+      //  - TWO RAFs (ensures body scroll-lock + overlay layout have fully settled)
+      decodePromise.then(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const toRect = projImg.getBoundingClientRect();
+
+            const clone = fromImg.cloneNode(true);
+            clone.classList.add("projFlipClone");
+            clone.style.left = `${fromRect.left}px`;
+            clone.style.top = `${fromRect.top}px`;
+            clone.style.width = `${fromRect.width}px`;
+            clone.style.height = `${fromRect.height}px`;
+            clone.style.transformOrigin = "top left";
+            clone.style.transform = "translate3d(0,0,0) scale(1)";
+
+            document.body.appendChild(clone);
+
+            const dx = toRect.left - fromRect.left;
+            const dy = toRect.top - fromRect.top;
+            const sx = toRect.width / Math.max(1, fromRect.width);
+            const sy = toRect.height / Math.max(1, fromRect.height);
+
+            // Transform-only animation (FLIP)
+            requestAnimationFrame(() => {
+              clone.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
+            });
+
+            const done = () => {
+              clone.removeEventListener("transitionend", done);
+              // Show the real image first, then remove the clone on next frame
+              projImg.style.opacity = "1";
+              requestAnimationFrame(() => clone.remove());
+            };
+            clone.addEventListener("transitionend", done, { once:true });
+
+            // Fallback
+            setTimeout(() => {
+              if (document.body.contains(clone)) {
+                projImg.style.opacity = "1";
+                requestAnimationFrame(() => clone.remove());
+              }
+            }, 720);
+          });
+        });
+      });
+    }
+
+    function closeProjectOverlay(){
+      if (!overlay || !overlayOpen || overlayClosing) return;
+
+      overlayClosing = true;
+
+      const fromImg = activeProjectImgEl;
+      // If for some reason we don't have the origin image, just close normally.
+      if (!fromImg){
+        overlay.classList.remove("is-open");
+        overlay.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+        if (activeProjectEl) activeProjectEl.style.opacity = "";
+        activeProjectEl = null;
+        activeProjectImgEl = null;
+        overlayOpen = false;
+        overlayClosing = false;
+        return;
+      }
+
+      const toRect = projImg.getBoundingClientRect();
+      const fromRect = fromImg.getBoundingClientRect();
+
+      // Create a clone at the enlarged position, then shrink it back into the project
+      const clone = projImg.cloneNode(true);
+      clone.classList.add("projFlipClone");
+      clone.style.left = `${toRect.left}px`;
+      clone.style.top = `${toRect.top}px`;
+      clone.style.width = `${toRect.width}px`;
+      clone.style.height = `${toRect.height}px`;
+      clone.style.transformOrigin = "top left";
+      clone.style.transform = "translate3d(0,0,0) scale(1)";
+
+      document.body.appendChild(clone);
+
+      // Hide the real enlarged image while the clone animates out
+      projImg.style.opacity = "0";
+
+      const dx = fromRect.left - toRect.left;
+      const dy = fromRect.top - toRect.top;
+      const sx = fromRect.width / Math.max(1, toRect.width);
+      const sy = fromRect.height / Math.max(1, toRect.height);
+
+      // Start fade-out of the overlay content while shrinking
+      overlay.classList.remove("is-open");
+      overlay.classList.add("is-closing");
+
+      requestAnimationFrame(() => {
+        clone.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
+      });
+
+      const finish = () => {
+        clone.removeEventListener("transitionend", finish);
+        clone.remove();
+
+        // Fully close + restore background interactivity
+        overlay.classList.remove("is-closing");
+        overlay.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+
+        if (activeProjectEl) activeProjectEl.style.opacity = "";
+        activeProjectEl = null;
+        activeProjectImgEl = null;
+        overlayOpen = false;
+        overlayClosing = false;
+      };
+
+      clone.addEventListener("transitionend", finish, { once:true });
+      setTimeout(() => {
+        if (document.body.contains(clone)) finish();
+      }, 700);
+    }
+
+    backdrop?.addEventListener("click", closeProjectOverlay);
+    closeBtn?.addEventListener("click", closeProjectOverlay);
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeProjectOverlay();
+    });
+
+
+// ---------- storage ----------
     function getStored(key){
       try { return JSON.parse(localStorage.getItem(key) || "null"); }
       catch { return null; }
@@ -464,10 +896,17 @@ function setElPos(el, x, y){
       }
 
       linkEl.addEventListener("click", (e) => {
+        // If the user dragged, don't open the modal.
         if (linkEl.dataset.dragging === "1") {
           e.preventDefault();
           e.stopPropagation();
+          return;
         }
+
+        // Open overlay instead of navigating away.
+        e.preventDefault();
+        e.stopPropagation();
+        openProjectOverlay(linkEl, el);
       });
 
       el.addEventListener("pointerdown", pointerDown);

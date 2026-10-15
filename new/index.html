@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>R4N</title>
+  <!-- This page is intended to live inside /new, with /assets one level above -->
+  <link rel="icon" type="image/png" href="../assets/icon.png">
+
+  <style>
+    :root{
+      --bg:#fefefe;
+      --fg:#111111;
+      --muted:rgba(17,17,17,0.35);
+      --padX: 28px;   /* desktop left padding */
+      --padY: 10px;   /* top alignment padding */
+    }
+
+    *{margin:0;padding:0;box-sizing:border-box;}
+
+    body{
+      background:var(--bg);
+      color:var(--fg);
+      min-height:100vh;
+      overflow:hidden;
+      position:relative;
+
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:13px;
+      font-weight:400;
+      letter-spacing:0.2px;
+    }
+
+    /* Header row: BACK (left) + centered logo (same line) */
+    .topBar{
+      position:relative;
+      width:100%;
+      height:92px;
+      padding-top:var(--padY);
+      z-index:5;
+    }
+
+    .backFixed{
+      position:absolute;
+      left:var(--padX);
+      top:50%;
+      transform:translateY(-50%);
+      text-decoration:none;
+      color:rgba(17,17,17,0.65);
+      font-size:13px;
+      letter-spacing:2px;
+      font-weight:500;
+      white-space:normal;       /* allow wrap */
+      line-height:1.2;
+      max-width:38vw;           /* so it can wrap on mobile nicely */
+      user-select:none;
+      z-index:20;
+    }
+    .backFixed:hover{ color:rgba(17,17,17,0.90); }
+
+    .logo{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      width:auto;
+      z-index:10;
+    }
+    .logo a{display:inline-flex;text-decoration:none;}
+    .logo img{
+      width:136px;
+      height:136px;
+      object-fit:contain;
+      display:block;
+    }
+
+    /* Mobile-only: logo closer to top & keep back in same corner area */
+    @media (max-width: 768px){
+      :root{ --padX: 14px; --padY: 2px; }
+      .topBar{ height:78px; }
+      .logo img{ width:136px; height:136px; }
+      .backFixed{ max-width:46vw; }
+    }
+
+    @media (min-width: 769px){
+      :root{ --padY: 0px; }
+      .topBar{
+        height:auto;
+        min-height:136px;
+        padding-top:0;
+      }
+      .logo{
+        position:relative;
+        left:auto;
+        top:auto;
+        transform:none;
+        width:100%;
+        display:flex;
+        justify-content:center;
+        padding-top:0px;
+        margin-top:-6px;
+      }
+    }
+
+    .socials{
+      position:fixed;
+      left:50%;
+      bottom:36px;
+      transform:translateX(-50%);
+      z-index:50;
+      color:rgba(17,17,17,0.65);
+      font-size:12px;
+      letter-spacing:0.4px;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .socials a{ color:inherit; text-decoration:none; }
+    .socials a:hover{ color:rgba(17,17,17,0.9); }
+
+    a{color:inherit;-webkit-tap-highlight-color:transparent;}
+
+    .wip{
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      z-index:20;
+      padding:24px;
+      pointer-events:none;
+    }
+    .wip span{
+      color:var(--muted);
+      font-size:14px;
+      letter-spacing:1.8px;
+      text-transform:uppercase;
+      max-width:90vw;
+      white-space:normal;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topBar" aria-label="Header">
+    <a class="backFixed" href="../" aria-label="Back to home">&lt; - BACK</a>
+
+    <div class="logo" id="logoBlock">
+      <a href="../" aria-label="Home">
+        <img src="../assets/logo.png" alt="Logo">
+      </a>
+    </div>
+  </div>
+
+  <div class="wip" aria-label="Work in progress">
+    <span>WORK IN PROGRESS</span>
+  </div>
+
+  <div class="socials" aria-label="Social links">
+    <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
+    &nbsp;/&nbsp;
+    <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
+    &nbsp;/&nbsp;
+    <a href="mailto:r4nmusic@outlook.com">contact</a>
+  </div>
+</body>
+</html>
