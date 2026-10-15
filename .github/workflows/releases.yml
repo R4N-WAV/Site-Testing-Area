@@ -1,0 +1,33 @@
+name: Update release list
+
+on:
+  push:
+    paths:
+      - "releases/**"
+      - "scripts/build-releases.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build releases/index.json
+        run: node scripts/build-releases.mjs
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- releases/index.json; then
+            echo "Release list already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add releases/index.json
+          git commit -m "Update release list"
+          git push

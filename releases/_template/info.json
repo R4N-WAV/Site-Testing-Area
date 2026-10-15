@@ -1,0 +1,21 @@
+{
+  "title": "SONG TITLE",
+  "artist": "R4N",
+  "type": "Single",
+  "date": "2026-01-31",
+  "cover": "cover.png",
+  "description": "Write about the song here. Make a link like this: [R4N](https://www.instagram.com/r4n.wav/).",
+  "credits": [
+    { "role": "Prod", "people": [
+      { "name": "R4N", "url": "https://www.instagram.com/r4n.wav/" }
+    ] }
+  ],
+  "links": {
+    "spotify": "",
+    "apple": "",
+    "youtube": "",
+    "soundcloud": ""
+  },
+  "vinyl": "#111111",
+  "hidden": false
+}
