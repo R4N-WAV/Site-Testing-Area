@@ -2,9 +2,8 @@ import * as THREE from "three";
 import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, yearOf } from "./data.js";
 import { createShared, buildRecord, SLEEVE } from "./materials.js";
 
-// Palette (from the reference): pitch black, mauve, rose, plum, magenta.
+// Mostly black and white; the palette's magenta only as a faint rim light.
 const BG = 0x000000;
-const ROSE = new THREE.Color("#c3a1b2");
 const MAGENTA = new THREE.Color("#c03fbd");
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -35,45 +34,6 @@ function webglAvailable() {
   } catch { return false; }
 }
 
-// Comic-book halftone glow: dots on a screen-space grid that grow toward the centre.
-function halftoneMaterial() {
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    toneMapped: false,
-    uniforms: {
-      uStrength: { value: 0 },
-      uCell: { value: 9 },
-      uInner: { value: MAGENTA.clone() },
-      uOuter: { value: ROSE.clone() },
-    },
-    vertexShader: /* glsl */`
-      varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-    `,
-    fragmentShader: /* glsl */`
-      uniform float uStrength, uCell;
-      uniform vec3 uInner, uOuter;
-      varying vec2 vUv;
-      void main() {
-        vec2 c = vUv - 0.5;
-        float r = length(c * vec2(1.0, 1.15)) * 2.0;
-        float fall = clamp(1.0 - r, 0.0, 1.0);
-        fall = fall * fall * (3.0 - 2.0 * fall);
-        // dot grid at 45 degrees, like print
-        vec2 p = gl_FragCoord.xy / uCell;
-        p = mat2(0.7071, -0.7071, 0.7071, 0.7071) * p;
-        float d = length(fract(p) - 0.5);
-        float radius = 0.62 * sqrt(fall * uStrength);
-        float dotMask = 1.0 - smoothstep(radius - 0.06, radius, d);
-        vec3 col = mix(uOuter, uInner, smoothstep(0.25, 0.9, fall));
-        gl_FragColor = vec4(col * dotMask * (0.25 + 0.75 * fall) * uStrength, 1.0);
-      }
-    `,
-  });
-}
-
 // ============================================================
 //  THE SPACE
 // ============================================================
@@ -101,19 +61,13 @@ function startSpace(releases, ui) {
 
   // ---------- light: near darkness, one spotlight on the record at the front ----------
   scene.add(new THREE.AmbientLight(0xffffff, 0.09));
-  const rim = new THREE.DirectionalLight(MAGENTA, 0.9);
+  const rim = new THREE.DirectionalLight(MAGENTA, 0.35);
   rim.position.set(-4, 3, -5);
   scene.add(rim);
   const spot = new THREE.SpotLight(0xfff6fa, 7, 0, 0.3, 0.75, 0);
   spot.position.set(-0.6, 4.6, R + 2.6);
   spot.target.position.set(0, 0, R);
   scene.add(spot, spot.target);
-
-  // halftone glow behind the front record
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6), halftoneMaterial());
-  glow.position.set(0, 0.05, R - 0.9);
-  glow.renderOrder = -1;
-  scene.add(glow);
 
   // faint dust for depth
   const dustCount = reducedMotion ? 150 : 380;
@@ -126,7 +80,7 @@ function startSpace(releases, ui) {
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
-    color: ROSE, size: 0.012, transparent: true, opacity: 0.22, depthWrite: false,
+    color: 0xffffff, size: 0.012, transparent: true, opacity: 0.16, depthWrite: false,
   }));
   scene.add(dust);
 
@@ -410,12 +364,10 @@ function startSpace(releases, ui) {
       ui.setFocused(items[focused].rel, focused, items.length);
     }
 
-    // the spotlight and glow belong to whichever record is at the front
+    // the spotlight belongs to whichever record is at the front
     const centred = Math.pow(Math.max(0, best), 40); // 1 only when exactly at the front
     const ringLight = (1 - veilTarget);
     spot.intensity = 7 * (0.35 + 0.65 * centred) * ringLight;
-    glow.material.uniforms.uStrength.value = (0.25 + 0.75 * centred) * ringLight;
-    glow.material.uniforms.uCell.value = 9 * renderer.getPixelRatio();
     heroSpot.intensity = 4.2 * veilTarget;
     veil.material.opacity = veilTarget * 0.92;
 

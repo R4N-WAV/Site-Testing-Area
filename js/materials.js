@@ -111,12 +111,12 @@ function makeEnvironment(renderer) {
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  // palette: white key, rose and magenta accents
+  // white light, with one faint magenta rim from behind as the only colour
   panel(9, 5.5, 4.2, "#ffffff", [-8, 7, 13]);   // key: big softbox, upper left, in front
   panel(18, 2.2, 1.3, "#ffffff", [3, 8, 15]);  // long overhead softbox: the band of sheen across the wrap
-  panel(1.3, 13, 5.5, "#c3a1b2", [12, 1, 8]);   // rose strip light on the right
-  panel(12, 1.4, 3.2, "#c03fbd", [0, 11, -7]);  // magenta rim from behind
-  panel(7, 7, 0.5, "#48353f", [-12, -2, -7]);   // plum fill from behind left
+  panel(1.3, 13, 5, "#ffffff", [12, 1, 8]);     // strip light on the right
+  panel(12, 1.4, 1.4, "#c03fbd", [0, 11, -7]);  // faint magenta rim from behind
+  panel(7, 7, 0.4, "#ffffff", [-12, -2, -7]);   // soft fill from behind left
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const tex = pmrem.fromScene(env, 0.03).texture;

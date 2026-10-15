@@ -1,14 +1,13 @@
-/* Palette taken from the reference image: pitch black, mauve, rose, plum, magenta, white dots */
+/* Black and white. The reference palette (rose, mauve, plum, magenta) is only used in the logo. */
 :root{
   --bg:#000;
-  --fg:#f4edf1;
-  --blush:#e6cfdb;
+  --fg:#f2f2f0;
   --rose:#c3a1b2;
   --mauve:#af8499;
   --plum:#48353f;
   --magenta:#c03fbd;
-  --muted:rgba(230,207,219,0.58);
-  --faint:rgba(195,161,178,0.2);
+  --muted:rgba(242,242,240,0.55);
+  --faint:rgba(242,242,240,0.16);
   --pad:28px;
   --hero-top:88px;           /* set by js/site.js */
   --hero-h:420px;
@@ -33,8 +32,8 @@ body{
 }
 a{color:inherit;-webkit-tap-highlight-color:transparent;}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;}
-:focus-visible{outline:1px dashed var(--rose);outline-offset:4px;}
-::selection{background:var(--magenta);color:#000;}
+:focus-visible{outline:1px dashed var(--fg);outline-offset:4px;}
+::selection{background:var(--fg);color:#000;}
 
 #space{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;}
 #space:active{cursor:grabbing;}
@@ -75,11 +74,11 @@ body.is-loaded .top .logo{opacity:1;}
   color:var(--muted);letter-spacing:2px;font-size:12px;padding:8px 0;
   transition:color .2s ease,opacity .3s ease;
 }
-.textBtn:hover,.textBtn[aria-expanded="true"]{color:var(--rose);}
+.textBtn:hover,.textBtn[aria-expanded="true"]{color:var(--fg);}
 
 .hint{
   position:fixed;left:var(--pad);bottom:36px;z-index:20;
-  color:rgba(195,161,178,0.38);font-size:11px;letter-spacing:1.6px;
+  color:rgba(242,242,240,0.3);font-size:11px;letter-spacing:1.6px;
   pointer-events:none;transition:opacity .6s ease;
 }
 .hint.is-gone{opacity:0;}
@@ -89,25 +88,9 @@ body.is-loaded .top .logo{opacity:1;}
   display:flex;gap:10px;transition:opacity .4s ease;
 }
 .socials a{text-decoration:none;}
-.socials a:hover{color:var(--rose);}
+.socials a:hover{color:var(--fg);}
 body.detail-open .socials,body.detail-open .hint,body.detail-open #indexBtn,
 body.detail-open .caption,body.index-open .caption{opacity:0;pointer-events:none;}
-
-/* ---------- comic display text: halftone fill with an offset magenta plate ---------- */
-.comic{
-  position:relative;isolation:isolate;
-  background:var(--halftone);
-  -webkit-background-clip:text;background-clip:text;
-  color:transparent;
-  --dot:4px;
-}
-.comic::before{
-  content:attr(data-text);
-  position:absolute;inset:0;z-index:-1;
-  color:var(--magenta);opacity:0.75;
-  transform:translate(3px,3px);
-  -webkit-text-fill-color:var(--magenta);
-}
 
 /* ---------- caption for the record at the front ---------- */
 .caption{
@@ -117,16 +100,15 @@ body.detail-open .caption,body.index-open .caption{opacity:0;pointer-events:none
 }
 .caption__num{color:var(--muted);font-size:11px;letter-spacing:2.4px;}
 .caption__title{
-  margin-top:6px;font-size:clamp(22px,3.2vw,34px);line-height:1.05;font-weight:700;
-  letter-spacing:2px;text-transform:uppercase;overflow-wrap:anywhere;
+  margin-top:8px;font-size:clamp(18px,2.2vw,24px);line-height:1.1;font-weight:500;
+  letter-spacing:3px;text-transform:uppercase;overflow-wrap:anywhere;
 }
-.caption__open{margin-top:6px;}
-/* new title "stamps" in, animated on twos like a comic */
-.caption.is-new .caption__title{animation:stamp .42s steps(5) both;}
-@keyframes stamp{
-  0%{transform:scale(1.25) rotate(-2deg);opacity:0;}
-  40%{transform:scale(0.96) rotate(1deg);opacity:1;}
-  100%{transform:none;opacity:1;}
+.caption__open{margin-top:4px;}
+/* a new title fades up softly */
+.caption.is-new .caption__title{animation:titleIn .6s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes titleIn{
+  from{opacity:0;transform:translateY(6px);}
+  to{opacity:1;transform:none;}
 }
 
 /* ---------- index list ---------- */
@@ -142,13 +124,12 @@ body.detail-open .caption,body.index-open .caption{opacity:0;pointer-events:none
   width:100%;display:grid;grid-template-columns:28px 56px 1fr auto;gap:18px;align-items:center;
   padding:12px 0;border-bottom:1px solid var(--faint);text-align:left;
 }
-.index__num{color:var(--magenta);font-size:11px;letter-spacing:1px;}
+.index__num{color:var(--muted);font-size:11px;letter-spacing:1px;}
 .index__item img{width:56px;height:56px;object-fit:cover;display:block;background:#111;}
 .index__title{display:block;font-size:14px;letter-spacing:1.6px;text-transform:uppercase;transition:color .15s ease;}
 .index__sub{display:block;color:var(--muted);font-size:11px;letter-spacing:1px;margin-top:4px;}
 .index__year{color:var(--muted);font-size:11px;letter-spacing:1px;}
-.index__item button:hover .index__title{color:var(--rose);}
-.index__item button:hover img{outline:2px solid var(--magenta);outline-offset:2px;}
+.index__item button:hover .index__title{text-decoration:underline;text-underline-offset:4px;}
 .index__empty{color:var(--muted);text-align:center;letter-spacing:1.4px;}
 
 /* ---------- one release ---------- */
@@ -177,25 +158,24 @@ body.no3d .detail__hero img{display:block;height:var(--hero-h);width:var(--hero-
 body.no3d .detail__hint{display:none;}
 
 .detail__info{max-width:560px;margin:0 auto;text-align:center;}
-.detail__hint{color:rgba(195,161,178,0.38);font-size:10px;letter-spacing:2px;margin-bottom:18px;}
+.detail__hint{color:rgba(242,242,240,0.3);font-size:10px;letter-spacing:2px;margin-bottom:18px;}
 .detail__meta{color:var(--muted);font-size:11px;letter-spacing:2px;text-transform:uppercase;}
-.detail__title{margin-top:10px;font-size:clamp(28px,5vw,46px);line-height:1.05;font-weight:700;letter-spacing:2px;text-transform:uppercase;overflow-wrap:anywhere;}
+.detail__title{margin-top:10px;font-size:clamp(26px,4.4vw,40px);line-height:1.05;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;overflow-wrap:anywhere;}
 .detail__artist{margin-top:12px;color:var(--muted);letter-spacing:1.2px;}
 .detail__desc{margin-top:26px;line-height:1.7;color:rgba(244,237,241,0.86);}
-.detail__desc a,.detail__credits a{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--magenta);}
-.detail__desc a:hover,.detail__credits a:hover{color:var(--rose);}
+.detail__desc a,.detail__credits a{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--faint);}
+.detail__desc a:hover,.detail__credits a:hover{text-decoration-color:currentColor;}
 .detail__credits{margin-top:20px;display:flex;flex-direction:column;gap:6px;line-height:1.5;}
 .detail__credits div{display:flex;justify-content:center;gap:12px;}
 .detail__credits dt{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:1.4px;padding-top:2px;}
-.detail__links{margin:30px auto 0;display:flex;flex-direction:column;gap:10px;max-width:420px;}
+.detail__links{margin:30px auto 0;display:flex;flex-direction:column;gap:8px;max-width:420px;}
 .listen{
   display:flex;justify-content:space-between;align-items:center;
-  padding:15px 18px;border:1px solid var(--rose);text-decoration:none;text-align:left;
-  letter-spacing:1.8px;font-size:12px;text-transform:uppercase;color:var(--blush);
-  box-shadow:3px 3px 0 var(--plum);
-  transition:background .15s ease,color .15s ease,transform .15s ease,box-shadow .15s ease;
+  padding:15px 18px;border:1px solid var(--faint);text-decoration:none;text-align:left;
+  letter-spacing:1.8px;font-size:12px;text-transform:uppercase;
+  transition:background .2s ease,color .2s ease,border-color .2s ease;
 }
-.listen:hover{background:var(--rose);color:#000;transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--magenta);}
+.listen:hover{background:var(--fg);color:var(--bg);border-color:var(--fg);}
 .detail__nav{margin:34px auto 0;display:flex;justify-content:space-between;max-width:420px;}
 
 /* ---------- loader ---------- */
