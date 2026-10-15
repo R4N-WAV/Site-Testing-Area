@@ -1,174 +1,29 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, yearOf } from "./data.js";
+import { createShared, buildRecord, RECORD_WIDTH, SLEEVE } from "./materials.js";
 
-// ============================================================
-//  SETTINGS
-//  githubRepo: lets the site see new folders in releases/ the moment
-//  they're on GitHub, even before releases/index.json is rebuilt.
-//  If the site moves to another repo, change this line.
-// ============================================================
-const CONFIG = {
-  githubRepo: "R4N-WAV/Site-Testing-Area",
-  branch: "main",
-  releasesDir: "releases",
-};
-
-const PLATFORMS = {
-  spotify: "Spotify",
-  apple: "Apple Music",
-  youtube: "YouTube",
-  youtubemusic: "YouTube Music",
-  soundcloud: "SoundCloud",
-  tidal: "Tidal",
-  deezer: "Deezer",
-  bandcamp: "Bandcamp",
-  amazon: "Amazon Music",
-  tiktok: "TikTok",
-  instagram: "Instagram",
-};
+const BG = 0x0c0c0e;   // keep in sync with --bg in css/site.css
+const LOGO = 0x060607; // the big centre logo: same tone as the background, darker
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const isPhone = () => window.innerWidth <= 768;
 
-// ============================================================
-//  1. FIND THE RELEASES
-// ============================================================
-async function fetchJSON(url, timeoutMs = 6000) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal, cache: "no-cache" });
-    if (!res.ok) throw new Error(`${res.status} ${url}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+// Where the enlarged record sits when a song is open. The info text starts right under it.
+function heroLayout() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const top = isPhone() ? 70 : 84;
+  const height = isPhone()
+    ? Math.min((W * 0.84) / RECORD_WIDTH, H * 0.4)
+    : Math.min(H * 0.5, (W * 0.6) / RECORD_WIDTH, 560);
+  return { top, height: Math.round(height) };
 }
-
-function storageGet(key) {
-  try { return JSON.parse(sessionStorage.getItem(key) || "null"); } catch { return null; }
-}
-function storageSet(key, val) {
-  try { sessionStorage.setItem(key, JSON.stringify(val)); } catch { /* private mode etc. */ }
-}
-
-// Folder names straight from GitHub, so a newly added folder shows up without a rebuild.
-// Cached for 10 minutes per visitor to stay well inside GitHub's rate limit.
-async function listFoldersOnGitHub() {
-  if (!CONFIG.githubRepo || location.protocol === "file:") return [];
-  const cacheKey = `r4n:folders:${CONFIG.githubRepo}`;
-  const cached = storageGet(cacheKey);
-  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.names;
-  const url = `https://api.github.com/repos/${CONFIG.githubRepo}/contents/${CONFIG.releasesDir}?ref=${CONFIG.branch}`;
-  const entries = await fetchJSON(url);
-  const names = entries.filter((e) => e.type === "dir").map((e) => e.name);
-  storageSet(cacheKey, { at: Date.now(), names });
-  return names;
-}
-
-async function discoverFolders() {
-  const found = new Set();
-  const [manifest, live] = await Promise.allSettled([
-    fetchJSON(`${CONFIG.releasesDir}/index.json`),
-    listFoldersOnGitHub(),
-  ]);
-  if (manifest.status === "fulfilled") (manifest.value.releases || []).forEach((n) => found.add(n));
-  if (live.status === "fulfilled") live.value.forEach((n) => found.add(n));
-  return [...found].filter((n) => n && !n.startsWith("_") && !n.startsWith("."));
-}
-
-async function loadRelease(folder) {
-  const base = `${CONFIG.releasesDir}/${encodeURIComponent(folder)}/`;
-  const info = await fetchJSON(`${base}info.json`);
-  if (info.hidden) return null;
-  const coverCandidates = info.cover
-    ? [info.cover]
-    : ["cover.jpg", "cover.png", "cover.jpeg", "cover.webp"];
-  return {
-    slug: folder,
-    title: String(info.title || folder).trim(),
-    artist: info.artist ? String(info.artist) : "",
-    type: info.type ? String(info.type) : "",
-    date: info.date ? String(info.date) : "",
-    description: info.description ? String(info.description) : "",
-    credits: Array.isArray(info.credits) ? info.credits : [],
-    links: info.links && typeof info.links === "object" ? info.links : {},
-    vinyl: /^#[0-9a-f]{6}$/i.test(info.vinyl || "") ? info.vinyl : "#111111",
-    coverCandidates: coverCandidates.map((c) => base + c),
-    coverUrl: null,
-    image: null,
-  };
-}
-
-function loadImage(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.decoding = "async";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`image ${url}`));
-    img.src = url;
-  });
-}
-
-async function loadCover(rel) {
-  for (const url of rel.coverCandidates) {
-    try {
-      rel.image = await loadImage(url);
-      rel.coverUrl = url;
-      return;
-    } catch { /* try next name */ }
-  }
-  rel.image = placeholderCover(rel.title);
-  rel.coverUrl = rel.image.toDataURL("image/png");
-}
-
-function placeholderCover(title) {
-  const c = document.createElement("canvas");
-  c.width = c.height = 512;
-  const g = c.getContext("2d");
-  g.fillStyle = "#151517";
-  g.fillRect(0, 0, 512, 512);
-  g.fillStyle = "#f2f2f0";
-  g.font = "500 34px ui-monospace, Menlo, monospace";
-  g.textAlign = "center";
-  g.fillText(title.toUpperCase().slice(0, 22), 256, 266);
-  return c;
-}
-
-// Newest first (by date), then alphabetical.
-function sortReleases(list) {
-  return list.sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title));
-}
-
-// ============================================================
-//  2. TEXT HELPERS (description supports [text](url), **bold** and new lines)
-// ============================================================
-function escapeHTML(s) {
-  return s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-}
-function safeUrl(u) {
-  return /^(https?:|mailto:)/i.test(String(u || "").trim()) ? String(u).trim() : null;
-}
-function richText(src) {
-  let html = escapeHTML(src);
-  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, text, url) => {
-    const ok = safeUrl(url.replace(/&amp;/g, "&"));
-    return ok ? `<a href="${escapeHTML(ok)}" target="_blank" rel="noopener noreferrer">${text}</a>` : text;
-  });
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  return html.replace(/\n/g, "<br>");
-}
-function yearOf(rel) {
-  return /^\d{4}/.test(rel.date) ? rel.date.slice(0, 4) : "";
-}
-
-// ============================================================
-//  3. THE SPACE
-// ============================================================
-function hash(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
-  return (h >>> 0) / 4294967295;
+function applyHeroLayout() {
+  const { top, height } = heroLayout();
+  document.documentElement.style.setProperty("--hero-top", `${top}px`);
+  document.documentElement.style.setProperty("--hero-h", `${height}px`);
 }
 
 function webglAvailable() {
@@ -178,417 +33,307 @@ function webglAvailable() {
   } catch { return false; }
 }
 
-function makeStars(count, inner, outer) {
-  const pos = new Float32Array(count * 3);
-  const col = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const r = inner + Math.random() * (outer - inner);
-    const th = Math.random() * Math.PI * 2;
-    const ph = Math.acos(2 * Math.random() - 1);
-    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
-    pos[i * 3 + 1] = r * Math.cos(ph);
-    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
-    const b = 0.45 + Math.random() * 0.55;
-    const warm = Math.random() < 0.15;
-    col[i * 3] = b; col[i * 3 + 1] = b * (warm ? 0.9 : 0.97); col[i * 3 + 2] = b * (warm ? 0.8 : 1);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  const mat = new THREE.PointsMaterial({ size: 0.16, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false });
-  return new THREE.Points(geo, mat);
-}
-
-function glowTexture() {
-  const c = document.createElement("canvas");
-  c.width = c.height = 256;
-  const g = c.getContext("2d");
-  const grd = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grd.addColorStop(0, "rgba(255,255,255,0.9)");
-  grd.addColorStop(0.15, "rgba(255,240,225,0.35)");
-  grd.addColorStop(0.5, "rgba(140,120,200,0.06)");
-  grd.addColorStop(1, "rgba(0,0,0,0)");
-  g.fillStyle = grd;
-  g.fillRect(0, 0, 256, 256);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-// Record face: grooves in the vinyl colour with the cover art as the centre label.
-function recordTexture(image, vinylHex) {
-  const S = 1024, R = S / 2;
-  const c = document.createElement("canvas");
-  c.width = c.height = S;
-  const g = c.getContext("2d");
-  g.fillStyle = vinylHex;
-  g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.fill();
-
-  for (let r = R * 0.36; r < R * 0.985; r += 2.2) {
-    g.strokeStyle = Math.random() < 0.5 ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.35)";
-    g.lineWidth = 1;
-    g.beginPath(); g.arc(R, R, r, 0, Math.PI * 2); g.stroke();
-  }
-  // a couple of track gaps
-  for (const f of [0.55, 0.74]) {
-    g.strokeStyle = "rgba(0,0,0,0.6)"; g.lineWidth = 4;
-    g.beginPath(); g.arc(R, R, R * f, 0, Math.PI * 2); g.stroke();
-  }
-  // light sheen
-  if (g.createConicGradient) {
-    const sheen = g.createConicGradient(0.6, R, R);
-    sheen.addColorStop(0, "rgba(255,255,255,0)");
-    sheen.addColorStop(0.08, "rgba(255,255,255,0.13)");
-    sheen.addColorStop(0.16, "rgba(255,255,255,0)");
-    sheen.addColorStop(0.5, "rgba(255,255,255,0)");
-    sheen.addColorStop(0.58, "rgba(255,255,255,0.1)");
-    sheen.addColorStop(0.66, "rgba(255,255,255,0)");
-    g.fillStyle = sheen;
-    g.beginPath(); g.arc(R, R, R * 0.985, 0, Math.PI * 2); g.arc(R, R, R * 0.36, 0, Math.PI * 2, true); g.fill();
-  }
-  // label = cover art
-  const L = R * 0.34;
-  g.save();
-  g.beginPath(); g.arc(R, R, L, 0, Math.PI * 2); g.clip();
-  g.drawImage(image, R - L, R - L, L * 2, L * 2);
-  g.restore();
-  // spindle hole
-  g.fillStyle = "#050506";
-  g.beginPath(); g.arc(R, R, R * 0.025, 0, Math.PI * 2); g.fill();
-
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  return t;
-}
-
+// ============================================================
+//  THE SPACE
+// ============================================================
 function startSpace(releases, ui) {
   const canvas = $("space");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(BG, 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // "Neutral" keeps cover art colours true while still handling bright reflections
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 1.0;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x050506);
-  scene.fog = new THREE.FogExp2(0x050506, 0.018);
+  const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 200);
+  scene.add(camera);
 
-  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 400);
-
-  // lights
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const sunLight = new THREE.PointLight(0xfff1e0, 2.2, 0, 0);
-  scene.add(sunLight);
-  const key = new THREE.DirectionalLight(0xffffff, 1.4);
-  key.position.set(4, 6, 8);
+  const shared = createShared(renderer);
+  scene.environment = shared.env;
+  // direct light so the artwork reads at its true brightness; reflections come from the studio map
+  const key = new THREE.DirectionalLight(0xffffff, 1.55);
+  key.position.set(-2.5, 3.5, 6);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x8f88ff, 0.6);
-  rim.position.set(-6, -2, -6);
-  scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xdfe4ff, 0.5);
+  fill.position.set(4, 1, 3);
+  scene.add(fill);
 
-  // stars + centre glow (the "sun")
-  const stars = makeStars(reducedMotion ? 1200 : 2600, 35, 140);
-  scene.add(stars);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-  glow.scale.setScalar(3.2);
-  scene.add(glow);
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.09, 24, 24), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  scene.add(core);
+  // ---------- ring ----------
+  const n = releases.length;
+  const R = Math.max(3.0, (n * 1.55) / (Math.PI * 2));
 
-  // shared geometry
-  const sleeveGeo = new THREE.BoxGeometry(1, 1, 0.024);
-  const recordGeo = new THREE.CylinderGeometry(0.47, 0.47, 0.006, 96, 1);
-  const edgeMat = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.8 });
-  const backMat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
+  // ---------- big centre logo, blended into the background ----------
+  const logoTex = new THREE.TextureLoader().load("assets/logo-white.png", (t) => {
+    const aspect = t.image.width / t.image.height;
+    logo.scale.set(logoWidth, logoWidth / aspect, 1);
+  });
+  logoTex.colorSpace = THREE.SRGBColorSpace;
+  logoTex.anisotropy = 8;
+  const logoWidth = R * 1.75;
+  const logo = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: logoTex, color: LOGO, alphaTest: 0.35, toneMapped: false })
+  );
+  logo.scale.set(logoWidth, logoWidth / 2.2, 1);
+  logo.position.set(0, 0.25, 0);
+  scene.add(logo);
 
-  // ---------- build each record as a planet ----------
-  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  // ---------- faint dust for depth ----------
+  const dustCount = reducedMotion ? 200 : 520;
+  const dustPos = new Float32Array(dustCount * 3);
+  for (let i = 0; i < dustCount; i++) {
+    dustPos[i * 3] = (Math.random() - 0.5) * R * 6;
+    dustPos[i * 3 + 1] = (Math.random() - 0.5) * 7;
+    dustPos[i * 3 + 2] = (Math.random() - 0.5) * R * 6;
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+    color: 0xffffff, size: 0.012, transparent: true, opacity: 0.35, depthWrite: false,
+  }));
+  scene.add(dust);
+
+  // ---------- records ----------
   const items = releases.map((rel, i) => {
-    const r = 2.1 + i * 1.1;
-    const h = hash(rel.slug);
-
-    const orbit = new THREE.Group();
-    orbit.rotation.set((h - 0.5) * 0.5, h * Math.PI * 2, (hash(rel.slug + "z") - 0.5) * 0.35);
-    scene.add(orbit);
-
-    const ringPts = [];
-    for (let k = 0; k <= 160; k++) {
-      const a = (k / 160) * Math.PI * 2;
-      ringPts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
-    }
-    const ring = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(ringPts),
-      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false })
-    );
-    orbit.add(ring);
-
-    const body = new THREE.Group();
-    orbit.add(body);
-    const pivot = new THREE.Group();
-    body.add(pivot);
-
-    const coverTex = new THREE.Texture(rel.image);
-    coverTex.colorSpace = THREE.SRGBColorSpace;
-    coverTex.anisotropy = 4;
-    coverTex.needsUpdate = true;
-    // a little self-light so the artwork reads true to colour
-    const frontMat = new THREE.MeshStandardMaterial({
-      map: coverTex, roughness: 0.55, metalness: 0.0,
-      emissive: 0xffffff, emissiveMap: coverTex, emissiveIntensity: 0.35,
-    });
-    const ownEdge = edgeMat.clone();
-    const ownBack = backMat.clone();
-    const sleeve = new THREE.Mesh(sleeveGeo, [ownEdge, ownEdge, ownEdge, ownEdge, frontMat, ownBack]);
-    pivot.add(sleeve);
-
-    const faceMat = new THREE.MeshStandardMaterial({ map: recordTexture(rel.image, rel.vinyl), roughness: 0.32, metalness: 0.25 });
-    const sideMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(rel.vinyl), roughness: 0.4 });
-    const record = new THREE.Mesh(recordGeo, [sideMat, faceMat, faceMat]);
-    record.rotation.x = Math.PI / 2;
-    const recordSlot = new THREE.Group();
-    recordSlot.position.set(0.14, 0, 0);
-    recordSlot.add(record);
-    pivot.add(recordSlot);
-
-    sleeve.userData.index = i;
-    record.userData.index = i;
-
+    const rec = buildRecord(rel, shared, i);
+    const holder = new THREE.Object3D();
+    holder.add(rec.group);
+    scene.add(holder);
     const label = document.createElement("div");
     label.className = "vlabel";
     label.textContent = rel.title;
     $("labels").appendChild(label);
-
-    const materials = [frontMat, ownEdge, ownBack, faceMat, sideMat];
-    materials.forEach((m) => { m.transparent = true; });
-
     return {
-      rel, orbit, ring, body, pivot, record, recordSlot, label, materials, radius: r,
-      dim: 1,
-      angle: i * GOLDEN * 2.3 + h * 6,
-      speed: 0.9 / Math.pow(r, 1.5),
-      bob: h * 10,
+      rel, holder, label, pickables: rec.pickables,
+      slot: (i / Math.max(1, n)) * Math.PI * 2,
+      bobPhase: i * 1.37,
       hover: 0,
-      spin: 0,
+      blend: 0,        // 0 = in the ring, 1 = enlarged
+      blendTarget: 0,
     };
   });
-  const pickables = items.flatMap((it) => [it.pivot.children[0], it.record]);
+  const pickables = items.flatMap((it) => it.pickables);
+
+  // a veil between the ring and the enlarged record
+  const veil = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 40),
+    new THREE.MeshBasicMaterial({ color: BG, transparent: true, opacity: 0, depthWrite: false, toneMapped: false })
+  );
+  const HERO_DEPTH = 1.6;
+  veil.position.z = -(HERO_DEPTH + 0.5);
+  veil.renderOrder = 10;
+  camera.add(veil);
 
   // ---------- camera ----------
-  const maxR = items.length ? items[items.length - 1].radius : 3;
-  const tanHalf = () => Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  // records are drawn a bit larger on phones, where the whole system is further away
-  const baseScale = () => (camera.aspect < 1 ? 1.5 : 1.2);
-  // pull back far enough that the whole system fits, on wide and tall screens alike
-  function homePosition() {
-    const reach = maxR + 0.9 * baseScale();
-    const byHeight = reach * 0.75 / tanHalf();
-    const byWidth = reach / (tanHalf() * camera.aspect);
-    const dist = Math.max(8, byHeight, byWidth) + 1;
-    // phones (tall screens) look down more steeply so the orbits use the height
-    const tilt = camera.aspect < 1 ? 0.95 : 0.38;
-    return new THREE.Vector3(0, tilt, 1).normalize().multiplyScalar(dist);
+  function placeCamera() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.fov = camera.aspect < 1 ? 52 : 38;
+    camera.updateProjectionMatrix();
+    const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+    const D = camera.aspect < 1 ? R + 4.2 : Math.max(R + 3.2, (R + 0.7) / tanH);
+    camera.position.set(0, D * 0.15, D);
+    camera.lookAt(0, -0.42, 0);
+    camera.updateMatrixWorld();
   }
-  const home = { pos: homePosition(), target: new THREE.Vector3(0, 0, 0) };
-  camera.position.copy(home.pos);
+  placeCamera();
 
-  const controls = new OrbitControls(camera, canvas);
-  controls.target.copy(home.target);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.06;
-  controls.enablePan = false;
-  controls.rotateSpeed = 0.55;
-  controls.zoomSpeed = 0.6;
-  controls.minDistance = 3;
-  controls.maxDistance = Math.max(30, maxR * 5);
-  controls.autoRotate = !reducedMotion;
-  controls.autoRotateSpeed = 0.25;
-
-  // camera fly-to
-  let flight = null;
-  function flyTo(pos, target, duration = 1.2) {
-    if (reducedMotion) duration = 0.01;
-    flight = {
-      fromPos: camera.position.clone(), fromTarget: controls.target.clone(),
-      toPos: pos.clone(), toTarget: target.clone(),
-      t: 0, duration,
-    };
-  }
-  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-  // ---------- selection ----------
-  let selected = -1;
+  // ---------- state ----------
+  let rot = 0;           // ring rotation
+  let vel = 0;           // flick momentum
+  let auto = reducedMotion ? 0 : 0.06;
   let hovered = -1;
-  let timeScale = 1;
-  let savedView = null;
+  let selected = -1;
+  const pointerN = new THREE.Vector2(); // -1..1, for the tilt on the enlarged record
+  const tilt = new THREE.Vector2();
 
-  function focusItem(i) {
-    const it = items[i];
-    const world = new THREE.Vector3();
-    it.body.getWorldPosition(world);
-    const dir = camera.position.clone().sub(world).normalize();
-    const desktop = window.innerWidth > 768;
-    // close enough to fill the free space, far enough that sleeve + record (~1.6 wide) fit
-    const size = baseScale() * 1.18;
-    const dist = desktop ? 2.5 * size : Math.max(2.6, (0.82 * size) / (tanHalf() * camera.aspect));
-    const camPos = world.clone().add(dir.clone().multiplyScalar(dist));
-    // shift the view so the record isn't hidden behind the panel (side on desktop, bottom sheet on phones)
-    const right = new THREE.Vector3().crossVectors(dir, camera.up).normalize().negate();
-    const up = new THREE.Vector3().crossVectors(right, dir).normalize().negate();
-    const shift = desktop ? right.multiplyScalar(0.55 * size) : up.multiplyScalar(-0.6 * dist * tanHalf());
-    flyTo(camPos.add(shift), world.clone().add(shift));
-  }
-
-  function select(i) {
-    if (i === selected) return;
-    if (selected === -1) savedView = { pos: camera.position.clone(), target: controls.target.clone() };
-    selected = i;
-    controls.enabled = false;
-    controls.autoRotate = false;
-    focusItem(i);
-    ui.showPanel(items[i].rel, i);
-  }
-
-  function deselect() {
-    if (selected === -1) return;
-    selected = -1;
-    const back = savedView || home;
-    flyTo(back.pos, back.target, 1.0);
-    controls.enabled = true;
-    controls.autoRotate = !reducedMotion;
-    ui.hidePanel();
-  }
-
-  // ---------- pointer ----------
+  // ---------- picking & dragging ----------
   const raycaster = new THREE.Raycaster();
-  const pointer = new THREE.Vector2(9, 9);
-  let downAt = null;
-
-  function pick(clientX, clientY) {
-    pointer.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
-    raycaster.setFromCamera(pointer, camera);
+  const ndc = new THREE.Vector2();
+  function pick(x, y) {
+    ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
     const hit = raycaster.intersectObjects(pickables, false)[0];
     return hit ? hit.object.userData.index : -1;
   }
 
+  let drag = null;
+  const spinPerPx = () => (Math.PI * 1.1) / window.innerWidth;
+  canvas.addEventListener("pointerdown", (e) => {
+    drag = { lastX: e.clientX, lastT: performance.now(), moved: 0 };
+    canvas.setPointerCapture?.(e.pointerId);
+    ui.dismissHint();
+  });
   canvas.addEventListener("pointermove", (e) => {
-    if (e.pointerType === "touch") return;
-    hovered = pick(e.clientX, e.clientY);
-    document.body.classList.toggle("is-hovering", hovered !== -1);
+    if (drag) {
+      const dx = e.clientX - drag.lastX;
+      const now = performance.now();
+      const dt = Math.max(8, now - drag.lastT) / 1000;
+      rot += dx * spinPerPx();
+      vel = vel * 0.6 + ((dx * spinPerPx()) / dt) * 0.4;
+      drag.moved += Math.abs(dx);
+      drag.lastX = e.clientX; drag.lastT = now;
+      if (drag.moved > 6) { hovered = -1; document.body.classList.remove("is-hovering"); }
+      return;
+    }
+    if (e.pointerType !== "touch") {
+      hovered = pick(e.clientX, e.clientY);
+      document.body.classList.toggle("is-hovering", hovered !== -1);
+    }
   });
-  canvas.addEventListener("pointerleave", () => { hovered = -1; document.body.classList.remove("is-hovering"); });
-  canvas.addEventListener("pointerdown", (e) => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
-  canvas.addEventListener("pointerup", (e) => {
-    if (!downAt) return;
-    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
-    const quick = performance.now() - downAt.t < 500;
-    downAt = null;
-    if (moved > 6 || !quick) return;
-    const i = pick(e.clientX, e.clientY);
-    if (i !== -1) select(i);
-    else if (selected !== -1) deselect();
+  const endDrag = (e) => {
+    if (!drag) return;
+    const wasClick = drag.moved < 6;
+    if (performance.now() - drag.lastT > 90) vel = 0; // held still before letting go
+    drag = null;
+    if (wasClick) {
+      vel = 0;
+      const i = pick(e.clientX, e.clientY);
+      if (i !== -1) select(i);
+    }
+  };
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", () => { drag = null; });
+  canvas.addEventListener("pointerleave", () => { if (!drag) { hovered = -1; document.body.classList.remove("is-hovering"); } });
+  canvas.addEventListener("wheel", (e) => {
+    vel += (e.deltaX + e.deltaY) * 0.0012;
+    vel = clamp(vel, -3, 3);
+  }, { passive: true });
+  window.addEventListener("pointermove", (e) => {
+    pointerN.set((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1);
   });
-  canvas.addEventListener("pointerdown", () => ui.dismissHint(), { once: true });
 
-  // ---------- resize ----------
-  function onResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    home.pos.copy(homePosition());
-    if (selected !== -1) focusItem(selected);
+  function select(i) {
+    selected = i;
+    items.forEach((it, k) => { it.blendTarget = k === i ? 1 : 0; });
+    hovered = -1;
+    document.body.classList.remove("is-hovering");
+    ui.showDetail(items[i].rel, i);
   }
-  window.addEventListener("resize", onResize);
+  function deselect() {
+    selected = -1;
+    items.forEach((it) => { it.blendTarget = 0; });
+  }
 
-  // ---------- loop ----------
+  window.addEventListener("resize", () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    placeCamera();
+  });
+
+  // ---------- per-frame ----------
   const clock = new THREE.Clock();
+  const ringPos = new THREE.Vector3();
+  const ringQuat = new THREE.Quaternion();
+  const heroPos = new THREE.Vector3();
+  const heroQuat = new THREE.Quaternion();
+  const euler = new THREE.Euler();
   const tmp = new THREE.Vector3();
-  const motion = reducedMotion ? 0.2 : 1;
+
+  function heroTransform(t) {
+    const { top, height } = heroLayout();
+    const W = window.innerWidth, H = window.innerHeight;
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const worldPerPx = (2 * HERO_DEPTH * tanV) / H;
+    const cy = top + height / 2 - ui.scrollTop();
+    heroPos.set(0, -(cy - H / 2) * worldPerPx, -HERO_DEPTH);
+    camera.localToWorld(heroPos);
+    const scale = (height * worldPerPx) / SLEEVE;
+    // slow sway + follows the pointer a little, so the light moves across it
+    const sway = reducedMotion ? 0 : 1;
+    tilt.lerp(pointerN, 0.04);
+    euler.set(
+      (Math.sin(t * 0.27) * 0.05 + tilt.y * 0.16) * sway,
+      (Math.sin(t * 0.35) * 0.1 + tilt.x * 0.24) * sway,
+      0
+    );
+    heroQuat.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromEuler(euler));
+    return scale;
+  }
 
   function frame() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
+    const open = selected !== -1;
 
-    const wantScale = selected !== -1 ? 0 : hovered !== -1 ? 0.15 : 1;
-    timeScale += (wantScale - timeScale) * Math.min(1, dt * 3);
-
-    if (flight) {
-      flight.t = Math.min(1, flight.t + dt / flight.duration);
-      const k = ease(flight.t);
-      camera.position.lerpVectors(flight.fromPos, flight.toPos, k);
-      controls.target.lerpVectors(flight.fromTarget, flight.toTarget, k);
-      if (flight.t >= 1) flight = null;
+    // ring motion: slow drift, stops while hovering or when a song is open
+    const wantAuto = reducedMotion || open || hovered !== -1 ? 0 : 0.06;
+    auto += (wantAuto - auto) * Math.min(1, dt * 2);
+    if (!drag) {
+      rot += (auto + vel) * dt;
+      vel *= Math.exp(-dt * 1.8);
     }
-    controls.update();
 
-    stars.rotation.y += dt * 0.004 * motion;
-    glow.material.opacity = 0.85 + Math.sin(t * 1.3) * 0.08;
+    dust.rotation.y += dt * 0.01;
 
+    let veilTarget = 0;
     items.forEach((it, i) => {
-      it.angle += it.speed * dt * timeScale * motion;
-      it.body.position.set(Math.cos(it.angle) * it.radius, Math.sin(t * 0.7 + it.bob) * 0.12 * motion, Math.sin(it.angle) * it.radius);
+      // blend between ring and enlarged
+      const step = dt / (reducedMotion ? 0.05 : 0.95);
+      it.blend = it.blendTarget > it.blend ? Math.min(it.blendTarget, it.blend + step) : Math.max(it.blendTarget, it.blend - step);
+      const b = ease(it.blend);
+      veilTarget = Math.max(veilTarget, b);
 
-      const active = i === hovered || i === selected;
+      const active = i === hovered && !open;
       it.hover += ((active ? 1 : 0) - it.hover) * Math.min(1, dt * 6);
 
-      // face the camera, with a slight lazy tilt
-      it.pivot.lookAt(camera.position);
-      const wobble = (1 - it.hover) * motion;
-      it.pivot.rotateY(Math.sin(t * 0.5 + it.bob) * 0.22 * wobble);
-      it.pivot.rotateX(Math.cos(t * 0.4 + it.bob) * 0.1 * wobble);
-      it.pivot.scale.setScalar(baseScale() * (1 + it.hover * 0.18));
+      // place on the horizontal ring
+      const th = it.slot + rot;
+      ringPos.set(Math.sin(th) * R, Math.sin(t * 0.6 + it.bobPhase) * 0.04 + it.hover * 0.08, Math.cos(th) * R);
+      const towardCam = Math.atan2(camera.position.x - ringPos.x, camera.position.z - ringPos.z);
+      // mostly facing you, turning slightly outward as they swing round the sides
+      euler.set(0, towardCam + Math.sin(th) * 0.45, 0);
+      ringQuat.setFromEuler(euler);
+      const ringScale = 1 + it.hover * 0.05;
 
-      it.recordSlot.position.x = 0.14 + it.hover * 0.4;
-      it.spin += dt * (0.35 + it.hover * 3.2) * (reducedMotion ? 0.3 : 1);
-      it.record.rotation.y = -it.spin;
-
-      // fade the other records while one is open
-      const wantDim = selected === -1 || i === selected ? 1 : 0.06;
-      it.dim += (wantDim - it.dim) * Math.min(1, dt * 4);
-      for (const m of it.materials) m.opacity = it.dim;
-      const ringOn = selected === -1 ? 1 : 0;
-      it.ring.material.opacity += ((0.05 + it.hover * 0.12) * ringOn - it.ring.material.opacity) * Math.min(1, dt * 4);
-
-      // floating title under the record
-      it.body.getWorldPosition(tmp);
-      const d = camera.position.distanceTo(tmp);
-      tmp.y -= 0.72 * baseScale() * (1 + it.hover * 0.18);
-      tmp.project(camera);
-      const visible = tmp.z < 1 && Math.abs(tmp.x) < 1.2 && Math.abs(tmp.y) < 1.2;
-      if (visible) {
-        const x = (tmp.x * 0.5 + 0.5) * window.innerWidth;
-        const y = (-tmp.y * 0.5 + 0.5) * window.innerHeight;
-        it.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, 0)`;
-        it.label.style.opacity = String(Math.max(0.3, Math.min(1, (home.pos.length() * 1.05) / d)));
+      if (b > 0) {
+        const heroScale = heroTransform(t);
+        it.holder.position.lerpVectors(ringPos, heroPos, b);
+        it.holder.quaternion.slerpQuaternions(ringQuat, heroQuat, b);
+        it.holder.scale.setScalar(ringScale + (heroScale - ringScale) * b);
       } else {
-        it.label.style.opacity = "0";
+        it.holder.position.copy(ringPos);
+        it.holder.quaternion.copy(ringQuat);
+        it.holder.scale.setScalar(ringScale);
       }
+
+      // title under each record (hidden while a song is open)
+      tmp.copy(ringPos);
+      tmp.y -= 0.62;
+      tmp.project(camera);
+      const front = (Math.cos(th) + 1) / 2;
+      const x = (tmp.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-tmp.y * 0.5 + 0.5) * window.innerHeight;
+      it.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, 0)`;
+      // only the records on the near half of the ring show a title
+      it.label.style.opacity = open || b > 0.01 ? "0" : String(clamp((front - 0.4) / 0.35, 0, 1));
       it.label.classList.toggle("is-hot", active);
     });
 
+    veil.material.opacity = veilTarget * 0.94;
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 
-  return { select, deselect, get selected() { return selected; }, count: items.length };
+  return { select, deselect };
 }
 
 // ============================================================
-//  4. INTERFACE
+//  INTERFACE
 // ============================================================
 function buildUI(releases) {
-  const panel = $("panel");
+  const detail = $("detail");
+  const scroller = $("detailScroll");
   const indexEl = $("index");
   const indexBtn = $("indexBtn");
   let space = null;
   let current = -1;
 
-  // index list
+  // ---------- index list ----------
   const list = $("indexList");
-  if (!releases.length) {
-    list.innerHTML = `<li class="index__empty">NOTHING IN ORBIT YET</li>`;
-  }
+  if (!releases.length) list.innerHTML = `<li class="index__empty">NOTHING IN ORBIT YET</li>`;
   releases.forEach((rel, i) => {
     const li = document.createElement("li");
     li.className = "index__item";
@@ -596,41 +341,46 @@ function buildUI(releases) {
       <button type="button">
         <img src="${escapeHTML(rel.coverUrl)}" alt="" loading="lazy">
         <span><span class="index__title">${escapeHTML(rel.title)}</span>
-        <span class="index__sub" style="display:block">${escapeHTML([rel.type, rel.artist].filter(Boolean).join(" · "))}</span></span>
+        <span class="index__sub">${escapeHTML([rel.type, rel.artist].filter(Boolean).join(" · "))}</span></span>
         <span class="index__year">${escapeHTML(yearOf(rel))}</span>
       </button>`;
-    li.querySelector("button").addEventListener("click", () => {
-      if (space) setIndex(false);
-      open(i);
-    });
+    li.querySelector("button").addEventListener("click", () => { setIndex(false); open(i); });
     list.appendChild(li);
   });
-
   function setIndex(show) {
     indexEl.hidden = !show;
     indexBtn.setAttribute("aria-expanded", String(show));
+    document.body.classList.toggle("index-open", show);
   }
-  indexBtn.addEventListener("click", () => setIndex(indexEl.hidden));
+  indexBtn.addEventListener("click", () => {
+    if (current !== -1) close();
+    setIndex(indexEl.hidden);
+  });
 
+  // ---------- detail ----------
   function open(i) {
     if (space) space.select(i);
-    else ui.showPanel(releases[i], i);
+    else ui.showDetail(releases[i], i);
   }
-
   function close() {
-    if (space) space.deselect();
-    else ui.hidePanel();
+    if (current === -1) return;
+    current = -1;
+    space?.deselect();
+    detail.classList.remove("is-open");
+    detail.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("detail-open");
+    history.replaceState(null, "", location.pathname + location.search);
   }
 
   function fill(rel) {
-    $("pCover").src = rel.coverUrl;
-    $("pCover").alt = `${rel.title} cover art`;
-    $("pMeta").textContent = [rel.type, yearOf(rel)].filter(Boolean).join(" · ");
-    $("pTitle").textContent = rel.title;
-    $("pArtist").textContent = rel.artist;
-    $("pDesc").innerHTML = richText(rel.description);
+    $("dCover").src = rel.coverUrl;
+    $("dCover").alt = `${rel.title} cover art`;
+    $("dMeta").textContent = [rel.type, yearOf(rel)].filter(Boolean).join(" · ");
+    $("dTitle").textContent = rel.title;
+    $("dArtist").textContent = rel.artist;
+    $("dDesc").innerHTML = richText(rel.description);
 
-    const credits = $("pCredits");
+    const credits = $("dCredits");
     credits.innerHTML = "";
     for (const c of rel.credits) {
       if (!c || !c.role) continue;
@@ -641,10 +391,10 @@ function buildUI(releases) {
         return url ? `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name;
       });
       if (!people.length) continue;
-      credits.insertAdjacentHTML("beforeend", `<dt>${escapeHTML(String(c.role))}</dt><dd>${people.join(", ")}</dd>`);
+      credits.insertAdjacentHTML("beforeend", `<div><dt>${escapeHTML(String(c.role))}</dt><dd>${people.join(", ")}</dd></div>`);
     }
 
-    const links = $("pLinks");
+    const links = $("dLinks");
     links.innerHTML = "";
     for (const [key, val] of Object.entries(rel.links)) {
       const url = safeUrl(val);
@@ -653,30 +403,24 @@ function buildUI(releases) {
       links.insertAdjacentHTML("beforeend",
         `<a class="listen" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer"><span>Listen on ${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
     }
-
-    const showNav = releases.length > 1;
-    $("pPrev").hidden = !showNav;
-    $("pNext").hidden = !showNav;
+    const many = releases.length > 1;
+    $("dPrev").hidden = !many;
+    $("dNext").hidden = !many;
   }
 
   const ui = {
-    showPanel(rel, i) {
+    showDetail(rel, i) {
       current = i;
       fill(rel);
-      panel.classList.add("is-open");
-      panel.setAttribute("aria-hidden", "false");
-      document.body.classList.add("panel-open");
-      panel.querySelector(".panel__scroll").scrollTop = 0;
+      setIndex(false);
+      scroller.scrollTop = 0;
+      detail.classList.add("is-open");
+      detail.setAttribute("aria-hidden", "false");
+      document.body.classList.add("detail-open");
       history.replaceState(null, "", `#${rel.slug}`);
       ui.dismissHint();
     },
-    hidePanel() {
-      current = -1;
-      panel.classList.remove("is-open");
-      panel.setAttribute("aria-hidden", "true");
-      document.body.classList.remove("panel-open");
-      history.replaceState(null, "", location.pathname + location.search);
-    },
+    scrollTop: () => scroller.scrollTop,
     dismissHint() { $("hint").style.opacity = "0"; },
     attach(s) { space = s; },
     openBySlug(slug) {
@@ -687,9 +431,13 @@ function buildUI(releases) {
   };
 
   const step = (d) => { if (current !== -1) open((current + d + releases.length) % releases.length); };
-  $("panelClose").addEventListener("click", close);
-  $("pPrev").addEventListener("click", () => step(-1));
-  $("pNext").addEventListener("click", () => step(1));
+  $("detailClose").addEventListener("click", close);
+  $("dPrev").addEventListener("click", () => step(-1));
+  $("dNext").addEventListener("click", () => step(1));
+  // clicking the empty space around the record/text closes it
+  scroller.addEventListener("click", (e) => {
+    if (e.target === scroller || e.target.classList.contains("detail__hero")) close();
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { if (!indexEl.hidden) setIndex(false); else close(); }
     if (current !== -1 && e.key === "ArrowRight") step(1);
@@ -700,31 +448,31 @@ function buildUI(releases) {
 }
 
 // ============================================================
-//  5. GO
+//  GO
 // ============================================================
 async function main() {
-  const folders = await discoverFolders();
-  const loaded = await Promise.all(folders.map((f) => loadRelease(f).catch((err) => {
-    console.warn(`Skipping releases/${f}:`, err.message);
-    return null;
-  })));
-  const releases = sortReleases(loaded.filter(Boolean));
-  await Promise.all(releases.map(loadCover));
+  applyHeroLayout();
+  window.addEventListener("resize", applyHeroLayout);
 
+  const releases = await loadAllReleases();
   const ui = buildUI(releases);
-  if (webglAvailable()) {
+
+  let has3D = false;
+  if (webglAvailable() && releases.length) {
     try {
       ui.attach(startSpace(releases, ui));
+      has3D = true;
     } catch (err) {
       console.error(err);
-      ui.showIndex();
     }
-  } else {
+  }
+  if (!has3D) {
+    document.body.classList.add("no3d");
     ui.showIndex();
   }
 
   const slug = decodeURIComponent(location.hash.slice(1));
-  if (slug) setTimeout(() => ui.openBySlug(slug), 400);
+  if (slug) setTimeout(() => ui.openBySlug(slug), 300);
   $("loader").classList.add("is-done");
 }
 

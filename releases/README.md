@@ -1,7 +1,7 @@
 # How to add a new song or project
 
-Every folder in `releases/` is one record floating in space on the site.
-Add a folder and it joins the orbit. Delete the folder and it's gone.
+Every folder in `releases/` is one record in the ring on the site.
+Add a folder and it joins the ring. Delete the folder and it's gone.
 
 ## Add one from the GitHub website (no computer setup needed)
 
@@ -25,12 +25,12 @@ Within a minute or two it's live on the site.
 | `title` | Name shown on the record and in the panel |
 | `artist` | Who it's by, e.g. `"R4N, Bhaai"` |
 | `type` | `"Single"`, `"EP"`, `"Album"`, `"Project"`... anything you like |
-| `date` | Release date as `YYYY-MM-DD`. Newest records orbit closest to the centre |
+| `date` | Release date as `YYYY-MM-DD`. Newest records come first, in the ring and in the index |
 | `cover` | File name of the cover art in the same folder (`.jpg`, `.png` or `.webp`). Square images work best; 1000×1000 or smaller keeps the site fast |
 | `description` | Text about the song. Links: `[R4N](https://www.instagram.com/r4n.wav/)`. Bold: `**like this**`. New line: `\n` |
 | `credits` | Lines like "Prod: Rumblin, R4N". Each person can have a link, or leave `url` out |
 | `links` | Listen buttons. Known names: `spotify`, `apple`, `youtube`, `youtubemusic`, `soundcloud`, `tidal`, `deezer`, `bandcamp`, `amazon`, `tiktok`, `instagram`. Any other name works too and shows as written. Empty ones are skipped |
-| `vinyl` | Colour of the record, as a hex code: `"#111111"` is classic black, `"#7a1020"` deep red |
+| `vinyl` | Colour of the disc, as a hex code: `"#0b0b0b"` is classic black, `"#6b0f1a"` deep red |
 | `hidden` | `true` keeps the folder on GitHub but off the site (good for drafts) |
 
 ## Rules of thumb

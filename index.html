@@ -4,27 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>R4N</title>
-  <meta name="description" content="R4N — music. Every record is a planet." />
-  <meta name="theme-color" content="#050506" />
+  <meta name="description" content="R4N — music." />
+  <meta name="theme-color" content="#0c0c0e" />
   <link rel="icon" type="image/png" href="assets/icon.png" />
   <link rel="stylesheet" href="css/site.css" />
   <script type="importmap">
-    { "imports": {
-        "three": "./vendor/three.module.min.js",
-        "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js"
-    } }
+    { "imports": { "three": "./vendor/three.module.min.js" } }
   </script>
 </head>
 <body>
   <canvas id="space" aria-hidden="true"></canvas>
   <div id="labels" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
 
   <header class="top">
-    <a href="./" class="logo" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
+    <a href="./" class="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
 
-  <p class="hint" id="hint">DRAG TO DRIFT &nbsp;·&nbsp; CLICK A RECORD</p>
+  <p class="hint" id="hint">DRAG TO SPIN &nbsp;·&nbsp; CLICK A RECORD</p>
 
   <nav class="socials" aria-label="Social links">
     <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
@@ -39,23 +38,25 @@
     <ol class="index__list" id="indexList"></ol>
   </section>
 
-  <!-- Detail panel for one release -->
-  <aside class="panel" id="panel" aria-label="Release details" aria-hidden="true">
-    <button class="textBtn panel__close" id="panelClose" type="button" aria-label="Close">CLOSE ✕</button>
-    <div class="panel__scroll">
-      <img class="panel__cover" id="pCover" alt="" />
-      <p class="panel__meta" id="pMeta"></p>
-      <h1 class="panel__title" id="pTitle"></h1>
-      <p class="panel__artist" id="pArtist"></p>
-      <div class="panel__desc" id="pDesc"></div>
-      <dl class="panel__credits" id="pCredits"></dl>
-      <div class="panel__links" id="pLinks"></div>
-      <div class="panel__nav">
-        <button class="textBtn" id="pPrev" type="button">← PREV</button>
-        <button class="textBtn" id="pNext" type="button">NEXT →</button>
-      </div>
+  <!-- One release: the record enlarges in 3D at the top, the details sit right under it -->
+  <section class="detail" id="detail" aria-label="Release details" aria-hidden="true">
+    <button class="textBtn detail__close" id="detailClose" type="button">CLOSE ✕</button>
+    <div class="detail__scroll" id="detailScroll">
+      <div class="detail__hero"><img id="dCover" alt="" /></div>
+      <article class="detail__info">
+        <p class="detail__meta" id="dMeta"></p>
+        <h1 class="detail__title" id="dTitle"></h1>
+        <p class="detail__artist" id="dArtist"></p>
+        <div class="detail__desc" id="dDesc"></div>
+        <dl class="detail__credits" id="dCredits"></dl>
+        <div class="detail__links" id="dLinks"></div>
+        <div class="detail__nav">
+          <button class="textBtn" id="dPrev" type="button">← PREV</button>
+          <button class="textBtn" id="dNext" type="button">NEXT →</button>
+        </div>
+      </article>
     </div>
-  </aside>
+  </section>
 
   <div class="loader" id="loader" role="status"><span id="loaderText">TUNING IN</span></div>
 
