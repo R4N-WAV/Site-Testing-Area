@@ -3,7 +3,7 @@ import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, yearOf } fro
 import { createShared, buildRecord, SLEEVE } from "./materials.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
-const BG = 0x000000;
+const BG = 0xf6f6f4; // white, keep in sync with --bg in css/site.css
 const MAGENTA = new THREE.Color("#c03fbd");
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -57,7 +57,7 @@ function startSpace(releases, ui) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(BG, 1);
+  renderer.setClearColor(0x000000, 0); // transparent: the page background (white + faint blue glow) shows through
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // "Neutral" keeps cover art colours true while still handling bright reflections
   renderer.toneMapping = THREE.NeutralToneMapping;
@@ -72,7 +72,7 @@ function startSpace(releases, ui) {
   scene.environment = shared.env;
 
   // ---------- light: near darkness, a soft spotlight on the record in front ----------
-  scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55)); // a bright room now, so covers read in full colour
   // soft front light so every cover reads in its true colours; the fog lets the far ones sink into the dark
   const key = new THREE.DirectionalLight(0xffffff, 1.5);
   key.position.set(0, 1.5, 6);
@@ -158,7 +158,7 @@ function startSpace(releases, ui) {
     const dist = near() + d * SPACING;
     const passing = Math.max(0, -d);             // records behind you slide out to the side
     outP.set(
-      camera.position.x + side * (wall() + passing * 0.9),
+      camera.position.x + (phone() ? 0.08 : 0.24) + side * (wall() + passing * 0.9),
       camera.position.y - 0.05 + (i % 2 ? 0.04 : 0),
       camera.position.z - dist
     );
@@ -183,8 +183,10 @@ function startSpace(releases, ui) {
   let hovered = -1;
   let selected = -1;
   const clampIndex = (i) => clamp(i, 0, items.length - 1);
+  let travel = 0; // where you're heading along the tunnel (in records); scroll moves it smoothly
   function focusOn(i) {
     i = clampIndex(i);
+    travel = i;
     if (i !== focusIndex) {
       focusIndex = i;
     }
@@ -251,19 +253,24 @@ function startSpace(releases, ui) {
   canvas.addEventListener("pointercancel", () => { drag = null; });
   canvas.addEventListener("pointerleave", () => { if (!drag) { hovered = -1; document.body.classList.remove("is-hovering"); } });
 
-  // scrolling pushes the next record forward (one record per gesture)
-  let wheelAcc = 0, wheelLock = 0;
+  // scrolling carries you down the tunnel; when you stop, it settles on the nearest record
+  // Any deliberate scroll carries you at least one record in that direction, however slowly
+  // the wheel or trackpad sends its ticks.
+  let settleTimer = 0, scrollFrom = null;
   window.addEventListener("wheel", (e) => {
     if (selected !== -1 || document.body.classList.contains("index-open")) return;
     const delta = e.deltaMode === 1 ? e.deltaY * 16 : (Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
-    const now = performance.now();
-    if (now < wheelLock) return;
-    wheelAcc += delta;
-    if (Math.abs(wheelAcc) > 40) {
-      focusOn(focusIndex + Math.sign(wheelAcc));
-      wheelAcc = 0;
-      wheelLock = now + 520; // let one gesture move one record
-    }
+    if (scrollFrom === null) scrollFrom = focusIndex;
+    travel = clamp(travel + clamp(delta, -120, 120) / 420, -0.3, items.length - 0.7);
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      const moved = travel - scrollFrom;
+      let target = scrollFrom;
+      if (moved > 0.08) target = Math.max(Math.round(travel), scrollFrom + 1);
+      else if (moved < -0.08) target = Math.min(Math.round(travel), scrollFrom - 1);
+      scrollFrom = null;
+      focusOn(target);
+    }, 220);
   }, { passive: true });
 
   function select(i) {
@@ -339,7 +346,7 @@ function startSpace(releases, ui) {
     const t = clock.elapsedTime;
     const open = selected !== -1;
 
-    if (!drag) spring(focus, focusIndex, reducedMotion ? 30 : 6.5, dt);
+    if (!drag) spring(focus, travel, reducedMotion ? 30 : 6.5, dt);
     if (!tilting) tiltGoal.multiplyScalar(Math.exp(-dt * 3.2));
     spring(heroTilt.x, tiltGoal.x, 9, dt);
     spring(heroTilt.y, tiltGoal.y, 9, dt);
