@@ -112,15 +112,16 @@ function makeEnvironment(renderer) {
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  // white light, with one faint magenta rim from behind as the only colour
-  panel(9, 5.5, 4.2, "#ffffff", [-8, 7, 13]);   // key: big softbox, upper left, in front
-  panel(18, 2.2, 1.3, "#ffffff", [3, 8, 15]);  // long overhead softbox: the band of sheen across the wrap
-  panel(1.3, 13, 5, "#ffffff", [12, 1, 8]);     // strip light on the right
-  panel(12, 1.4, 1.4, "#c03fbd", [0, 11, -7]);  // faint magenta rim from behind
-  panel(7, 7, 0.4, "#ffffff", [-12, -2, -7]);   // soft fill from behind left
+  // Only thin strip lights: they reflect as fine streaks that the creases break up into
+  // glints, instead of big shapes where you can see the light itself.
+  panel(0.12, 16, 4.5, "#ffffff", [-7, 2, 12]);   // thin vertical strip, front left
+  panel(0.09, 16, 3.5, "#ffffff", [8, -1, 11]);   // thin vertical strip, front right
+  panel(18, 0.08, 2.5, "#ffffff", [0, 9, 12]);    // thin horizontal strip, above
+  panel(0.06, 10, 2.0, "#ffffff", [2, 4, 14]);    // a fine line near the middle
+  panel(12, 0.6, 0.8, "#c03fbd", [0, 11, -7]);    // faint magenta rim from behind
 
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const tex = pmrem.fromScene(env, 0.03).texture;
+  const tex = pmrem.fromScene(env, 0.004).texture; // barely blurred: crisp, narrow highlights
   pmrem.dispose();
   return tex;
 }
@@ -229,8 +230,8 @@ function wrapNormal(S = 1024, seed = 3) {
         h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i]
       );
       const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
-      // clear over the artwork; only creases and the very edges go a little white
-      const v = 0.015 + Math.min(0.3, lap * 9) + Math.max(0, 0.03 - edge) * 6;
+      // almost perfectly clear: just a whisper of white on the sharpest creases and the very edge
+      const v = Math.min(0.1, lap * 4) + Math.max(0, 0.02 - edge) * 4;
       haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
       haze[i * 4 + 3] = 255;
     }
@@ -371,16 +372,21 @@ export function buildRecord(rel, shared, index) {
     transparent: true,
     depthWrite: false,
   });
-  // Layer 2: reflections only, added on top so highlights stay bright and crisp.
+  // Layer 2: reflections only, added on top so highlights stay crisp. A thin-film
+  // (iridescent) coating gives the streaks a faint holo-foil colour shift as it turns.
   const shineMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000,
     metalness: 0,
-    roughness: 0.05,
+    roughness: 0.035,
     ior: 1.5,
     specularIntensity: 1,
+    iridescence: 1,
+    iridescenceIOR: 1.35,
+    iridescenceThicknessRange: [180, 620],
+    iridescenceThicknessMap: variant(maps.haze),
     normalMap: variant(maps.normal),
-    normalScale: new THREE.Vector2(0.3, 0.3),
-    envMapIntensity: 1.12,
+    normalScale: new THREE.Vector2(0.55, 0.55),
+    envMapIntensity: 1.0,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,

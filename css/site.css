@@ -49,6 +49,9 @@ body.is-hovering #space{cursor:pointer;}
 /* the R4N in the corner: same tone as the background, just a little lighter */
 .top .logo{opacity:0;filter:brightness(0.12);transition:opacity 1.2s var(--ease) .4s,filter .6s var(--ease);}
 body.is-loaded .top .logo{opacity:1;}
+#indexBtn{opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s,color .4s var(--ease);}
+body.is-loaded #indexBtn{opacity:1;pointer-events:auto;}
+body.detail-open #indexBtn,body.index-open #indexBtn{opacity:0;pointer-events:none;transition-delay:0s;}
 .top .logo:hover{filter:brightness(0.3);}
 
 .textBtn{

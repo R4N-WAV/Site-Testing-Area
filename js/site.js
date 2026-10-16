@@ -234,7 +234,8 @@ function startSpace(releases, ui) {
   }
 
   let drag = null;
-  const pxPerRecord = () => Math.min(window.innerWidth, 900) * 0.32;
+  // how far you drag to move one record: most of the screen width on phones, so it never runs away
+  const pxPerRecord = () => (window.innerWidth <= 768 ? window.innerWidth * 0.8 : Math.min(window.innerWidth, 900) * 0.45);
   canvas.addEventListener("pointerdown", (e) => {
     drag = { x0: e.clientX, y0: e.clientY, last: e.clientX, lastY: e.clientY, t: performance.now(), v: 0, moved: 0, start: focus.x };
     canvas.setPointerCapture?.(e.pointerId);
@@ -266,10 +267,14 @@ function startSpace(releases, ui) {
     if (!drag) return;
     const wasDrag = drag.moved > 6;
     const v = drag.v;
+    const drag0 = drag.start;
     drag = null;
     if (wasDrag) {
       // land on the record the flick was heading for
-      focusOn(Math.round(focus.x + clamp(v * 0.18, -1.5, 1.5)));
+      // a flick moves at most one record from where the drag started
+      const start = Math.round(drag0);
+      const target = Math.round(focus.x + clamp(v * 0.12, -0.6, 0.6));
+      focusOn(clamp(target, start - 1, start + 1));
       return;
     }
     const i = pick(e.clientX, e.clientY);
@@ -478,6 +483,10 @@ function buildUI(releases) {
   indexBtn.addEventListener("click", () => {
     if (current !== -1) close();
     setIndex(indexEl.hidden);
+  });
+  $("allBtn").addEventListener("click", () => {
+    close();
+    setIndex(true);
   });
   $("indexClose").addEventListener("click", () => setIndex(false));
 
