@@ -1,6 +1,6 @@
 // Everything that makes a record look like a real object:
 // studio lighting for reflections, a cardboard sleeve with paper grain and ring wear,
-// and clear, holo-tinted shrink-wrap sealing it.
+// and clear, creased shrink-wrap with a pink holo sheen sealing it.
 // All textures are generated here, so a new release only needs its cover art.
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -114,10 +114,11 @@ function makeEnvironment(renderer) {
   };
   // Only thin strip lights: they reflect as fine streaks that the creases break up into
   // glints, instead of big shapes where you can see the light itself.
-  panel(0.12, 16, 4.5, "#ffffff", [-7, 2, 12]);   // thin vertical strip, front left
-  panel(0.09, 16, 3.5, "#ffffff", [8, -1, 11]);   // thin vertical strip, front right
-  panel(18, 0.08, 2.5, "#ffffff", [0, 9, 12]);    // thin horizontal strip, above
-  panel(0.06, 10, 2.0, "#ffffff", [2, 4, 14]);    // a fine line near the middle
+  // The strips are tinted with the palette's rose and magenta: that's the pink holo look.
+  panel(0.12, 16, 4.5, "#e6c6d8", [-7, 2, 12]);   // thin vertical strip, front left (pale rose)
+  panel(0.09, 16, 3.6, "#c03fbd", [8, -1, 11]);   // thin vertical strip, front right (magenta)
+  panel(18, 0.08, 2.5, "#f4e6ee", [0, 9, 12]);    // thin horizontal strip, above (almost white)
+  panel(0.06, 10, 2.2, "#c3a1b2", [2, 4, 14]);    // a fine rose line near the middle
   panel(12, 0.6, 0.8, "#c03fbd", [0, 11, -7]);    // faint magenta rim from behind
 
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -164,6 +165,79 @@ function paperBump(S = 1024) {
     bytes[i * 4 + 3] = 255;
   }
   return dataTexture(bytes, S);
+}
+
+// ============================================================
+//  Shrink-wrap: creases fanning from the corners, little wrinkles along
+//  the edges, and a soft pillowing across the face.
+// ============================================================
+function wrapNormal(S = 1024, seed = 3) {
+  const rnd = mulberry32(seed);
+  const h = new Float32Array(S * S);
+  const stamp = (x0, y0, ang, len, width, amp) => {
+    const steps = Math.ceil(len * 1.5);
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const cx = x0 + Math.cos(ang) * len * t;
+      const cy = y0 + Math.sin(ang) * len * t;
+      const a = amp * Math.sin(Math.PI * Math.min(1, t * 1.15)); // fades at the ends
+      const w = Math.ceil(width);
+      for (let oy = -w; oy <= w; oy++) {
+        for (let ox = -w; ox <= w; ox++) {
+          const xi = (cx + ox) | 0, yi = (cy + oy) | 0;
+          if (xi < 0 || yi < 0 || xi >= S || yi >= S) continue;
+          const d = Math.hypot(ox, oy) / width;
+          if (d < 1) h[yi * S + xi] += a * (1 - d * d) * (1 - d * d) / steps * 6;
+        }
+      }
+    }
+  };
+  // corner fans
+  const corners = [[0, 0, 0], [S, 0, Math.PI / 2], [S, S, Math.PI], [0, S, -Math.PI / 2]];
+  for (const [cx, cy, base] of corners) {
+    for (let k = 0; k < 5; k++) {
+      const ang = base + 0.12 + rnd() * (Math.PI / 2 - 0.24);
+      stamp(cx, cy, ang, S * (0.03 + rnd() * 0.12), 3 + rnd() * 5, (rnd() < 0.5 ? -1 : 1) * (0.3 + rnd() * 0.5));
+    }
+  }
+  // edge wrinkles
+  for (let k = 0; k < 40; k++) {
+    const side = (rnd() * 4) | 0, p = rnd() * S;
+    const [x0, y0, inward] = [[p, 0, Math.PI / 2], [S, p, Math.PI], [p, S, -Math.PI / 2], [0, p, 0]][side];
+    stamp(x0, y0, inward + (rnd() - 0.5) * 0.9, S * (0.01 + rnd() * 0.05), 2.5 + rnd() * 3, (rnd() - 0.5) * 0.7);
+  }
+  // a few long soft folds across the face
+  for (let k = 0; k < 5; k++) {
+    stamp(rnd() * S, rnd() * S, rnd() * Math.PI * 2, S * (0.15 + rnd() * 0.3), 10 + rnd() * 10, (rnd() - 0.5) * 0.5);
+  }
+  // pillowing
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const u = x / S, v = y / S;
+      h[y * S + x] += 0.6 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)
+        + 0.06 * Math.sin(u * 13 + v * 5) + 0.05 * Math.sin(v * 17 - u * 7);
+    }
+  }
+  blur(h, S, 5); // a little softer, so creases never read as flat facets
+
+  // Haze: the plastic is milky everywhere, and goes whiter where it creases or
+  // bunches up at the edges (stretched and folded film scatters more light).
+  const haze = new Uint8Array(S * S * 4);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      const lap = Math.abs(
+        h[y * S + Math.min(S - 1, x + 2)] + h[y * S + Math.max(0, x - 2)] +
+        h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i]
+      );
+      const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
+      // almost perfectly clear: just a whisper of white on the sharpest creases and the very edge
+      const v = Math.min(0.1, lap * 4) + Math.max(0, 0.02 - edge) * 4;
+      haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
+      haze[i * 4 + 3] = 255;
+    }
+  }
+  return { normal: dataTexture(heightToNormal(h, S, 7), S), haze: dataTexture(haze, S) };
 }
 
 // ============================================================
@@ -268,7 +342,8 @@ export function createShared(renderer) {
   return {
     env: makeEnvironment(renderer),
     paper: paperBump(),
-    wraps: [cleanWrapMaps(512, 5), cleanWrapMaps(512, 9)],
+    // crease texture for the reflections + a smooth thin-film map for the holo colour
+    wraps: [3, 11].map((seed, k) => ({ normal: wrapNormal(1024, seed).normal, film: cleanWrapMaps(512, 5 + k * 4).film })),
     // softly rounded edges catch a line of light, which is most of what makes it read as an object
     sleeveGeo: new RoundedBoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH, 3, 0.0045),
     // the wrap is a little bigger and rounder: plastic pulled over the edges
@@ -286,15 +361,13 @@ export function buildRecord(rel, shared, index) {
     roughness: 0.6,
     bumpMap: shared.paper,
     bumpScale: 0.45,
-    sheen: 0.3,
-    sheenRoughness: 0.7,
-    sheenColor: new THREE.Color(0xffffff),
-    envMapIntensity: 0.18,
+    specularIntensity: 0.12, // a matte print: no grey sheen over dark areas
+    envMapIntensity: 0.04,   // keeps blacks black: the cover is lit by the lamps, not the room
   };
   const front = new THREE.MeshPhysicalMaterial({ map: canvasTexture(frontCanvas(rel.image)), ...paper });
   const back = new THREE.MeshPhysicalMaterial({ map: canvasTexture(backCanvas(rel, tint)), ...paper, roughness: 0.7 });
-  const spine = new THREE.MeshPhysicalMaterial({ map: canvasTexture(spineCanvas(rel, tint)), roughness: 0.65, envMapIntensity: 0.18 });
-  const edge = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.6), roughness: 0.7, envMapIntensity: 0.18 });
+  const spine = new THREE.MeshPhysicalMaterial({ map: canvasTexture(spineCanvas(rel, tint)), roughness: 0.65, envMapIntensity: 0.04 });
+  const edge = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.6), roughness: 0.7, envMapIntensity: 0.04 });
   // box faces: +x (open side), -x (spine), +y, -y, +z (front), -z (back)
   const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, spine, edge, edge, front, back]);
   sleeve.castShadow = true;
@@ -317,17 +390,25 @@ export function buildRecord(rel, shared, index) {
     roughness: 0.03,
     ior: 1.5,
     specularIntensity: 1,
-    iridescence: 1,
-    iridescenceIOR: 1.35,
-    iridescenceThicknessRange: [180, 620],
+    iridescence: 0.25, // just a hint of colour shift; the pink comes from the rose/magenta strips
+    iridescenceIOR: 1.3,
+    iridescenceThicknessRange: [380, 460],
     iridescenceThicknessMap: variant(maps.film),
     normalMap: variant(maps.normal),
-    normalScale: new THREE.Vector2(0.4, 0.4),
+    normalScale: new THREE.Vector2(0.3, 0.3),
     envMapIntensity: 1.0,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
+  // The wrap only ever shows the soft strip reflections from the studio map, never a hot
+  // spot from the lamps: drop the lamps' direct contribution in its shader.
+  shineMat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <lights_fragment_end>",
+      "#include <lights_fragment_end>\n  reflectedLight.directSpecular = vec3(0.0);\n  reflectedLight.directDiffuse = vec3(0.0);"
+    );
+  };
   const shine = new THREE.Mesh(shared.wrapGeo, shineMat);
   shine.renderOrder = 2;
 

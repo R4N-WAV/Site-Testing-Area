@@ -74,15 +74,15 @@ function startSpace(releases, ui) {
   // ---------- light: near darkness, a soft spotlight on the record in front ----------
   scene.add(new THREE.AmbientLight(0xffffff, 0.12));
   // soft front light so every cover reads in its true colours; the fog lets the far ones sink into the dark
-  const key = new THREE.DirectionalLight(0xffffff, 1.1);
-  key.position.set(-1.5, 2, 5);
+  const key = new THREE.DirectionalLight(0xffffff, 1.5);
+  key.position.set(0, 1.5, 6);
   scene.add(key);
-  scene.fog = new THREE.Fog(BG, 7, 19);
+  scene.fog = new THREE.Fog(BG, 4.5, 13);
   const rim = new THREE.DirectionalLight(MAGENTA, 0.3);
   rim.position.set(-4, 3, -5);
   scene.add(rim);
   const spot = new THREE.SpotLight(0xfff8fb, 3.2, 0, 0.26, 0.9, 0);
-  spot.position.set(-1.6, 3.2, 4.2);
+  spot.position.set(0, 2.6, 3.4);
   spot.castShadow = true;
   spot.shadow.mapSize.set(1024, 1024);
   spot.shadow.bias = -0.0004;
@@ -143,70 +143,37 @@ function startSpace(releases, ui) {
   camera.add(heroSpot, heroTarget);
   heroSpot.target = heroTarget;
 
-  // ---------- the push layout (after the sketch) ----------
-  // The record in focus sits big in the middle. The others line up behind it like a
-  // tunnel: each one slightly right, then slightly left, partly hidden by the one in
-  // front, getting smaller into the distance. Records you've pushed past fly off below.
-  // x/y are where it sits on screen (in front-record units), z is how far back it is,
-  // s is an extra size step-down, r is its angle (x, y, z in radians).
-  const PATH = [
-    { x: 0.0,   y: 0.00, z: 0.6,  s: 1.0,  r: [0.03, 0.12, -0.05] },
-    { x: 0.50,  y: 0.03, z: -1.0, s: 0.84, r: [0.02, -0.2, 0.06] },
-    { x: -0.56, y: 0.02, z: -2.6, s: 0.72, r: [0.04, 0.2, -0.05] },
-    { x: 0.70,  y: 0.04, z: -4.2, s: 0.64, r: [0.03, -0.18, 0.06] },
-    { x: -0.78, y: 0.03, z: -5.8, s: 0.58, r: [0.05, 0.18, -0.05] },
-  ];
-  const PASSED = [-1.0, -2.3, 1.5]; // where a pushed-away record goes, per step
-  const pathKey = (k) => {
-    if (k < PATH.length) return PATH[k];
-    const extra = k - (PATH.length - 1), last = PATH[PATH.length - 1];
-    return {
-      // keep alternating slightly left and right, like a tunnel
-      x: (extra % 2 ? 1 : -1) * (0.78 + extra * 0.12), y: last.y + (extra % 2 ? 0.02 : 0), z: last.z - extra * 1.6,
-      s: Math.max(0.4, last.s - extra * 0.05),
-      r: [0.04, extra % 2 ? -0.2 : 0.2, extra % 2 ? 0.07 : -0.06],
-    };
-  };
-  // turn a screen spot + depth into a world position, so far records don't drift upward
-  function place(xr, yr, z, out) {
-    const cam = camera.position;
-    const ratio = (cam.z - z) / (cam.z - PATH[0].z);
-    if (camera.aspect < 1) xr = xr * 0.66; // phones are narrow: pull the trail in
-    return out.set(cam.x + (xr - cam.x) * ratio, cam.y + (yr - cam.y) * ratio, z);
-  }
-  function layout(d, outP, outR) {
-    if (d < 0) {
-      const a = PATH[0];
-      place(a.x, a.y, a.z, outP);
-      outP.x += PASSED[0] * -d;
-      outP.y += PASSED[1] * -d;
-      outP.z += PASSED[2] * -d;
-      outR.fromArray(a.r);
-      outR.z += 0.25 * d;
-      return 1;
-    }
-    const k = Math.floor(d), f = d - k;
-    const A = pathKey(k), B = pathKey(k + 1);
-    const l = (a, b) => a + (b - a) * f;
-    place(l(A.x, B.x), l(A.y, B.y), l(A.z, B.z), outP);
-    outR.set(l(A.r[0], B.r[0]), l(A.r[1], B.r[1]), l(A.r[2], B.r[2]));
-    return l(A.s, B.s);
+  // ---------- the tunnel ----------
+  // The centre stays empty. Records line the left and right like the walls of a tunnel,
+  // alternating sides one after another, each turned in toward the middle so it's
+  // presented to you. Scrolling moves you down the tunnel one record at a time; records
+  // you've passed slide out past the edges. Only an opened record takes the centre.
+  const phone = () => camera.aspect < 1;
+  const near = () => (phone() ? 2.5 : 3.4); // distance to the record you're at
+  const SPACING = 1.4;  // distance between records along the tunnel
+  const wall = () => (phone() ? 0.44 : 1.12);
+  const sizeOf = () => (phone() ? 0.62 : 1);
+  function layout(d, i, outP, outR) {
+    const side = i % 2 === 0 ? -1 : 1;           // first record on the left, then right, ...
+    const dist = near() + d * SPACING;
+    const passing = Math.max(0, -d);             // records behind you slide out to the side
+    outP.set(
+      camera.position.x + side * (wall() + passing * 0.9),
+      camera.position.y - 0.05 + (i % 2 ? 0.04 : 0),
+      camera.position.z - dist
+    );
+    // extra turn toward the centre on top of facing you
+    outR.set(0.02, -side * 0.38, side * 0.03);
+    return sizeOf();
   }
 
-  // ---------- camera: straight on, framing the front record and the trail behind it ----------
+  // ---------- camera: standing in the tunnel, looking straight down it ----------
   function placeCamera() {
     camera.aspect = window.innerWidth / window.innerHeight;
-    camera.fov = camera.aspect < 1 ? 46 : 32;
+    camera.fov = phone() ? 58 : 40;
     camera.updateProjectionMatrix();
-    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    // the record in front fills ~42% of the height (or ~66% of a phone's width)
-    const byHeight = 1 / (2 * tanV * 0.42);
-    const byWidth = 1 / (2 * tanV * camera.aspect * 0.66);
-    const D = 0.6 + Math.max(byHeight, camera.aspect < 1 ? byWidth : 0);
-    const cx = 0;
-    const cy = camera.aspect < 1 ? 0.12 : 0.1;
-    camera.position.set(cx, cy, D);
-    camera.lookAt(cx, cy, -1);
+    camera.position.set(0, 0.05, 4);
+    camera.lookAt(0, 0.05, -10);
     camera.updateMatrixWorld();
   }
   placeCamera();
@@ -279,8 +246,7 @@ function startSpace(releases, ui) {
     }
     const i = pick(e.clientX, e.clientY);
     if (i === -1) return;
-    if (i === focusIndex) select(i);
-    else focusOn(i);
+    select(i);
   });
   canvas.addEventListener("pointercancel", () => { drag = null; });
   canvas.addEventListener("pointerleave", () => { if (!drag) { hovered = -1; document.body.classList.remove("is-hovering"); } });
@@ -344,7 +310,7 @@ function startSpace(releases, ui) {
   const q = new THREE.Quaternion();
   const look = new THREE.Matrix4();
   const up = new THREE.Vector3(0, 1, 0);
-  const spotAim = new THREE.Vector3(PATH[0].x, PATH[0].y, PATH[0].z);
+  const spotAim = new THREE.Vector3(-1.1, 0, 0.6);
   let heroScale = 1;
   let veilShown = 0;
 
@@ -387,8 +353,8 @@ function startSpace(releases, ui) {
 
       // place on the trail, pushed forward or away
       const d = i - focus.x;
-      it.holder.visible = d > -1.6 && d < 9;
-      const rowScale = layout(d, rowPos, rowAngle) * (1 + h * 0.03);
+      it.holder.visible = d > -1.4 && d < 10;
+      const rowScale = layout(d, i, rowPos, rowAngle) * (1 + h * 0.03);
       rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
       rowPos.z += h * 0.1;
 
@@ -421,7 +387,7 @@ function startSpace(releases, ui) {
     veilShown += (veilTarget - veilShown) * (1 - Math.exp(-dt * 8));
     // the room light goes out quickly when a record opens, so it never cuts across it
     spot.intensity = 3.2 * Math.pow(1 - Math.min(1, veilShown * 2.5), 2);
-    key.intensity = 1.1 * (1 - veilShown);
+    key.intensity = 1.5 * (1 - veilShown);
     heroSpot.intensity = 4 * veilShown;
     veil.material.opacity = veilShown * 0.97;
 
