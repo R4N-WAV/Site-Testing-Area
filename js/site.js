@@ -4,7 +4,6 @@ import { createShared, buildRecord, SLEEVE } from "./materials.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
 const BG = 0xf6f6f4; // white, keep in sync with --bg in css/site.css
-const MAGENTA = new THREE.Color("#c03fbd");
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (id) => document.getElementById(id);
@@ -12,25 +11,19 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const isPhone = () => window.innerWidth <= 768;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Where the enlarged record sits when a song is open. Everything fits on one screen:
-// wide screens put the record on the left and the details on the right,
-// tall screens put the record on top and the details underneath.
+// Where the enlarged record sits when a song is open: on top, with the details underneath.
+// Sized so the whole thing fits on one screen, on any device.
 function heroLayout() {
   const W = window.innerWidth, H = window.innerHeight;
-  const wide = W / H > 1.12 && W >= 600;
-  if (wide) {
-    const size = Math.round(Math.min(H * 0.66, W * 0.36, 620));
-    return { wide, top: Math.round((H - size) / 2), size, cx: W * 0.27, cy: H / 2 };
-  }
-  const top = H < 600 ? 54 : isPhone() ? 64 : 80;
-  const size = Math.round(Math.min(W * 0.7, H * 0.36, 460));
-  return { wide, top, size, cx: W / 2, cy: top + size / 2 };
+  const top = H < 600 ? 50 : isPhone() ? 62 : 76;
+  // leave the rest of the height for the details (they need roughly 330px)
+  const size = Math.round(clamp(Math.min(W * 0.84, H - top - 350, 440), Math.min(W * 0.5, H * 0.3), 440));
+  return { top, size, cx: W / 2, cy: top + size / 2 };
 }
 function applyHeroLayout() {
-  const { wide, top, size } = heroLayout();
+  const { top, size } = heroLayout();
   document.documentElement.style.setProperty("--hero-top", `${top}px`);
   document.documentElement.style.setProperty("--hero-h", `${size}px`);
-  document.body.classList.toggle("detail-wide", wide);
 }
 
 function webglAvailable() {
@@ -88,10 +81,10 @@ function startSpace(releases, ui) {
   key.position.set(-2.2, 3.2, 5); // from upper left: edges on one side catch light, the other side falls off
   scene.add(key);
   scene.fog = new THREE.Fog(BG, 4.5, 13);
-  const rim = new THREE.DirectionalLight(MAGENTA, 0.3);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.3);
   rim.position.set(-4, 3, -5);
   scene.add(rim);
-  const spot = new THREE.SpotLight(0xfff8fb, 3.2, 0, 0.26, 0.9, 0);
+  const spot = new THREE.SpotLight(0xffffff, 3.2, 0, 0.26, 0.9, 0);
   spot.position.set(0, 2.6, 3.4);
   spot.castShadow = true;
   spot.shadow.mapSize.set(1024, 1024);
@@ -111,6 +104,10 @@ function startSpace(releases, ui) {
       rel, holder, pickables: rec.pickables,
       phase: [seed, seed * 1.7 + 1, seed * 0.6 + 2],
       hover: springState(),
+      aside: springState(),
+      heroOff: springState(),   // sideways slide when stepping PREV / NEXT
+      heroOffTarget: 0,
+      leaving: false,
       blend: springState(),
       blendTarget: 0,
       pos: new THREE.Vector3(),
@@ -146,7 +143,7 @@ function startSpace(releases, ui) {
   }
 
   // the enlarged record gets its own soft spotlight, carried with the camera
-  const heroSpot = new THREE.SpotLight(0xfff8fb, 0, 0, 0.6, 0.85, 0);
+  const heroSpot = new THREE.SpotLight(0xffffff, 0, 0, 0.6, 0.85, 0);
   heroSpot.position.set(-0.8, 1.2, 0.5);
   const heroTarget = new THREE.Object3D();
   heroTarget.position.set(0, 0, -HERO_DEPTH);
@@ -161,14 +158,16 @@ function startSpace(releases, ui) {
   const phone = () => camera.aspect < 1;
   const near = () => (phone() ? 2.5 : 3.4); // distance to the record you're at
   const SPACING = 1.4;  // distance between records along the tunnel
-  const wall = () => (phone() ? 0.44 : 1.12);
+  const wall = () => (phone() ? 0.44 : 1.0);
   const sizeOf = () => (phone() ? 0.62 : 1);
   function layout(d, i, outP, outR) {
     const side = i % 2 === 0 ? -1 : 1;           // first record on the left, then right, ...
     const dist = near() + d * SPACING;
     const passing = Math.max(0, -d);             // records behind you slide out to the side
+    // records further down creep a little toward the middle, so they peek out from behind the one in front
+    const creep = clamp(d, 0, 6) * (phone() ? 0.015 : 0.045);
     outP.set(
-      camera.position.x + (phone() ? 0.08 : 0.24) + side * (wall() + passing * 0.9),
+      camera.position.x + (phone() ? 0.08 : 0.24) + side * (wall() - creep + passing * 0.9),
       camera.position.y - 0.05 + (i % 2 ? 0.04 : 0),
       camera.position.z - dist
     );
@@ -297,10 +296,29 @@ function startSpace(releases, ui) {
     }, 220);
   }, { passive: true });
 
-  function select(i) {
+  function select(i, dir = 0) {
     // opening doesn't move you down the tunnel, so closing puts everything back as it was
+    const prev = selected;
     selected = i;
-    items.forEach((it, k) => { it.blendTarget = k === i ? 1 : 0; });
+    items.forEach((it, k) => {
+      if (k === i || (it.leaving && k !== prev)) return;
+      it.blendTarget = 0; it.heroOffTarget = 0; it.leaving = false;
+    });
+    const it = items[i];
+    if (dir && prev !== -1 && prev !== i) {
+      // PREV / NEXT: the open record slides out one side, the next one slides in from the other,
+      // both staying up front, so nothing flies back into the tunnel
+      const old = items[prev];
+      old.leaving = true;
+      old.heroOffTarget = -dir;
+      it.leaving = false;
+      if (it.blend.x < 0.5) { it.heroOff.x = dir; it.heroOff.v = 0; } // (if it's still half on screen, it just comes back)
+      it.blend.x = 1; it.blend.v = 0;
+    } else {
+      it.leaving = false;
+    }
+    it.blendTarget = 1;
+    it.heroOffTarget = 0;
     hovered = -1;
     heroTilt.x.x = heroTilt.y.x = heroTilt.x.v = heroTilt.y.v = 0;
     document.body.classList.remove("is-hovering");
@@ -308,7 +326,7 @@ function startSpace(releases, ui) {
   }
   function deselect() {
     selected = -1;
-    items.forEach((it) => { it.blendTarget = 0; });
+    items.forEach((it) => { it.blendTarget = 0; it.heroOffTarget = 0; it.leaving = false; });
   }
 
   // ---------- tilting the enlarged record by dragging ----------
@@ -343,13 +361,17 @@ function startSpace(releases, ui) {
   const up = new THREE.Vector3(0, 1, 0);
   const spotAim = new THREE.Vector3(-1.1, 0, 0.6);
   let heroScale = 1;
+  let worldPerPx = 0.001;
+  const heroRight = new THREE.Vector3();
+  const slidPos = new THREE.Vector3();
+  const slidQuat = new THREE.Quaternion();
   let veilShown = 0;
 
   function heroTransform(t) {
     const { cx, cy, size } = heroLayout();
     const W = window.innerWidth, H = window.innerHeight;
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const worldPerPx = (2 * HERO_DEPTH * tanV) / H;
+    worldPerPx = (2 * HERO_DEPTH * tanV) / H;
     heroPos.set((cx - W / 2) * worldPerPx, -(cy - H / 2) * worldPerPx, -HERO_DEPTH);
     heroTarget.position.copy(heroPos);
     camera.localToWorld(heroPos);
@@ -365,7 +387,7 @@ function startSpace(releases, ui) {
   }
 
   function frame() {
-    const dt = Math.min(clock.getDelta(), 1 / 30);
+    const dt = Math.min(clock.getDelta(), window.__maxDt || 1 / 30); // __maxDt: only set by automated tests on slow machines
     const t = clock.elapsedTime;
     const open = selected !== -1;
 
@@ -404,18 +426,36 @@ function startSpace(releases, ui) {
 
     let veilTarget = 0;
     items.forEach((it, i) => {
+      // sliding out to the side (PREV / NEXT): once it's off screen, it quietly goes home
+      const off = spring(it.heroOff, it.heroOffTarget, 7.5, dt);
+      if (it.leaving && Math.abs(off) > 0.97) {
+        it.leaving = false;
+        it.blendTarget = 0; it.blend.x = 0; it.blend.v = 0;
+        it.heroOffTarget = 0; it.heroOff.x = 0; it.heroOff.v = 0;
+      }
+
       const b = clamp(spring(it.blend, it.blendTarget, reducedMotion ? 30 : 5.2, dt), 0, 1);
       setOnTop(it, it.blendTarget === 1 || b > 0.002);
       veilTarget = Math.max(veilTarget, b);
       const h = spring(it.hover, i === hovered && !open ? 1 : 0, 9, dt);
+      // hovering a record that's further down the tunnel: the ones in front of it step aside
+      const hv = hovered !== -1 && !open ? items[hovered] : null;
+      const blocking = hv && it.slot >= 0 && it.slot < hv.slot && it.slot >= Math.floor(focus.x) - 1 ? 1 : 0;
+      const a = spring(it.aside, blocking, 7, dt);
 
       // place in the tunnel; when the filter changes, records glide to their new places
       const slot = spring(it.slotS, it.slot >= 0 ? it.slot : it.slotS.x, 5, dt);
       const d = slot - focus.x;
       it.holder.visible = (it.slot >= 0 && d > -1.4 && d < 10) || b > 0.002;
-      const rowScale = layout(d, Math.round(slot), rowPos, rowAngle) * (1 + h * 0.03);
+      const side = Math.round(slot) % 2 === 0 ? -1 : 1;
+      const rowScale = layout(d, Math.round(slot), rowPos, rowAngle) * (1 + h * 0.04);
       rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
       rowPos.z += h * 0.1;
+      rowPos.x += side * (a * 0.75 - h * 0.08);  // step aside / the hovered one leans in a touch
+      // when a record is opened, the rest of the tunnel parts to the sides and falls away
+      const clear = open && b < 0.5 ? veilShown : 0;
+      rowPos.x += side * clear * 2.2;
+      rowPos.z -= clear * 1.5;
 
       // facing you, at its own angle, drifting very slightly
       look.lookAt(camera.position, rowPos, up);
@@ -423,7 +463,7 @@ function startSpace(releases, ui) {
       const m = reducedMotion ? 0.25 : 1;
       euler.set(
         rowAngle.x + Math.sin(t * 0.17 + it.phase[0]) * 0.035 * m,
-        rowAngle.y + Math.sin(t * 0.13 + it.phase[1]) * 0.05 * m - h * rowAngle.y * 0.4,
+        rowAngle.y + Math.sin(t * 0.13 + it.phase[1]) * 0.05 * m - h * rowAngle.y * 0.4 - side * a * 0.35,
         rowAngle.z + Math.sin(t * 0.11 + it.phase[2]) * 0.015 * m,
         "YXZ"
       );
@@ -431,8 +471,13 @@ function startSpace(releases, ui) {
 
       if (b > 0.0005) {
         heroTransform(t);
-        it.holder.position.lerpVectors(rowPos, heroPos, b);
-        it.holder.quaternion.slerpQuaternions(rowQuat, heroQuat, b);
+        const { size } = heroLayout();
+        const travelPx = window.innerWidth / 2 + size * 0.75;
+        heroRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        slidPos.copy(heroPos).addScaledVector(heroRight, it.heroOff.x * travelPx * worldPerPx);
+        slidQuat.copy(heroQuat).multiply(q.setFromAxisAngle(up, -it.heroOff.x * 0.7));
+        it.holder.position.lerpVectors(rowPos, slidPos, b);
+        it.holder.quaternion.slerpQuaternions(rowQuat, slidQuat, b);
         it.holder.scale.setScalar(rowScale + (heroScale - rowScale) * b);
       } else {
         it.holder.position.copy(rowPos);
@@ -448,7 +493,7 @@ function startSpace(releases, ui) {
     spot.intensity = 3.2 * Math.pow(1 - Math.min(1, veilShown * 2.5), 2);
     key.intensity = 1.5 * (1 - veilShown);
     heroSpot.intensity = 4 * veilShown;
-    veil.material.opacity = Math.max(veilShown * 0.97, warpFlash * 0.85);
+    veil.material.opacity = Math.max(veilShown, warpFlash * 0.85);
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -549,8 +594,8 @@ function buildUI(releases) {
 
 
   // ---------- detail ----------
-  function open(i) {
-    if (space) space.select(i);
+  function open(i, dir = 0) {
+    if (space) space.select(i, dir);
     else ui.showDetail(releases[i], i);
   }
   function close() {
@@ -613,7 +658,7 @@ function buildUI(releases) {
     const cs = getComputedStyle(info);
     const room = info.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
     const need = inner.offsetHeight;
-    const k = need > room && need > 0 ? Math.max(0.55, room / need) : 1;
+    const k = need > room && need > 0 ? Math.max(0.45, room / need) : 1;
     inner.style.transform = k < 1 ? `scale(${k.toFixed(4)})` : "";
   }
   window.addEventListener("resize", () => { if (current !== -1) fitDetail(); });
@@ -667,7 +712,7 @@ function buildUI(releases) {
   const stepDetail = (d) => {
     if (current === -1 || !shown.length) return;
     const k = shown.indexOf(current);
-    open(shown[(k + d + shown.length) % shown.length]);
+    open(shown[(k + d + shown.length) % shown.length], d);
   };
   $("detailClose").addEventListener("click", close);
   $("dPrev").addEventListener("click", () => stepDetail(-1));

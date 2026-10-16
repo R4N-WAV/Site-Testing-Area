@@ -6,7 +6,7 @@ import * as THREE from "three";
 
 // Real proportions: a 12" sleeve is 31.4 cm square, the disc inside 30 cm.
 export const SLEEVE = 1;
-export const SLEEVE_DEPTH = 0.05; // thickness at the middle, where the disc is; the edges taper to ~a third // a touch thicker than real so the edges read in 3D
+export const SLEEVE_DEPTH = 0.04; // thickness at the middle, where the disc is; the board is about a third of that
 const DISC_R = 0.477; // only used for the ring wear it leaves on the sleeve
 
 // ---------- small helpers ----------
@@ -155,13 +155,15 @@ function makeEnvironment(renderer) {
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  // Every light in the studio is pink: the wrap can only ever reflect pink and magenta, never a rainbow.
-  soft(1.2, 18, 11, "#ff9fdc", [-7, 2, 12]);     // tall strip, front left (hot rose)
-  soft(0.9, 18, 10, "#ff3fc4", [8, -1, 11]);     // tall strip, front right (magenta)
-  soft(20, 0.9, 6, "#ffd6ef", [0, 9, 12]);       // long strip above (pale pink)
-  soft(10, 5, 4.2, "#ff8ad2", [-2, 3, 14]);      // broad pink sheen in front: the flare that slides over the cover as it turns
-  panel(0.06, 10, 5, "#ffe3f5", [2, 4, 14]);     // one fine, crisp line for a sharp pink glint
-  panel(12, 0.6, 1.4, "#e03fc0", [0, 11, -7]);   // magenta rim from behind
+  // The plastic itself is clear and the soft light on it is neutral white. Only the narrow
+  // highlight strips are pink, so pink shows up as flares that sweep across, never as a tint.
+  // (set well off to the sides: seen straight on the plastic is clear; turn it and a pink flare sweeps across)
+  soft(1.3, 18, 13, "#ff8fd6", [-11, 2, 7]);     // tall strip, left: hot pink flare
+  soft(1.0, 18, 12, "#ff3fc4", [11, -1, 6]);     // tall strip, right: magenta flare
+  soft(20, 0.9, 4, "#ffffff", [0, 9, 12]);       // long strip above: white
+  soft(10, 5, 1.3, "#ffffff", [-2, 3, 14]);      // broad, faint white sheen in front: the gloss of clear plastic
+  panel(0.06, 10, 6, "#ffc6ea", [2, 4, 14]);     // one fine, crisp line for a sharp pink glint
+  panel(12, 0.6, 0.8, "#ffffff", [0, 11, -7]);   // faint rim from behind
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const tex = pmrem.fromScene(env, 0.004).texture; // barely blurred: crisp, narrow highlights
@@ -239,14 +241,15 @@ function wrapNormal(S = 1024, seed = 3) {
   for (const [cx, cy, base] of corners) {
     for (let k = 0; k < 5; k++) {
       const ang = base + 0.12 + rnd() * (Math.PI / 2 - 0.24);
-      stamp(cx, cy, ang, S * (0.03 + rnd() * 0.12), 3 + rnd() * 5, (rnd() < 0.5 ? -1 : 1) * (0.3 + rnd() * 0.5));
+      // soft, wide folds where the plastic bunches at the corner (never thin spikes)
+      stamp(cx, cy, ang, S * (0.03 + rnd() * 0.1), 7 + rnd() * 7, (rnd() < 0.5 ? -1 : 1) * (0.18 + rnd() * 0.3));
     }
   }
   // edge wrinkles
-  for (let k = 0; k < 40; k++) {
+  for (let k = 0; k < 24; k++) {
     const side = (rnd() * 4) | 0, p = rnd() * S;
     const [x0, y0, inward] = [[p, 0, Math.PI / 2], [S, p, Math.PI], [p, S, -Math.PI / 2], [0, p, 0]][side];
-    stamp(x0, y0, inward + (rnd() - 0.5) * 0.9, S * (0.01 + rnd() * 0.05), 2.5 + rnd() * 3, (rnd() - 0.5) * 0.7);
+    stamp(x0, y0, inward + (rnd() - 0.5) * 0.6, S * (0.01 + rnd() * 0.035), 6 + rnd() * 5, (rnd() - 0.5) * 0.4);
   }
   // a few long soft folds across the face
   for (let k = 0; k < 5; k++) {
@@ -342,42 +345,43 @@ function backCanvas(rel, tint) {
   return c;
 }
 
-function spineCanvas(rel, tint) {
-  const c = makeCanvas(64, 2048);
-  const g = c.getContext("2d");
-  g.fillStyle = `#${tint.clone().multiplyScalar(0.55).getHexString(THREE.SRGBColorSpace)}`;
-  g.fillRect(0, 0, 64, 2048);
-  g.save();
-  g.translate(32, 1024);
-  g.rotate(-Math.PI / 2);
-  g.fillStyle = "rgba(240,240,235,0.85)";
-  g.font = "500 30px ui-monospace, Menlo, monospace";
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillText(`${(rel.artist || "R4N").toUpperCase()}   —   ${rel.title.toUpperCase()}`, 0, 0);
-  g.restore();
-  return c;
-}
-
-// A sleeve with a record inside: the middle bulges out in a round dome where the disc
-// sits, then tapers thinner toward the edges, like a real 12" in its shrink-wrap.
+// A sleeve with a record inside. The board is flat and thin out to the edges, with a
+// gentle round dome in the middle where the disc sits. The edges are rounded like folded
+// card (a half-round bullnose, not a sharp box corner), and the cover print wraps around
+// them, the way the printed paper on a real sleeve folds over the board.
 function pillowProfile(u, v) {
   // u, v in -0.5..0.5 across the face
   const r = Math.hypot(u, v);
-  const disc = 1 - smoothstep(0.26, 0.52, r);                       // the dome over the disc, with a soft shoulder
-  const edge = smoothstep(0, 0.09, 0.5 - Math.max(Math.abs(u), Math.abs(v))); // taper to the rim
-  return 0.32 + 0.68 * edge * (0.45 + 0.55 * disc);
+  const disc = 1 - smoothstep(0.2, 0.48, r); // the dome over the disc, with a soft shoulder
+  return EDGE_THICK + (1 - EDGE_THICK) * disc;
 }
+const EDGE_THICK = 0.36; // board thickness at the edges, as a share of the middle
 function smoothstep(a, b, x) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 }
 function pillowBox(w, h, depth, seg = 64) {
-  const g = new THREE.BoxGeometry(w, h, depth, seg, seg, 1);
+  const g = new THREE.BoxGeometry(w, h, depth, seg, seg, 12);
   const pos = g.attributes.position;
+  const nrm = g.attributes.normal;
+  const uv = g.attributes.uv;
+  const eps = 1e-6;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    pos.setZ(i, z * pillowProfile(x / w, y / h));
+    const theta = (z / (depth / 2)) * (Math.PI / 2);   // -90°..90° around the rounded edge
+    const half = (depth / 2) * pillowProfile(x / w, y / h);
+    const inset = half * (1 - Math.cos(theta));         // pulls the edge in to a half-round
+    const onX = Math.abs(x) > w / 2 - eps, onY = Math.abs(y) > h / 2 - eps;
+    pos.setXYZ(
+      i,
+      onX ? Math.sign(x) * (w / 2 - inset) : x,
+      onY ? Math.sign(y) * (h / 2 - inset) : y,
+      Math.sin(theta) * half
+    );
+    // side faces show the outermost strip of the cover print
+    const nx = nrm.getX(i), ny = nrm.getY(i);
+    if (Math.abs(nx) > 0.5) uv.setXY(i, nx > 0 ? 0.997 : 0.003, y / h + 0.5);
+    else if (Math.abs(ny) > 0.5) uv.setXY(i, x / w + 0.5, ny > 0 ? 0.997 : 0.003);
   }
   g.computeVertexNormals();
   return g;
@@ -392,11 +396,10 @@ export function createShared(renderer) {
     paper: paperBump(),
     // crease texture for the reflections
     wraps: [3, 11].map((seed) => wrapNormal(1024, seed)),
-    // softly rounded edges catch a line of light, which is most of what makes it read as an object
+    // rounded edges catch a soft line of light, which is most of what makes it read as an object
     sleeveGeo: pillowBox(SLEEVE, SLEEVE, SLEEVE_DEPTH),
-    // the wrap is a little bigger and rounder: plastic pulled over the edges
-    // the wrap hugs the same shape, a hair bigger
-    wrapGeo: pillowBox(SLEEVE + 0.008, SLEEVE + 0.008, SLEEVE_DEPTH + 0.006),
+    // the wrap hugs the same shape, a hair bigger: plastic pulled tight over the edges
+    wrapGeo: pillowBox(SLEEVE + 0.005, SLEEVE + 0.005, SLEEVE_DEPTH + 0.005),
   };
 }
 
@@ -411,14 +414,12 @@ export function buildRecord(rel, shared, index) {
     bumpMap: shared.paper,
     bumpScale: 0.45,
     specularIntensity: 0.12, // a matte print: no grey sheen over dark areas
-    envMapIntensity: 0.04,   // keeps blacks black: the cover is lit by the lamps, not the room
+    envMapIntensity: 0,      // the print takes no colour from the studio lights: blacks stay black, whites stay white
   };
   const front = new THREE.MeshPhysicalMaterial({ map: canvasTexture(frontCanvas(rel.image)), ...paper });
   const back = new THREE.MeshPhysicalMaterial({ map: canvasTexture(backCanvas(rel, tint)), ...paper, roughness: 0.7 });
-  const spine = new THREE.MeshPhysicalMaterial({ map: canvasTexture(spineCanvas(rel, tint)), roughness: 0.65, envMapIntensity: 0.04 });
-  const edge = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.6), roughness: 0.7, envMapIntensity: 0.04 });
-  // box faces: +x (open side), -x (spine), +y, -y, +z (front), -z (back)
-  const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, spine, edge, edge, front, back]);
+  // box faces: +x, -x, +y, -y (the rounded edges, cover print wrapped round), +z (front), -z (back)
+  const sleeve = new THREE.Mesh(shared.sleeveGeo, [front, front, front, front, front, back]);
   sleeve.castShadow = true;
   sleeve.receiveShadow = true;
 
@@ -433,13 +434,13 @@ export function buildRecord(rel, shared, index) {
   // Layer 1: the creases. Clear on flat areas; only folds and the very edge catch a
   // little light and whiten, which is what makes the plastic read.
   const hazeMat = new THREE.MeshStandardMaterial({
-    color: 0xf4eef2,
+    color: 0xf2f2f2,
     roughness: 0.55,
     metalness: 0,
     alphaMap: variant(maps.haze),
     normalMap: variant(maps.normal),
     normalScale: new THREE.Vector2(0.3, 0.3),
-    envMapIntensity: 0.25,
+    envMapIntensity: 0.04,   // milky white from the lamps; the pink studio strips only show in the glossy reflections
     transparent: true,
     depthWrite: false,
   });
@@ -457,8 +458,8 @@ export function buildRecord(rel, shared, index) {
   shadeMesh.renderOrder = 1;
 
 
-  // Layer 2: reflections only, added on top so the artwork shows through untouched. The studio lights are all pink,
-  // so the reflections are a pink holo flare that sweeps across the cover as the record turns. No thin-film: no rainbow.
+  // Layer 2: reflections only, added on top so the artwork shows through untouched. The plastic stays clear;
+  // the narrow pink studio strips make pink holo flares that sweep across as the record turns. No thin-film: no rainbow.
   const shineMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000,
     metalness: 0,
