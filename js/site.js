@@ -77,7 +77,7 @@ function startSpace(releases, ui) {
   const key = new THREE.DirectionalLight(0xffffff, 1.1);
   key.position.set(-1.5, 2, 5);
   scene.add(key);
-  scene.fog = new THREE.Fog(BG, 6, 13);
+  scene.fog = new THREE.Fog(BG, 7, 17);
   const rim = new THREE.DirectionalLight(MAGENTA, 0.3);
   rim.position.set(-4, 3, -5);
   scene.add(rim);
@@ -144,47 +144,52 @@ function startSpace(releases, ui) {
   heroSpot.target = heroTarget;
 
   // ---------- the push layout (after the sketch) ----------
-  // The record in focus sits big at the front left. The next one is to its right and a
-  // little further back; every one after that steps further away, up and to the right,
-  // each at its own angle. Records you've pushed past fly off below you.
-  // p = position, r = angle (x, y, z in radians), relative to facing you.
+  // The record in focus sits big at the front left. The others step straight back into
+  // the distance, zig-zagging left and right and getting clearly smaller, without
+  // climbing up the screen. Records you've pushed past fly off below you.
+  // x/y are where it sits on screen (in front-record units), z is how far back it is,
+  // s is an extra size step-down, r is its angle (x, y, z in radians).
   const PATH = [
-    { p: [-0.34, -0.30, 0.60], r: [0.03, 0.22, -0.09] },
-    { p: [0.62, -0.06, -0.30], r: [0.02, -0.28, 0.07] },
-    { p: [-0.10, 0.55, -1.25], r: [0.05, 0.18, -0.05] },
-    { p: [0.78, 0.98, -2.20], r: [0.03, -0.22, 0.08] },
-    { p: [0.30, 1.45, -3.15], r: [0.05, 0.16, -0.06] },
+    { x: -0.30, y: 0.00, z: 0.6,  s: 1.0,  r: [0.03, 0.22, -0.09] },
+    { x: 0.64,  y: 0.05, z: -1.0, s: 0.84, r: [0.02, -0.26, 0.07] },
+    { x: 1.22,  y: 0.01, z: -2.7, s: 0.72, r: [0.05, 0.2, -0.05] },
+    { x: 1.56,  y: 0.06, z: -4.4, s: 0.64, r: [0.03, -0.22, 0.08] },
+    { x: 1.82,  y: 0.02, z: -6.1, s: 0.58, r: [0.05, 0.16, -0.06] },
   ];
   const PASSED = [-1.0, -2.3, 1.5]; // where a pushed-away record goes, per step
-  function pathAt(k, outP, outR) {
-    if (k < PATH.length) {
-      outP.fromArray(PATH[k].p);
-      outR.fromArray(PATH[k].r);
-    } else {
-      // keep going up and away, alternating sides
-      const extra = k - (PATH.length - 1);
-      const last = PATH[PATH.length - 1];
-      outP.set(last.p[0] + (extra % 2 ? 0.48 : 0), last.p[1] + extra * 0.46, last.p[2] - extra * 0.95);
-      outR.set(0.04, extra % 2 ? -0.2 : 0.16, extra % 2 ? 0.07 : -0.06);
-    }
+  const pathKey = (k) => {
+    if (k < PATH.length) return PATH[k];
+    const extra = k - (PATH.length - 1), last = PATH[PATH.length - 1];
+    return {
+      x: last.x + extra * 0.2, y: last.y + (extra % 2 ? 0.04 : 0), z: last.z - extra * 1.7,
+      s: Math.max(0.4, last.s - extra * 0.05),
+      r: [0.04, extra % 2 ? -0.2 : 0.16, extra % 2 ? 0.07 : -0.06],
+    };
+  };
+  // turn a screen spot + depth into a world position, so far records don't drift upward
+  function place(xr, yr, z, out) {
+    const cam = camera.position;
+    const ratio = (cam.z - z) / (cam.z - PATH[0].z);
+    if (camera.aspect < 1) xr = xr * 0.55 + 0.08; // phones are narrow: pull the trail in
+    return out.set(cam.x + (xr - cam.x) * ratio, cam.y + (yr - cam.y) * ratio, z);
   }
-  const pA = new THREE.Vector3(), pB = new THREE.Vector3(), rA = new THREE.Vector3(), rB = new THREE.Vector3();
   function layout(d, outP, outR) {
     if (d < 0) {
-      pathAt(0, outP, outR);
+      const a = PATH[0];
+      place(a.x, a.y, a.z, outP);
       outP.x += PASSED[0] * -d;
       outP.y += PASSED[1] * -d;
       outP.z += PASSED[2] * -d;
+      outR.fromArray(a.r);
       outR.z += 0.25 * d;
-      return;
+      return 1;
     }
     const k = Math.floor(d), f = d - k;
-    pathAt(k, pA, rA);
-    pathAt(k + 1, pB, rB);
-    outP.lerpVectors(pA, pB, f);
-    outR.lerpVectors(rA, rB, f);
-    // phones are narrow: pull the zig-zag in and keep the front record centred
-    if (camera.aspect < 1) outP.x = outP.x * 0.42 + 0.12;
+    const A = pathKey(k), B = pathKey(k + 1);
+    const l = (a, b) => a + (b - a) * f;
+    place(l(A.x, B.x), l(A.y, B.y), l(A.z, B.z), outP);
+    outR.set(l(A.r[0], B.r[0]), l(A.r[1], B.r[1]), l(A.r[2], B.r[2]));
+    return l(A.s, B.s);
   }
 
   // ---------- camera: straight on, framing the front record and the trail behind it ----------
@@ -197,8 +202,8 @@ function startSpace(releases, ui) {
     const byHeight = 1 / (2 * tanV * 0.42);
     const byWidth = 1 / (2 * tanV * camera.aspect * 0.66);
     const D = 0.6 + Math.max(byHeight, camera.aspect < 1 ? byWidth : 0);
-    const cx = camera.aspect < 1 ? 0.06 : 0.18;
-    const cy = camera.aspect < 1 ? 0.3 : 0.16;
+    const cx = camera.aspect < 1 ? 0.1 : 0.42;
+    const cy = camera.aspect < 1 ? 0.12 : 0.1;
     camera.position.set(cx, cy, D);
     camera.lookAt(cx, cy, -1);
     camera.updateMatrixWorld();
@@ -333,7 +338,7 @@ function startSpace(releases, ui) {
   const q = new THREE.Quaternion();
   const look = new THREE.Matrix4();
   const up = new THREE.Vector3(0, 1, 0);
-  const spotAim = new THREE.Vector3().fromArray(PATH[0].p);
+  const spotAim = new THREE.Vector3(PATH[0].x, PATH[0].y, PATH[0].z);
   let heroScale = 1;
   let veilShown = 0;
 
@@ -376,8 +381,8 @@ function startSpace(releases, ui) {
 
       // place on the trail, pushed forward or away
       const d = i - focus.x;
-      it.holder.visible = d > -1.6 && d < 9;
-      layout(d, rowPos, rowAngle);
+      it.holder.visible = d > -1.6 && d < 7;
+      const rowScale = layout(d, rowPos, rowAngle) * (1 + h * 0.03);
       rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
       rowPos.z += h * 0.1;
 
@@ -397,11 +402,11 @@ function startSpace(releases, ui) {
         heroTransform(t);
         it.holder.position.lerpVectors(rowPos, heroPos, b);
         it.holder.quaternion.slerpQuaternions(rowQuat, heroQuat, b);
-        it.holder.scale.setScalar(1 + (heroScale - 1) * b);
+        it.holder.scale.setScalar(rowScale + (heroScale - rowScale) * b);
       } else {
         it.holder.position.copy(rowPos);
         it.holder.quaternion.copy(rowQuat);
-        it.holder.scale.setScalar(1);
+        it.holder.scale.setScalar(rowScale);
       }
       if (i === focusIndex) spotAim.lerp(rowPos, 1 - Math.exp(-dt * 6));
     });
