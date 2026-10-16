@@ -50,7 +50,7 @@ async function listFoldersOnGitHub() {
   const cached = storageGet(cacheKey);
   if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.names;
   const url = `https://api.github.com/repos/${CONFIG.githubRepo}/contents/${CONFIG.releasesDir}?ref=${CONFIG.branch}`;
-  const entries = await fetchJSON(url);
+  const entries = await fetchJSON(url, 2500); // only an extra: index.json already lists every folder
   const names = entries.filter((e) => e.type === "dir").map((e) => e.name);
   storageSet(cacheKey, { at: Date.now(), names });
   return names;
@@ -67,6 +67,18 @@ async function discoverFolders() {
   return [...found].filter((n) => n && !n.startsWith("_") && !n.startsWith("."));
 }
 
+// A person (or a list of them), as written in info.json, made safe to use: always a list of
+// { name, url? }. Plain text, a single { name, url }, or a list mixing both all work; anything else
+// is skipped, so a typo can never break the page.
+function people(raw) {
+  const list = Array.isArray(raw) ? raw : raw == null || raw === "" ? [] : [raw];
+  return list.map((p) => {
+    if (typeof p === "string" || typeof p === "number") return { name: String(p).trim() };
+    if (p && typeof p === "object") return { name: String(p.name ?? "").trim(), url: typeof p.url === "string" ? p.url : undefined };
+    return { name: "" };
+  }).filter((p) => p.name);
+}
+
 async function loadRelease(folder) {
   const base = `${CONFIG.releasesDir}/${encodeURIComponent(folder)}/`;
   const info = await fetchJSON(`${base}info.json`);
@@ -77,17 +89,17 @@ async function loadRelease(folder) {
   return {
     slug: folder,
     title: String(info.title || folder).trim(),
-    // "artist" can be plain text, or a list of { name, url } so each name links to the artist
-    artists: Array.isArray(info.artist)
-      ? info.artist.map((a) => (typeof a === "string" ? { name: a } : { name: String(a.name || ""), url: a.url })).filter((a) => a.name)
-      : info.artist ? [{ name: String(info.artist) }] : [],
+    // "artist" can be plain text, one { name, url }, or a list of either, so each name links to the artist
+    artists: people(info.artist),
     get artist() { return this.artists.map((a) => a.name).join(", "); },
     type: info.type ? String(info.type) : "",
     date: normalizeDate(info.date),
     description: info.description ? String(info.description) : "",
-    credits: Array.isArray(info.credits) ? info.credits : [],
-    links: info.links && typeof info.links === "object" ? info.links : {},
-    vinyl: /^#[0-9a-f]{6}$/i.test(info.vinyl || "") ? info.vinyl : "#0b0b0b",
+    credits: (Array.isArray(info.credits) ? info.credits : [info.credits])
+      .filter((c) => c && typeof c === "object" && c.role)
+      .map((c) => ({ role: String(c.role), people: people(c.people) }))
+      .filter((c) => c.people.length),
+    links: info.links && typeof info.links === "object" && !Array.isArray(info.links) ? info.links : {},
     // "mine" = an R4N release; "worked-on" = a song R4N worked on for someone else
     category: /^worked/i.test(String(info.category || "")) ? "worked-on" : "mine",
     coverCandidates: coverCandidates.map((c) => base + c),

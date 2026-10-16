@@ -352,3 +352,4 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
 /* settled: exactly the private page's logo */
 .flyTitle__layer--plain .flyTitle__words{color:rgba(17,17,18,.42);}
 .flyTitle__layer--plain .flyTitle__mark{background:rgba(17,17,18,.32);}
+body.no3d .index__close{display:none;}

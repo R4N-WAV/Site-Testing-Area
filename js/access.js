@@ -295,13 +295,21 @@ export function initAccess({ space }) {
         }
       }
       const m = d.m, c = d.col, t = d.tint;
-      g.fillStyle = `rgb(${mix(c[0], t[0], m) | 0},${mix(c[1], t[1], m) | 0},${mix(c[2], t[2], m) | 0})`;
+      g.fillStyle = colour(mix(c[0], t[0], m), mix(c[1], t[1], m), mix(c[2], t[2], m));
       g.globalAlpha = d.a;
       if (r < 0.9) g.fillRect(x - r, d.y - r, r * 2, r * 2);
       else { g.beginPath(); g.arc(x, d.y, r, 0, TAU); g.fill(); }
     }
     g.globalAlpha = 1;
     raf = requestAnimationFrame(draw);
+  }
+  // colours are snapped to steps of 4 (invisible) so each one's string is built once, not every frame
+  const colours = new Map();
+  function colour(r, g2, b) {
+    const key = ((r >> 2) << 12) | ((g2 >> 2) << 6) | (b >> 2);
+    let c = colours.get(key);
+    if (!c) { c = `rgb(${(r >> 2) << 2},${(g2 >> 2) << 2},${(b >> 2) << 2})`; colours.set(key, c); }
+    return c;
   }
   function startLoop() { if (!raf) raf = requestAnimationFrame(draw); }
   function stopLoop() { cancelAnimationFrame(raf); raf = 0; }
@@ -357,15 +365,17 @@ export function initAccess({ space }) {
     await scatterHome();
     finish();
   }
-  // dots stream back to where they came from, regain their colour, and the page returns
-  async function scatterHome() {
+  // The exact reverse of the way in: the dots stream back to where they came from, regaining their
+  // colour, settle, and then shrink away in the same staggered wave the page grew them in, while the
+  // page itself fades back up underneath. Same timings as the opening, played backwards.
+  async function scatterHome(lead = 0) {
     for (const d of dots) {
       d.col = d.base; d.tint = INK;
-      go(d, { x: d.hx, y: d.hy, r: d.hr, a: 1, m: 0 }, ((W - d.hx) / W) * 320 + d.rnd * 170, 950, ease.inOut, 0.7);
+      go(d, { x: d.hx, y: d.hy, r: d.hr, a: 1, m: 0 }, lead + ((W - d.hx) / W) * 380 + d.rnd * 170, 1000, ease.inOut, 0.7);
     }
     await settled();
-    tween((v) => { snapAlpha = v; }, 0, 1, 380);
-    for (const d of dots) go(d, { a: 0 }, 120 + d.rnd * 160, 260);
+    tween((v) => { snapAlpha = v; }, 0, 1, 480);
+    for (const d of dots) go(d, { r: 0, a: 0 }, 80 + d.rnd * 240, 320, ease.in);
     await settled();
   }
   function finish() {
@@ -540,10 +550,39 @@ export function initAccess({ space }) {
     phase = "entering";
     root.classList.remove("is-ready");
     try { await loadHub(); } catch (err) {
-      console.error(err); phase = "unlocked"; root.classList.add("is-ready"); return;
+      // (nothing was shown yet: undo what loaded and stay on the field)
+      console.error(err);
+      hubStyle?.remove(); hubStyle = null; hubModule = null;
+      phase = "unlocked"; root.classList.add("is-ready");
+      return;
     }
+    let head = null;
+    try {
+      await arrive((h) => { head = h; });
+    } catch (err) {
+      // if anything goes wrong on the way in, the site puts itself back together instead of hanging
+      console.error(err);
+      head?.remove();
+      try { hubInstance?.unmount(); } catch { /* already gone */ }
+      hubInstance = null;
+      resetHub();
+      hubEl.hidden = true;
+      forget();
+      wantLeave = false;
+      root.hidden = false; snapAlpha = 0; bgAlpha = 1;
+      startLoop();
+      await scatterHome();
+      finish();
+      return;
+    }
+    phase = "hub";
+    if (wantLeave) { wantLeave = false; leave(); } // EXIT or Esc was pressed while the headline was landing
+  }
+  let wantLeave = false;
+  async function arrive(keepHead) {
     // 1. the bar's dots fly into the headline, turning pink
     const head = makeHeadline(hubModule.title || "");
+    keepHead(head);
     const { pts, r: pr, x0, x1 } = headlinePoints(head);
     const inBar = dots.filter((d) => d.slot).sort((p, q) => p.x - q.x);
     pts.sort((p, q) => p.x - q.x || p.y - q.y);
@@ -581,10 +620,10 @@ export function initAccess({ space }) {
     await wait(1200);
     hubEl.classList.remove("is-arriving");
     head.remove();
-    phase = "hub";
   }
 
   async function leave() {
+    if (phase === "entering") { wantLeave = true; return; }
     if (phase !== "hub") return;
     phase = "leaving";
     const logo = hubInstance?.logo?.getBoundingClientRect();
@@ -595,20 +634,21 @@ export function initAccess({ space }) {
     startLoop();
     tween((v) => { bgAlpha = v; }, 0, 1, 420);
     if (sameSize && logo && !reducedMotion) {
-      // the dots pour out of the logo, back into the page
+      // the dots pour out of the corner logo as the private page fades, and stream back into the site
       for (const d of dots) {
         d.x = logo.left + Math.random() * logo.width; d.y = logo.top + Math.random() * logo.height;
         d.r = 0.6 + Math.random() * 1.2; d.a = 0; d.m = 1; d.col = d.base; d.tint = INK;
-        go(d, { a: 1 }, d.rnd * 160, 220);
       }
+      await scatterHome(160);
+    } else {
+      await settled();
     }
-    await settled();
+    // taken down only once the site is fully back, so nothing hitches mid-animation
     hubInstance?.unmount();
     hubInstance = null;
     resetHub();
     hubEl.hidden = true;
     forget();
-    if (sameSize && logo && !reducedMotion) await scatterHome();
     finish();
   }
 

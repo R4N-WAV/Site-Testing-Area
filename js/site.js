@@ -74,21 +74,40 @@ function startSpace(releases, ui) {
   const shared = createShared(renderer);
   scene.environment = shared.env;
 
-  // ---------- light: near darkness, a soft spotlight on the record in front ----------
-  scene.add(new THREE.AmbientLight(0xffffff, 0.28));
-  // soft sky fill from above + a darker bounce from below gives every sleeve a gradient
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a92, 0.55));
-  // soft front light so every cover reads in its true colours; the fog lets the far ones sink into the dark
-  const key = new THREE.DirectionalLight(0xffffff, 1.5);
-  key.position.set(-2.2, 3.2, 5); // from upper left: edges on one side catch light, the other side falls off
+  // ---------- light: a bright white room, light from everywhere ----------
+  // Every record gets the same light wherever it is in the tunnel; none is singled out.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+  // sky fill from above, a slightly darker bounce from below: every sleeve gets a gentle gradient
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9a9aa2, 0.3));
+  // from the upper left: one edge of each sleeve catches the light, the other falls off a little
+  const key = new THREE.DirectionalLight(0xffffff, 0.45);
+  key.position.set(-2.2, 3.2, 5);
   scene.add(key);
+  // Two soft lamps right beside your eyes, one a hair to the left and one a hair to the right.
+  // Seen from just next to where you stand, a record in front throws only a thin, soft shadow
+  // onto the inner edge of the record behind it; each lamp draws that sliver on its own side of
+  // the tunnel, and nothing else in the room goes dark.
+  const lamps = [-1, 1].map((side) => {
+    const lamp = new THREE.SpotLight(0xffffff, 1.75, 0, THREE.MathUtils.degToRad(50), 0.7, 0);
+    lamp.position.set(side * 0.2, 0.05, 4);
+    lamp.target.position.set(side * 0.2, 0.05, -10);
+    lamp.castShadow = true;
+    lamp.shadow.mapSize.set(1024, 1024);
+    lamp.shadow.camera.near = 0.5;
+    lamp.shadow.camera.far = 22;
+    lamp.shadow.bias = -0.0005;
+    lamp.shadow.normalBias = 0.02;
+    lamp.shadow.radius = 9;
+    scene.add(lamp, lamp.target);
+    return lamp;
+  });
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap; // with a radius: soft-edged
+  renderer.shadowMap.autoUpdate = false; // drawn once per frame, before the first pass (not again for the second)
   scene.fog = new THREE.Fog(BG, 4.5, 13);
   const rim = new THREE.DirectionalLight(0xffffff, 0.3);
   rim.position.set(-4, 3, -5);
   scene.add(rim);
-  const spot = new THREE.SpotLight(0xffffff, 3.2, 0, 0.26, 0.9, 0);
-  spot.position.set(0, 2.6, 3.4);
-  scene.add(spot, spot.target);
 
   // ---------- records ----------
   const items = releases.map((rel, i) => {
@@ -159,6 +178,18 @@ function startSpace(releases, ui) {
     return clamp(halfW - halfRecord, 0.18, 0.44);
   };
   const sizeOf = () => (phone() ? 0.62 : 1);
+  // On tall, narrow screens the tunnel is centred on what you see: the gap between the front record
+  // and its edge of the screen matches the gap between the next record and the other edge. The front
+  // record swaps sides as you scroll, so the shift follows, like a gentle camera sway.
+  function phoneShift() {
+    const tanA = Math.tan(THREE.MathUtils.degToRad(baseFov / 2)) * camera.aspect;
+    const half = sizeOf() * 0.5 * Math.cos(0.38);
+    const w = wall();
+    const hwNear = near() * tanA, hwFar = (near() + SPACING) * tanA;
+    const xNear = -(w + half), xFar = w - 0.015 + half; // outer edges: the front record, and the next one across
+    const ox = -(xNear / hwNear + xFar / hwFar) / (1 / hwNear + 1 / hwFar);
+    return ox * Math.cos(Math.PI * clamp(focus.x, 0, count() - 1));
+  }
   function layout(d, i, outP, outR) {
     const side = i % 2 === 0 ? -1 : 1;           // first record on the left, then right, ...
     const dist = near() + d * SPACING;
@@ -166,7 +197,7 @@ function startSpace(releases, ui) {
     // records further down creep a little toward the middle, so they peek out from behind the one in front
     const creep = clamp(d, 0, 6) * (phone() ? 0.015 : 0.045);
     outP.set(
-      camera.position.x + (phone() ? 0 : 0.24) + side * (wall() - creep + passing * 0.9),
+      camera.position.x + (phone() ? phoneShift() : 0.24) + side * (wall() - creep + passing * 0.9),
       camera.position.y - 0.05 + (i % 2 ? 0.04 : 0),
       camera.position.z - dist
     );
@@ -219,8 +250,11 @@ function startSpace(releases, ui) {
   function pick(x, y) {
     ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
-    // hidden records (filtered out by the toggle) can't be clicked
-    const hit = raycaster.intersectObjects(pickables, false).find((h) => items[h.object.userData.index].slot >= 0);
+    // only records you can see can be picked: not ones filtered out by the toggle, nor ones too far away to draw
+    const hit = raycaster.intersectObjects(pickables, false).find((h) => {
+      const it = items[h.object.userData.index];
+      return it.slot >= 0 && it.holder.visible;
+    });
     return hit ? hit.object.userData.index : -1;
   }
 
@@ -268,7 +302,7 @@ function startSpace(releases, ui) {
       return;
     }
     const i = pick(e.clientX, e.clientY);
-    if (i === -1) return;
+    if (i === -1 || warp) return;
     select(i);
   });
   canvas.addEventListener("pointercancel", () => { drag = null; });
@@ -280,7 +314,7 @@ function startSpace(releases, ui) {
   let hoverSince = 0;
   const HOVER_DELAY = 0.66; // seconds
   function setHovered(i) {
-    if (i !== hovered) { hoverSince = clock.elapsedTime; tag.classList.remove("is-shown"); }
+    if (i !== hovered) { hoverSince = sceneTime; tag.classList.remove("is-shown"); }
     hovered = i;
     document.body.classList.toggle("is-hovering", hovered !== -1);
     if (i !== -1) {
@@ -321,7 +355,7 @@ function startSpace(releases, ui) {
   const easeOut = (k) => 1 - Math.pow(1 - k, 3);
   function startSlide(it, from, to, dur, ease) {
     it.off = from;
-    it.slide = { from, to, t0: clock.elapsedTime, dur: reducedMotion ? 0.01 : dur, ease };
+    it.slide = { from, to, t0: sceneTime, dur: reducedMotion ? 0.01 : dur, ease };
   }
   function select(i, dir = 0) {
     // opening doesn't move you down the tunnel, so closing puts everything back as it was
@@ -388,7 +422,6 @@ function startSpace(releases, ui) {
   const q = new THREE.Quaternion();
   const look = new THREE.Matrix4();
   const up = new THREE.Vector3(0, 1, 0);
-  const spotAim = new THREE.Vector3(-1.1, 0, 0.6);
   let heroScale = 1;
   let worldPerPx = 0.001;
   const heroRight = new THREE.Vector3();
@@ -419,10 +452,13 @@ function startSpace(releases, ui) {
   let paused = false;
   let captureWaiters = [];
 
+  // the scene's own time: it stands still while paused, so the page comes back exactly as it was left
+  let sceneTime = 0;
   function frame() {
     if (paused) { clock.getDelta(); requestAnimationFrame(frame); return; }
     const dt = Math.min(clock.getDelta(), window.__maxDt || 1 / 30); // __maxDt: only set by automated tests on slow machines
-    const t = clock.elapsedTime;
+    sceneTime += dt;
+    const t = sceneTime;
     const open = selected !== -1;
 
     // switching MY SONGS / WORKED ON: rush forward through this tunnel, flash, and the new
@@ -520,19 +556,18 @@ function startSpace(releases, ui) {
         it.holder.quaternion.copy(rowQuat);
         it.holder.scale.setScalar(rowScale);
       }
-      if (it.slot === focusIndex) spotAim.lerp(rowPos, 1 - Math.exp(-dt * 6));
     });
 
-    spot.target.position.copy(spotAim);
     veilShown += (veilTarget - veilShown) * (1 - Math.exp(-dt * 8));
-    // the room light goes out quickly when a record opens, so it never cuts across it
-    spot.intensity = 3.2 * Math.pow(1 - Math.min(1, veilShown * 2.5), 2);
-    key.intensity = 1.5 * (1 - veilShown);
+    // the room light gives way to the opened record's own light as the tunnel fades out
+    key.intensity = 0.45 * (1 - veilShown);
+    for (const lamp of lamps) lamp.intensity = 1.75 * (1 - veilShown);
     heroSpot.intensity = 4 * veilShown;
     veil.material.opacity = Math.max(veilShown, warpFlash * 0.85);
 
     renderer.clear();
     camera.layers.set(0);
+    renderer.shadowMap.needsUpdate = veilShown < 0.99; // nothing to shadow while a record covers the tunnel
     renderer.render(scene, camera);
     if (items.some((it) => it.onTop)) {
       // Only while the veil hides the tunnel does the opened record ignore it. As the tunnel
@@ -563,8 +598,8 @@ function startSpace(releases, ui) {
     tiltEnd() { tilting = false; },
     capture: () => new Promise((resolve) => captureWaiters.push(resolve)),
     setPaused(p) { paused = p; if (p) setHovered(-1); },
-    nudge(dir) { focusOn(focusIndex + dir); },
-    openFocused() { if (order.length) select(order[focusIndex]); },
+    nudge(dir) { if (!warp) focusOn(focusIndex + dir); },
+    openFocused() { if (order.length && !warp) select(order[focusIndex]); },
     // show only these records (item indexes, in order); the rest leave the tunnel
     setFilter(visible, animate = false) {
       if (!animate || reducedMotion) { applyOrder(visible); focusOn(0); return; }
@@ -573,6 +608,7 @@ function startSpace(releases, ui) {
     // the very first frame, so the loader can wait until the scene is really on screen
     firstFrame: () => new Promise((resolve) => {
       renderer.clear();
+      renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera);
       requestAnimationFrame(() => { requestAnimationFrame(frame); resolve(); });
     }),
@@ -636,6 +672,7 @@ function buildUI(releases) {
     });
   }
   function setIndex(show) {
+    if (!show && !space && current === -1) show = true; // without 3D, the index is the home page
     indexEl.hidden = !show;
     indexBtn.setAttribute("aria-expanded", String(show));
     document.body.classList.toggle("index-open", show);
@@ -664,6 +701,7 @@ function buildUI(releases) {
     detail.setAttribute("aria-hidden", "true");
     document.body.classList.remove("detail-open");
     history.replaceState(null, "", location.pathname + location.search);
+    if (!space) setIndex(true); // without 3D, the index is the home page
   }
 
   function fill(rel) {
@@ -682,15 +720,12 @@ function buildUI(releases) {
     const credits = $("dCredits");
     credits.innerHTML = "";
     for (const c of rel.credits) {
-      if (!c || !c.role) continue;
-      const people = (Array.isArray(c.people) ? c.people : []).map((p) => {
-        if (typeof p === "string") return escapeHTML(p);
+      const people = c.people.map((p) => {
         const url = safeUrl(p.url);
-        const name = escapeHTML(String(p.name || ""));
+        const name = escapeHTML(p.name);
         return url ? `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name;
       });
-      if (!people.length) continue;
-      credits.insertAdjacentHTML("beforeend", `<div><dt>${escapeHTML(String(c.role))}</dt><dd>${people.join(", ")}</dd></div>`);
+      credits.insertAdjacentHTML("beforeend", `<div><dt>${escapeHTML(c.role)}</dt><dd>${people.join(", ")}</dd></div>`);
     }
 
     const links = $("dLinks");
@@ -786,10 +821,29 @@ function buildUI(releases) {
       return;
     }
     if (!space || !indexEl.hidden) return;
+    // Enter or Space on a focused button or link belongs to that button, not to the tunnel
+    if (e.target instanceof Element && e.target.closest("button, a, input, summary")) return;
     if (e.key === "ArrowRight" || e.key === "ArrowDown") space.nudge(1);
     if (e.key === "ArrowLeft" || e.key === "ArrowUp") space.nudge(-1);
     if (e.key === "Enter") space.openFocused();
   });
+
+  // Controls that are faded out can't be reached by keyboard (Tab) or screen readers either:
+  // whatever covers the page (an opened record, the index, ACCESS) is the only thing you can use.
+  const covered = [
+    [".modeToggle", (c) => c.contains("detail-open") || c.contains("access-open")],
+    ["#indexBtn", (c) => c.contains("detail-open") || c.contains("index-open") || c.contains("access-open")],
+    ["#accessBtn", (c) => c.contains("detail-open") || c.contains("index-open") || c.contains("access-open")],
+    [".top .logo", (c) => c.contains("access-open")],
+    ["#index", (c) => c.contains("access-open")],
+    ["#detail", (c) => c.contains("access-open")],
+  ].map(([sel, test]) => [document.querySelector(sel), test]);
+  const syncCovered = () => {
+    const c = document.body.classList;
+    for (const [el, test] of covered) if (el) el.inert = test(c);
+  };
+  new MutationObserver(syncCovered).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  syncCovered();
 
   applyMode("mine");
   return ui;
@@ -802,7 +856,6 @@ function buildUI(releases) {
 function makeLoader() {
   const startedAt = performance.now();
   return {
-    progress() {},
     async finish() {
       // let it pulse at least a couple of times, so it never just blinks past
       const left = (reducedMotion ? 0 : 2400) - (performance.now() - startedAt);
@@ -824,7 +877,6 @@ async function main() {
   const loader = makeLoader();
 
   const releases = await loadAllReleases();
-  loader.progress(0.5);
   const ui = buildUI(releases);
 
   let has3D = false;
@@ -832,7 +884,6 @@ async function main() {
   if (webglAvailable() && releases.length) {
     try {
       space = startSpace(releases, ui);
-      loader.progress(0.8);
       await space.firstFrame();
       ui.attach(space);
       has3D = true;

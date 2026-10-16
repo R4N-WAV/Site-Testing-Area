@@ -85,7 +85,7 @@ GitHub rebuilds the site by itself. Open the site and the new record is there.
 | `description` | The text under **ABOUT** when the record is opened. Links: `[shown text](https://...)`. Bold: `**like this**`. New line: `\n`. Leave it as `""` to hide the ABOUT button. |
 | `credits` | Lines like "PROD Rumblin, R4N". Add more roles by copying the `{ "role": ... }` block. A person's `url` is optional. |
 | `links` | The LISTEN buttons. Paste the full link. Empty ones (`""`) are skipped. Known names: `spotify`, `apple`, `youtube`, `youtubemusic`, `soundcloud`, `tidal`, `deezer`, `bandcamp`, `amazon`, `tiktok`, `instagram`. Any other name also works and is shown as written. |
-| `hidden` | `true` keeps the folder but hides the record from the site (good for drafts or unreleased songs). |
+| `hidden` | `true` keeps the folder but hides the record from the site. Note: the repository is public, so anyone who looks on GitHub can still read a hidden folder and its cover. Don't upload anything here that must stay secret before release. |
 
 ### Example: a song you worked on for someone else
 
@@ -115,7 +115,7 @@ GitHub rebuilds the site by itself. Open the site and the new record is there.
 - **Edit:** open the song's `info.json` on GitHub, click the pencil icon, change it, commit.
 - **New cover:** upload a new image with the same file name into the folder. GitHub replaces the old one.
 - **Remove:** open the folder's `info.json`, click the three dots (…) → **Delete file**, commit. Do the same for the cover. An empty folder disappears on its own.
-- **Hide without deleting:** set `"hidden": true`.
+- **Hide without deleting:** set `"hidden": true` (it disappears from the site, but stays readable on GitHub).
 
 ---
 

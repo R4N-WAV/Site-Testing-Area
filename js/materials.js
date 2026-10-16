@@ -338,7 +338,7 @@ function backCanvas(rel, tint) {
   g.fillText(`A1  ${rel.title.toUpperCase().slice(0, 34)}`, 70, 310);
   let y = 400;
   for (const c2 of rel.credits || []) {
-    const names = (c2.people || []).map((p) => (typeof p === "string" ? p : p.name)).join(", ");
+    const names = c2.people.map((p) => p.name).join(", ");
     if (!c2.role || !names) continue;
     g.fillText(`${String(c2.role).toUpperCase()}: ${names}`.slice(0, 60), 70, y);
     y += 40;
@@ -454,6 +454,8 @@ export function buildRecord(rel, shared, index) {
   const edge = front.clone();
   edge.bumpMap = null;
   const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, edge, edge, edge, front, back]);
+  sleeve.castShadow = true;
+  sleeve.receiveShadow = true;
 
   const maps = shared.wraps[index % shared.wraps.length];
   const variant = (tex) => {
