@@ -150,7 +150,14 @@ function startSpace(releases, ui) {
   const phone = () => camera.aspect < 1;
   const near = () => (phone() ? 2.5 : 3.4); // distance to the record you're at
   const SPACING = 1.4;  // distance between records along the tunnel
-  const wall = () => (phone() ? 0.44 : 1.0);
+  // On tall, narrow screens the walls come in as far as needed for the nearest record to fit
+  // inside the screen's edges (a fixed width cut the front record off on narrow phones).
+  const wall = () => {
+    if (!phone()) return 1.0;
+    const halfW = near() * Math.tan(THREE.MathUtils.degToRad(baseFov / 2)) * camera.aspect;
+    const halfRecord = sizeOf() * 0.5 * Math.cos(0.38) + 0.09; // plus a margin from the screen edge
+    return clamp(halfW - halfRecord, 0.18, 0.44);
+  };
   const sizeOf = () => (phone() ? 0.62 : 1);
   function layout(d, i, outP, outR) {
     const side = i % 2 === 0 ? -1 : 1;           // first record on the left, then right, ...
@@ -159,7 +166,7 @@ function startSpace(releases, ui) {
     // records further down creep a little toward the middle, so they peek out from behind the one in front
     const creep = clamp(d, 0, 6) * (phone() ? 0.015 : 0.045);
     outP.set(
-      camera.position.x + (phone() ? 0.08 : 0.24) + side * (wall() - creep + passing * 0.9),
+      camera.position.x + (phone() ? 0 : 0.24) + side * (wall() - creep + passing * 0.9),
       camera.position.y - 0.05 + (i % 2 ? 0.04 : 0),
       camera.position.z - dist
     );
@@ -282,7 +289,8 @@ function startSpace(releases, ui) {
     }
   }
   function updateHoverTag(t, open) {
-    const show = hovered !== -1 && !open && !drag && !warp && t - hoverSince > HOVER_DELAY;
+    const covered = document.body.classList.contains("index-open") || document.body.classList.contains("access-open");
+    const show = hovered !== -1 && !open && !drag && !warp && !covered && t - hoverSince > HOVER_DELAY;
     if (show) tag.style.transform = `translate3d(${Math.round(pointer.x + 16)}px, ${Math.round(pointer.y + 18)}px, 0)`;
     tag.classList.toggle("is-shown", show);
   }
@@ -527,7 +535,10 @@ function startSpace(releases, ui) {
     camera.layers.set(0);
     renderer.render(scene, camera);
     if (items.some((it) => it.onTop)) {
-      renderer.clearDepth();
+      // Only while the veil hides the tunnel does the opened record ignore it. As the tunnel
+      // fades back in, a record on its way home is depth-tested like any other, so it slides
+      // back behind the ones in front of it instead of flying over them.
+      if (veilShown > 0.93) renderer.clearDepth();
       camera.layers.set(TOP);
       renderer.render(scene, camera);
     }

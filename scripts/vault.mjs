@@ -6,8 +6,10 @@
 //   node scripts/vault.mjs add <folder>   add a plugin, or replace one with the same id
 //   node scripts/vault.mjs remove <id>    take a plugin out (its files are deleted from vault/)
 //   node scripts/vault.mjs list           what's inside
-//   node scripts/vault.mjs page           re-seal with the current page design (scripts/vault-page)
+//   node scripts/vault.mjs export-page <dir>   write the sealed page design (hub.js, hub.css) out to edit
+//   node scripts/vault.mjs page <dir>          seal an edited page design back in
 //   node scripts/vault.mjs passwd         change the password
+//   node scripts/vault.mjs font <file>    the typeface for the page's headline
 //
 // The password is asked for (hidden), or taken from VAULT_PASSWORD. For passwd, the new one from
 // VAULT_NEW_PASSWORD. Upper/lower case and surrounding spaces don't matter.
@@ -21,9 +23,9 @@
 //     "about": ["paragraph", "paragraph"],
 //     "install": ["step", "step"],
 //     "controls": [["Control", "what it does"]],
-//     "specs": [["Format", "VST3"]],
+//     "specs": [["Label", "value"]],
 //     "shots": [{ "file": "panel.jpg", "caption": "..." }],
-//     "downloads": [{ "file": "plugin.zip", "label": "Download for Windows", "meta": "VST3, 64-bit" }]
+//     "downloads": [{ "file": "file.zip", "label": "Download", "meta": "short note" }]
 //   }
 //
 // How it's sealed: vault/hub.bin = "R4NV" | version | PBKDF2 rounds | salt | iv | AES-256-GCM(JSON),
@@ -39,9 +41,8 @@ const subtle = webcrypto.subtle;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VAULT = path.join(ROOT, "vault");
 const HUB = path.join(VAULT, "hub.bin");
-const PAGE = path.join(ROOT, "scripts", "vault-page");
 const MAGIC = Buffer.from("R4NV");
-const ROUNDS = 600_000;
+const ROUNDS = 1_200_000; // each guess costs this many hashing rounds
 const TYPES = {
   ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
   ".zip": "application/zip", ".exe": "application/vnd.microsoft.portable-executable", ".dmg": "application/x-apple-diskimage",
@@ -70,12 +71,18 @@ async function openHub(pw) {
   }
 }
 
-async function sealHub(pw, payload) {
-  // always the latest page design
-  payload.page = {
-    css: fs.readFileSync(path.join(PAGE, "hub.css"), "utf8"),
-    js: fs.readFileSync(path.join(PAGE, "hub.js"), "utf8"),
+// The page design lives only inside the vault too (nothing about it is readable in the repo).
+// Export it to a folder outside the repo to edit it, then seal it back in with "page".
+function readPage(dir) {
+  const folder = path.resolve(dir);
+  return {
+    css: fs.readFileSync(path.join(folder, "hub.css"), "utf8"),
+    js: fs.readFileSync(path.join(folder, "hub.js"), "utf8"),
   };
+}
+
+async function sealHub(pw, payload) {
+  if (!payload.page) throw new Error("No page design yet: run  node scripts/vault.mjs page <dir>  first.");
   const salt = rand(16), iv = rand(12);
   const key = await passwordKey(pw, salt, ROUNDS, "encrypt");
   const data = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload))));
@@ -156,7 +163,12 @@ try {
     if (!plugin.id || !plugin.name) throw new Error("plugin.json needs at least an id and a name.");
     let pw, payload;
     if (fs.existsSync(HUB)) { pw = await currentPassword(); payload = await openHub(pw); }
-    else { console.log("No vault yet: choose its password."); pw = await newPassword(); payload = { v: 1, data: { plugins: [] }, files: {} }; }
+    else {
+      if (!process.env.VAULT_PAGE_DIR) throw new Error("No vault yet. Set VAULT_PAGE_DIR to a folder with hub.js and hub.css for the page design.");
+      console.log("No vault yet: choose its password.");
+      pw = await newPassword();
+      payload = { v: 1, page: readPage(process.env.VAULT_PAGE_DIR), data: { plugins: [] }, files: {} };
+    }
     const old = payload.data.plugins.find((p) => p.id === plugin.id);
     if (old) dropFiles(payload, old);
     fs.mkdirSync(VAULT, { recursive: true });
@@ -188,9 +200,31 @@ try {
     const payload = await openHub(await currentPassword());
     for (const p of payload.data.plugins) console.log(`${p.id}\t${p.name}\t${p.version || ""}\t${filesOf(p).length} file(s)`);
   } else if (cmd === "page") {
+    if (!arg) throw new Error("Usage: node scripts/vault.mjs page <folder with hub.js and hub.css>");
     const pw = await currentPassword();
-    await sealHub(pw, await openHub(pw));
-    console.log("Re-sealed with the current page design.");
+    const payload = await openHub(pw);
+    payload.page = readPage(arg);
+    await sealHub(pw, payload);
+    console.log("Sealed the page design.");
+  } else if (cmd === "export-page") {
+    if (!arg) throw new Error("Usage: node scripts/vault.mjs export-page <folder>");
+    const folder = path.resolve(arg);
+    if (folder.startsWith(ROOT + path.sep)) throw new Error("Export it outside the repo, so it never gets committed.");
+    const payload = await openHub(await currentPassword());
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, "hub.js"), payload.page.js);
+    fs.writeFileSync(path.join(folder, "hub.css"), payload.page.css);
+    console.log(`Page design written to ${folder}`);
+  } else if (cmd === "font") {
+    if (!arg) throw new Error("Usage: node scripts/vault.mjs font <file.ttf>");
+    const pw = await currentPassword();
+    const payload = await openHub(pw);
+    if (payload.data.titleFont) dropFiles(payload, { font: payload.data.titleFont });
+    const [id, meta] = await sealFile(path.resolve(arg));
+    payload.files[id] = meta;
+    payload.data.titleFont = id;
+    await sealHub(pw, payload);
+    console.log("Headline typeface sealed.");
   } else if (cmd === "passwd") {
     const payload = await openHub(await currentPassword());
     await sealHub(await newPassword(), payload);

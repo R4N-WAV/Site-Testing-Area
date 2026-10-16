@@ -2,25 +2,36 @@
 //
 // Nothing about the private page is in this file or anywhere else in the site's code. The page
 // itself (its layout, text, images and downloads) is stored in vault/ as AES-256-GCM ciphertext.
-// The key is derived from the password with PBKDF2-SHA-256 (hundreds of thousands of rounds,
-// random salt), so the password is never stored anywhere: a wrong one simply fails to decrypt.
+// The key is derived from the password with PBKDF2-SHA-256 (over a million rounds, random salt),
+// so the password is never stored anywhere: a wrong one simply fails to decrypt. What's unlocked
+// is kept in memory only until you leave; coming back always asks for the password again.
 // To change what's inside, or the password, use scripts/vault.mjs.
 //
-// The moment: the page as it is right now breaks into tiles, they shuffle, and collapse into
-// a single field made of those same pieces. That field is where the password goes.
+// The moment, after the dot-made endings of the Spider-Verse films: the page as it is right now
+// dissolves into dots of colour in different sizes. They stream across the screen, turning into
+// plain ink as they go, and settle into a halftone bar: the password field.
 
 const VAULT = "vault/";
 const BG = "#f6f6f4";
+const INK = [26, 26, 28];
+const FOIL = [[184, 51, 143], [255, 127, 207], [233, 92, 182], [210, 56, 159]]; // pink holo: never a rainbow
+const TAU = Math.PI * 2;
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wait = (ms) => new Promise((r) => setTimeout(r, reducedMotion ? 0 : ms));
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const ease = {
   inOut: (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2),
   out: (k) => 1 - Math.pow(1 - k, 3),
   in: (k) => k * k * k,
-  steps: (k) => Math.floor(k * 4) / 4, // a digital stutter
+  steps: (k) => Math.floor(k * 3) / 3, // a misprint stutter
 };
+const mix = (a, b, t) => a + (b - a) * t;
+function foilAt(u) {
+  const s = clamp(u, 0, 1) * (FOIL.length - 1), i = Math.min(FOIL.length - 2, Math.floor(s)), f = s - i;
+  return FOIL[i].map((v, k) => mix(v, FOIL[i + 1][k], f));
+}
 
 export function initAccess({ space }) {
   const btn = $("accessBtn");
@@ -34,18 +45,16 @@ export function initAccess({ space }) {
   const note = $("accessNote");
   const hubEl = $("hub");
 
-  let phase = "idle"; // idle → opening → locked ⇄ checking → unlocked → entering → hub → leaving → idle
+  // idle → opening → locked ⇄ checking → unlocked → entering → hub → leaving → idle
+  let phase = "idle";
   let W = 0, H = 0, S = 1;
-  let snap = null;
-  let tiles = [];
-  let bar = null;
+  let snap = null, dots = [], slots = [], bar = null, spacing = 10;
   let raf = 0;
-  let barShown = 0, barTarget = 0;
-  let shimmer = 0, shimmerTarget = 0;
-  let shakeAt = -1;
-  let seeThrough = false;
-  let payload = null; // the decrypted private page, kept in memory only (gone on reload)
-  let hubModule = null, hubInstance = null;
+  let snapAlpha = 0, bgAlpha = 1;
+  let checking = 0, checkingTarget = 0, shakeAt = -1;
+  const tweens = [];
+  let payload = null; // what the password unlocked: in memory only, forgotten on the way out
+  let hubModule = null, hubInstance = null, hubStyle = null, headFace = null;
   let hubBytes = null;
 
   // ---------------------------------------------------------------- the current page, as one image
@@ -90,12 +99,11 @@ export function initAccess({ space }) {
     const r = img.getBoundingClientRect();
     const op = effectiveOpacity(img);
     if (!r.width || op < 0.01) return;
-    // the logo file is white; on the page it's shown inverted (dark)
     const off = document.createElement("canvas");
     off.width = Math.ceil(r.width * S); off.height = Math.ceil(r.height * S);
     const og = off.getContext("2d");
     og.drawImage(img, 0, 0, off.width, off.height);
-    og.globalCompositeOperation = "source-in";
+    og.globalCompositeOperation = "source-in"; // the logo file is white; the page shows it dark
     og.fillStyle = "#000";
     og.fillRect(0, 0, off.width, off.height);
     ctx.save();
@@ -103,11 +111,11 @@ export function initAccess({ space }) {
     ctx.drawImage(off, r.left, r.top, r.width, r.height);
     ctx.restore();
   }
-  function paintBackground(ctx) {
+  function paintBackground(ctx, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, W, H);
-    // the faint sky-blue halo in the middle (same as the page background)
-    ctx.save();
     ctx.translate(W / 2, H / 2);
     ctx.scale(0.42 * W, 0.46 * H);
     const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
@@ -123,135 +131,142 @@ export function initAccess({ space }) {
     const ctx = c.getContext("2d");
     ctx.scale(S, S);
     paintBackground(ctx);
-    if (space) {
-      const frame = await space.capture();
-      ctx.drawImage(frame, 0, 0, W, H);
-    }
+    if (space) ctx.drawImage(await space.capture(), 0, 0, W, H);
     drawLogo(ctx);
     for (const el of document.querySelectorAll(".modeToggle, #indexBtn, #accessBtn, #emptyNote")) drawText(ctx, el);
     return c;
   }
 
-  // ---------------------------------------------------------------- tiles
-  // how much each tile differs from the empty page behind it: covers and text count, background doesn't
-  function inkMap(cols, rows, T) {
-    const sample = (src) => {
-      const c = document.createElement("canvas");
-      c.width = Math.ceil((W / T) * 4); c.height = Math.ceil((H / T) * 4);
-      const ctx = c.getContext("2d", { willReadFrequently: true });
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(src, 0, 0, c.width, c.height);
-      return { data: ctx.getImageData(0, 0, c.width, c.height).data, w: c.width };
-    };
+  // ---------------------------------------------------------------- the page, as dots
+  function readGrid(src, cols, rows) {
+    const c = document.createElement("canvas");
+    c.width = cols; c.height = rows;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(src, 0, 0, cols, rows);
+    return ctx.getImageData(0, 0, cols, rows).data;
+  }
+  function buildDots() {
+    spacing = clamp(Math.round(Math.sqrt((W * H) / 15000)), 7, 12);
+    const cols = Math.ceil(W / spacing), rows = Math.ceil(H / spacing);
+    const cw = W / cols, ch = H / rows, cell = Math.min(cw, ch);
     const empty = document.createElement("canvas");
     empty.width = snap.width; empty.height = snap.height;
     const eg = empty.getContext("2d");
     eg.scale(S, S);
     paintBackground(eg);
-    const a = sample(snap), b = sample(empty);
-    const ink = new Float32Array(cols * rows);
+    const a = readGrid(snap, cols, rows), b = readGrid(empty, cols, rows);
+    dots = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        let m = 0;
-        for (let y = r * 4; y < r * 4 + 4; y++) {
-          for (let x = c * 4; x < c * 4 + 4; x++) {
-            if (x >= a.w) continue;
-            const i = (y * a.w + x) * 4;
-            if (i >= a.data.length) continue;
-            m = Math.max(m, Math.abs(a.data[i] - b.data[i]) + Math.abs(a.data[i + 1] - b.data[i + 1]) + Math.abs(a.data[i + 2] - b.data[i + 2]));
-          }
-        }
-        ink[r * cols + c] = m;
-      }
-    }
-    return ink;
-  }
-
-  function buildTiles() {
-    const T = Math.max(26, Math.ceil(Math.sqrt((W * H) / 1000)));
-    const cols = Math.ceil(W / T), rows = Math.ceil(H / T);
-    const bw = clamp(W * 0.36, 360, 560), bh = 72;
-    bar = { x: (W - bw) / 2, y: (H - bh) / 2, w: bw, h: bh, cols, rows };
-    root.style.setProperty("--bar-w", `${bw}px`);
-    root.style.setProperty("--bar-h", `${bh}px`);
-    const ink = inkMap(cols, rows, T);
-    tiles = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const sx = c * T, sy = r * T, sw = Math.min(T, W - sx), sh = Math.min(T, H - sy);
-        const home = { x: sx, y: sy, w: sw, h: sh, r: 0 };
-        tiles.push({
-          sx, sy, sw, sh, col: c, row: r, home,
-          ink: ink[r * cols + c] > 30,
-          x: sx, y: sy, w: sw, h: sh, r: 0,
-          alpha: 1, a: null, f: null, wave: 0,
-          rnd: Math.random(),
+        const i = (r * cols + c) * 4;
+        const col = [a[i], a[i + 1], a[i + 2]];
+        const ink = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+        const content = ink > 26;
+        if (!content && Math.random() > 0.14) continue; // the empty page: a sparse scatter
+        const lum = (0.299 * col[0] + 0.587 * col[1] + 0.114 * col[2]) / 255;
+        const hr = content
+          ? Math.min(cell * 0.68, cell * 0.5 * (0.55 + 0.35 * Math.random()) * (0.8 + 0.45 * (1 - lum)))
+          : cell * (0.1 + 0.16 * Math.random());
+        const hx = (c + 0.5) * cw + (r % 2 ? cw * 0.25 : -cw * 0.25) + (Math.random() - 0.5) * cw * 0.3;
+        const hy = (r + 0.5) * ch + (Math.random() - 0.5) * ch * 0.3;
+        dots.push({
+          hx, hy, hr, content,
+          col: content ? col : col.map((v) => v * 0.97),
+          base: null, tint: INK,
+          x: hx, y: hy, r: 0, a: 0, m: 0,
+          slot: null, anim: null, rnd: Math.random(),
         });
       }
     }
-    // The field is built from the pieces that have something on them (covers, words, the logo),
-    // packed edge to edge in their left-to-right order. The empty pieces are drawn in and dissolve.
-    let parts = tiles.filter((t) => t.ink);
-    if (parts.length < 12) parts = tiles; // (nothing much on screen: use everything)
-    parts.sort((p, q) => p.home.x - q.home.x || p.home.y - q.home.y);
-    const n = parts.length;
-    const per = clamp(Math.round(bh / Math.sqrt((bw * bh) / n)), 1, 14); // pieces per column
-    const columns = Math.ceil(n / per);
-    const cw = bw / columns;
-    parts.forEach((t, i) => {
-      const col = Math.floor(i / per);
-      const inCol = col === columns - 1 ? n - col * per : per; // the last column shares its height
-      const row = i - col * per;
-      const ch = bh / inCol;
-      t.cell = { x: bar.x + col * cw, y: bar.y + row * ch, w: cw + 0.4, h: ch + 0.4, r: 0 };
-      t.wave = col;
-      t.part = true;
-    });
-    for (const t of tiles) {
-      if (t.part) continue;
-      t.cell = { x: bar.x + (t.home.x / W) * bw, y: bar.y + bh / 2, w: 1, h: 1, r: (t.rnd - 0.5) * 0.6 };
+    for (const d of dots) d.base = d.col;
+  }
+
+  // the bar: a halftone, large dots round its edge, fine ones in the middle where the text goes
+  function buildBar() {
+    const bw = clamp(W * 0.38, 340, 560), bh = 76;
+    bar = { x: (W - bw) / 2, y: (H - bh) / 2, w: bw, h: bh };
+    root.style.setProperty("--bar-w", `${bw}px`);
+    root.style.setProperty("--bar-h", `${bh}px`);
+    const ss = 5.4, rowH = ss * 0.866;
+    const nRows = Math.floor(bh / rowH), nCols = Math.floor(bw / ss);
+    const oy = bar.y + (bh - (nRows - 1) * rowH) / 2, ox = bar.x + (bw - (nCols - 0.5) * ss) / 2;
+    slots = [];
+    for (let r = 0; r < nRows; r++) {
+      for (let c = 0; c < nCols; c++) {
+        const x = ox + c * ss + (r % 2 ? ss / 2 : 0), y = oy + r * rowH;
+        const u = (x - (bar.x + bw / 2)) / (bw / 2), v = (y - (bar.y + bh / 2)) / (bh / 2);
+        const e = Math.pow(Math.pow(Math.abs(u), 6) + Math.pow(Math.abs(v), 6), 1 / 6); // a rounded rectangle
+        slots.push({ x, y, r: 0.3 + (ss * 0.4 - 0.3) * Math.pow(smooth(0.5, 1.02, e), 1.4) });
+      }
     }
   }
-  function moveTo(t, to, delay, dur, fn = ease.inOut) {
-    t.a = { from: { x: t.x, y: t.y, w: t.w, h: t.h, r: t.r }, to, t0: performance.now() + delay, dur: reducedMotion ? 1 : dur, fn };
+  function assignSlots() {
+    const content = dots.filter((d) => d.content).sort((p, q) => p.hx - q.hx);
+    const n = slots.length;
+    let chosen;
+    if (content.length >= n) {
+      chosen = Array.from({ length: n }, (_, k) => content[Math.floor((k * content.length) / n)]);
+    } else {
+      const rest = dots.filter((d) => !d.content).sort(() => Math.random() - 0.5);
+      chosen = content.concat(rest.slice(0, n - content.length));
+    }
+    chosen.sort((p, q) => p.hx - q.hx || p.hy - q.hy);
+    const ordered = slots.slice().sort((p, q) => p.x - q.x || p.y - q.y);
+    for (const d of dots) d.slot = null;
+    chosen.forEach((d, i) => { d.slot = ordered[i]; });
   }
-  function fadeTo(t, to, delay, dur) {
-    t.f = { from: t.alpha, to, t0: performance.now() + delay, dur: reducedMotion ? 1 : dur };
+
+  // ---------------------------------------------------------------- motion
+  function go(d, to, delay, dur, fn = ease.inOut, curve = 0) {
+    const from = { x: d.x, y: d.y, r: d.r, a: d.a, m: d.m };
+    let cx = null, cy = null;
+    if (curve && to.x !== undefined) {
+      // a curved path: the dots stream rather than travel in straight lines
+      const dx = to.x - d.x, dy = to.y - d.y, len = Math.hypot(dx, dy) || 1;
+      const bend = (d.rnd - 0.5) * curve * len;
+      cx = (d.x + to.x) / 2 - (dy / len) * bend;
+      cy = (d.y + to.y) / 2 + (dx / len) * bend;
+    }
+    d.anim = { from, to, t0: performance.now() + (reducedMotion ? 0 : delay), dur: reducedMotion ? 1 : dur, fn, cx, cy };
+  }
+  function tween(set, from, to, dur, delay = 0) {
+    tweens.push({ set, from, to, t0: performance.now() + (reducedMotion ? 0 : delay), dur: reducedMotion ? 1 : dur });
+    set(from);
   }
   function settled() {
     return new Promise((resolve) => {
-      const check = () => (tiles.some((t) => t.a || t.f) ? requestAnimationFrame(check) : resolve());
+      const check = () => (dots.some((d) => d.anim) || tweens.length ? requestAnimationFrame(check) : resolve());
       check();
     });
   }
-  const centerDist = (t) => {
-    const dx = t.home.x + t.home.w / 2 - W / 2, dy = t.home.y + t.home.h / 2 - H / 2;
-    return Math.hypot(dx, dy) / Math.hypot(W / 2, H / 2);
-  };
 
-  // ---------------------------------------------------------------- drawing
   function draw(now) {
-    for (const t of tiles) {
-      if (t.a) {
-        const k = clamp((now - t.a.t0) / t.a.dur, 0, 1);
-        if (k > 0) {
-          const e = t.a.fn(k), f = t.a.from, to = t.a.to;
-          t.x = f.x + (to.x - f.x) * e; t.y = f.y + (to.y - f.y) * e;
-          t.w = f.w + (to.w - f.w) * e; t.h = f.h + (to.h - f.h) * e;
-          t.r = f.r + (to.r - f.r) * e;
-          if (k >= 1) t.a = null;
-        }
-      }
-      if (t.f) {
-        const k = clamp((now - t.f.t0) / t.f.dur, 0, 1);
-        if (k > 0) {
-          t.alpha = t.f.from + (t.f.to - t.f.from) * ease.inOut(k);
-          if (k >= 1) t.f = null;
-        }
-      }
+    for (let i = tweens.length - 1; i >= 0; i--) {
+      const tw = tweens[i];
+      const k = clamp((now - tw.t0) / tw.dur, 0, 1);
+      tw.set(mix(tw.from, tw.to, ease.inOut(k)));
+      if (k >= 1) tweens.splice(i, 1);
     }
-    barShown += (barTarget - barShown) * 0.14;
-    shimmer += (shimmerTarget - shimmer) * 0.1;
+    for (const d of dots) {
+      const an = d.anim;
+      if (!an) continue;
+      const k = clamp((now - an.t0) / an.dur, 0, 1);
+      if (k <= 0) continue;
+      const e = an.fn(k), f = an.from, to = an.to;
+      if (to.x !== undefined) {
+        if (an.cx !== null) {
+          const u = 1 - e;
+          d.x = u * u * f.x + 2 * u * e * an.cx + e * e * to.x;
+          d.y = u * u * f.y + 2 * u * e * an.cy + e * e * to.y;
+        } else { d.x = mix(f.x, to.x, e); d.y = mix(f.y, to.y, e); }
+      }
+      if (to.r !== undefined) d.r = mix(f.r, to.r, e);
+      if (to.a !== undefined) d.a = mix(f.a, to.a, e);
+      if (to.m !== undefined) d.m = mix(f.m, to.m, e);
+      if (k >= 1) d.anim = null;
+    }
+    checking += (checkingTarget - checking) * 0.1;
     let shakeX = 0;
     if (shakeAt >= 0) {
       const dt = now - shakeAt;
@@ -261,41 +276,31 @@ export function initAccess({ space }) {
     root.style.setProperty("--shake", `${shakeX.toFixed(2)}px`);
 
     g.setTransform(S, 0, 0, S, 0, 0);
-    if (seeThrough) g.clearRect(0, 0, W, H);
-    else paintBackground(g);
+    g.clearRect(0, 0, W, H);
+    if (bgAlpha > 0.003) paintBackground(g, bgAlpha);
+    if (snapAlpha > 0.003) {
+      g.globalAlpha = snapAlpha;
+      g.drawImage(snap, 0, 0, W, H);
+      g.globalAlpha = 1;
+    }
     const inBar = phase === "locked" || phase === "checking" || phase === "unlocked";
-    if (inBar && shakeX) g.translate(shakeX, 0);
-    for (const t of tiles) {
-      if (t.alpha <= 0.004) continue;
-      g.globalAlpha = t.alpha;
-      if (Math.abs(t.r) > 0.001) {
-        g.save();
-        g.translate(t.x + t.w / 2, t.y + t.h / 2);
-        g.rotate(t.r);
-        g.drawImage(snap, t.sx * S, t.sy * S, t.sw * S, t.sh * S, -t.w / 2, -t.h / 2, t.w, t.h);
-        g.restore();
-      } else {
-        g.drawImage(snap, t.sx * S, t.sy * S, t.sw * S, t.sh * S, t.x, t.y, t.w, t.h);
+    for (const d of dots) {
+      if (d.a < 0.01 || d.r < 0.12) continue;
+      let r = d.r, x = d.x;
+      if (inBar && d.slot) {
+        x += shakeX;
+        if (checking > 0.01) {
+          const w = Math.max(0, Math.sin(now * 0.011 - d.x * 0.045));
+          r *= 1 + checking * 1.3 * w * w;
+        }
       }
+      const m = d.m, c = d.col, t = d.tint;
+      g.fillStyle = `rgb(${mix(c[0], t[0], m) | 0},${mix(c[1], t[1], m) | 0},${mix(c[2], t[2], m) | 0})`;
+      g.globalAlpha = d.a;
+      if (r < 0.9) g.fillRect(x - r, d.y - r, r * 2, r * 2);
+      else { g.beginPath(); g.arc(x, d.y, r, 0, TAU); g.fill(); }
     }
     g.globalAlpha = 1;
-    // checking the password: light runs along the field
-    if (shimmer > 0.01) {
-      for (const t of tiles) {
-        if (!t.part || t.alpha < 0.05) continue;
-        const wave = Math.max(0, Math.sin(now * 0.009 - t.wave * 0.32));
-        g.fillStyle = `rgba(255,255,255,${(shimmer * 0.5 * wave * wave).toFixed(3)})`;
-        g.fillRect(t.x, t.y, t.w, t.h);
-      }
-    }
-    // the field itself: frosted, so what's typed reads clearly over the pieces
-    if (barShown > 0.01 && bar) {
-      g.fillStyle = `rgba(246,246,244,${(0.34 * barShown).toFixed(3)})`;
-      g.fillRect(bar.x, bar.y, bar.w, bar.h);
-      g.strokeStyle = `rgba(17,17,18,${(0.22 * barShown).toFixed(3)})`;
-      g.lineWidth = 1;
-      g.strokeRect(bar.x + 0.5, bar.y + 0.5, bar.w - 1, bar.h - 1);
-    }
     raf = requestAnimationFrame(draw);
   }
   function startLoop() { if (!raf) raf = requestAnimationFrame(draw); }
@@ -305,65 +310,63 @@ export function initAccess({ space }) {
   async function open() {
     if (phase !== "idle") return;
     phase = "opening";
-    loadHubBytes();
+    loadHubBytes().catch(() => {});
     W = window.innerWidth; H = window.innerHeight; S = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(W * S); canvas.height = Math.round(H * S);
     snap = await makeSnapshot();
     space?.setPaused(true);
-    buildTiles();
-    seeThrough = false;
-    barTarget = 0; barShown = 0;
+    buildDots();
+    buildBar();
+    assignSlots();
+    bgAlpha = 1; snapAlpha = 1;
     root.hidden = false;
     root.classList.remove("is-ready");
     note.textContent = "";
     document.body.classList.add("access-open");
     startLoop();
 
-    // 1. the page stutters: rows of pieces jump sideways
-    const rowShift = Array.from({ length: bar.rows }, () => (Math.random() - 0.5) * 2 * Math.pow(Math.random(), 2) * 120);
-    for (const t of tiles) moveTo(t, { ...t.home, x: t.home.x + rowShift[t.row] }, 0, 170, ease.steps);
-    await wait(reducedMotion ? 0 : 190);
-    // 2. pieces swap places with their neighbours
-    for (const t of tiles) {
-      const nc = clamp(t.col + Math.round((Math.random() - 0.5) * 4), 0, bar.cols - 1);
-      const nr = clamp(t.row + Math.round((Math.random() - 0.5) * 4), 0, bar.rows - 1);
-      const other = tiles[nr * bar.cols + nc].home;
-      moveTo(t, { x: other.x, y: other.y, w: t.home.w, h: t.home.h, r: (Math.random() - 0.5) * 0.3 }, t.rnd * 110, 300, ease.inOut);
-    }
-    await wait(reducedMotion ? 0 : 330);
-    // 3. everything collapses into one field, made of those same pieces
-    for (const t of tiles) {
-      const delay = 40 + centerDist(t) * 420 * (0.7 + 0.3 * t.rnd);
-      moveTo(t, t.cell, delay, 760, ease.inOut);
-      if (!t.part) fadeTo(t, 0, delay + 80, 520);
+    // 1. the page dissolves into dots of its own colours
+    for (const d of dots) go(d, { r: d.hr, a: 1 }, d.rnd * 240, 320, ease.out);
+    tween((v) => { snapAlpha = v; }, 1, 0, 480, 80);
+    await wait(500);
+    // 2. a misprint shudder
+    for (const d of dots) go(d, { x: d.hx + (Math.random() - 0.5) * spacing * 0.9, y: d.hy + (Math.random() - 0.5) * spacing * 0.9 }, 0, 150, ease.steps);
+    await wait(170);
+    // 3. everything streams into one bar, turning to ink on the way
+    for (const d of dots) {
+      const delay = (d.hx / W) * 380 + d.rnd * 170;
+      if (d.slot) go(d, { x: d.slot.x, y: d.slot.y, r: d.slot.r, a: 0.78, m: 1 }, delay, 1000, ease.inOut, 0.7);
+      else go(d, { x: bar.x + d.rnd * bar.w, y: bar.y + bar.h / 2, r: 0, a: 0, m: 1 }, delay, 850, ease.inOut, 0.7);
     }
     await settled();
-    barTarget = 1;
+    phase = "locked";
     root.classList.add("is-ready");
-    if (payload) showUnlocked();
-    else {
-      phase = "locked";
-      input.hidden = false;
-      goBtn.hidden = true;
-      input.value = "";
-      input.focus();
-    }
+    input.hidden = false;
+    goBtn.hidden = true;
+    input.value = "";
+    input.focus();
   }
 
   async function close() {
     if (phase !== "locked" && phase !== "unlocked") return;
     phase = "closing";
+    forget();
     root.classList.remove("is-ready");
     input.blur();
-    barTarget = 0;
     note.textContent = "";
-    for (const t of tiles) {
-      const delay = (1 - centerDist(t)) * 260 * (0.7 + 0.3 * t.rnd);
-      moveTo(t, t.home, delay, 700, ease.inOut);
-      if (!t.part) fadeTo(t, 1, delay + 150, 500);
+    await scatterHome();
+    finish();
+  }
+  // dots stream back to where they came from, regain their colour, and the page returns
+  async function scatterHome() {
+    for (const d of dots) {
+      d.col = d.base; d.tint = INK;
+      go(d, { x: d.hx, y: d.hy, r: d.hr, a: 1, m: 0 }, ((W - d.hx) / W) * 320 + d.rnd * 170, 950, ease.inOut, 0.7);
     }
     await settled();
-    finish();
+    tween((v) => { snapAlpha = v; }, 0, 1, 380);
+    for (const d of dots) go(d, { a: 0 }, 120 + d.rnd * 160, 260);
+    await settled();
   }
   function finish() {
     stopLoop();
@@ -404,16 +407,16 @@ export function initAccess({ space }) {
     if (!pw) return;
     phase = "checking";
     note.textContent = "";
-    shimmerTarget = 1;
+    checkingTarget = 1;
     const started = performance.now();
     let result = null, missing = false;
     try { result = await unlock(pw); } catch (err) { missing = err.message === "no vault"; }
     const left = 650 - (performance.now() - started);
     if (left > 0) await wait(left);
-    shimmerTarget = 0;
+    checkingTarget = 0;
+    input.value = "";
     if (!result) {
       phase = "locked";
-      input.value = "";
       shakeAt = performance.now();
       note.textContent = missing ? "NOT AVAILABLE RIGHT NOW" : "WRONG PASSWORD";
       setTimeout(() => { if (phase === "locked") note.textContent = ""; }, 2400);
@@ -421,32 +424,34 @@ export function initAccess({ space }) {
       return;
     }
     payload = result;
-    showUnlocked();
-  }
-  function showUnlocked() {
     phase = "unlocked";
-    input.value = "";
     input.blur();
     input.hidden = true;
     goBtn.hidden = false;
     goBtn.focus({ preventScroll: true });
-    // a wave of light along the field to say yes
-    shimmerTarget = 1;
-    setTimeout(() => { shimmerTarget = 0; }, 600);
+    checkingTarget = 1; // a pulse along the bar to say yes
+    setTimeout(() => { checkingTarget = 0; }, 600);
   }
 
-  // ---------------------------------------------------------------- into the private page and back
+  // ---------------------------------------------------------------- what the password unlocked
   async function loadHub() {
-    if (hubModule) return;
-    const style = document.createElement("style");
-    style.textContent = payload.page.css;
-    document.head.appendChild(style);
+    hubStyle = document.createElement("style");
+    hubStyle.textContent = payload.page.css;
+    document.head.appendChild(hubStyle);
     const url = URL.createObjectURL(new Blob([payload.page.js], { type: "text/javascript" }));
-    hubModule = await import(url);
-    URL.revokeObjectURL(url);
+    try { hubModule = await import(url); } finally { URL.revokeObjectURL(url); }
+    if (payload.data.titleFont) {
+      try {
+        const blob = await getFile(payload.data.titleFont);
+        headFace = new FontFace("hubHead", await blob.arrayBuffer(), { weight: "700" });
+        await headFace.load();
+        document.fonts.add(headFace);
+      } catch { /* falls back to a system face */ }
+    }
   }
   const fileCache = new Map();
   async function getFile(id, onProgress) {
+    if (!payload) throw new Error("locked");
     if (fileCache.has(id)) return fileCache.get(id);
     const meta = payload.files[id];
     if (!meta) throw new Error("missing file");
@@ -475,50 +480,134 @@ export function initAccess({ space }) {
     const key = await crypto.subtle.importKey("raw", rawKey, "AES-GCM", false, ["decrypt"]);
     const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: buf.subarray(0, 12) }, key, buf.subarray(12));
     const blob = new Blob([plain], { type: meta.type || "application/octet-stream" });
-    if (meta.type && meta.type.startsWith("image/")) fileCache.set(id, blob); // images are reused; downloads are not kept
+    if (meta.type && (meta.type.startsWith("image/") || meta.type.startsWith("font/"))) fileCache.set(id, blob);
     return blob;
   }
+  // leaving (or closing the field) forgets everything the password unlocked
+  function forget() {
+    payload = null;
+    fileCache.clear();
+    hubModule = null;
+    hubStyle?.remove(); hubStyle = null;
+    if (headFace) { document.fonts.delete(headFace); headFace = null; }
+  }
 
+  // ---------------------------------------------------------------- the headline
+  function makeHeadline(text) {
+    const el = document.createElement("div");
+    el.className = "flyTitle";
+    const layer = (cls) => `<span class="flyTitle__layer ${cls}"><span class="flyTitle__words">${text.replace(/[&<>]/g, "")}</span><span class="flyTitle__mark"></span></span>`;
+    el.innerHTML = layer("flyTitle__layer--foil") + layer("flyTitle__layer--plain");
+    el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(el);
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.round((W - r.width) / 2)}px`;
+    el.style.top = `${Math.round((H - r.height) / 2)}px`;
+    return el;
+  }
+  // where the dots go: the headline's own letters and logo, as points
+  function headlinePoints(el) {
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    const words = el.querySelector(".flyTitle__layer--foil .flyTitle__words");
+    const mark = el.querySelector(".flyTitle__layer--foil .flyTitle__mark");
+    const cs = getComputedStyle(words);
+    const wr = words.getBoundingClientRect(), mr = mark.getBoundingClientRect();
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = cs.letterSpacing;
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#000";
+    ctx.fillText(words.textContent.toUpperCase(), wr.left, wr.top + wr.height / 2);
+    const logo = document.querySelector("#wordmark img");
+    if (logo?.complete) ctx.drawImage(logo, mr.left, mr.top, mr.width, mr.height);
+    const st = clamp(Math.round(parseFloat(cs.fontSize) / 16), 4, 8);
+    const data = ctx.getImageData(0, 0, W, H).data;
+    const pts = [];
+    const x0 = Math.floor(Math.min(wr.left, mr.left)), x1 = Math.ceil(Math.max(wr.right, mr.right));
+    const y0 = Math.floor(Math.min(wr.top, mr.top)), y1 = Math.ceil(Math.max(wr.bottom, mr.bottom));
+    for (let y = y0, row = 0; y < y1; y += st, row++) {
+      for (let x = x0 + (row % 2 ? st / 2 : 0); x < x1; x += st) {
+        if (data[(Math.round(y) * W + Math.round(x)) * 4 + 3] > 120) pts.push({ x, y });
+      }
+    }
+    return { pts, r: st * 0.52, x0, x1 };
+  }
+
+  // ---------------------------------------------------------------- into the private page and back
   async function enter() {
     if (phase !== "unlocked") return;
     phase = "entering";
     root.classList.remove("is-ready");
-    barTarget = 0;
-    try { await loadHub(); } catch (err) { console.error(err); phase = "unlocked"; root.classList.add("is-ready"); barTarget = 1; return; }
-    // the pieces fly back out to fill the screen...
-    for (const t of tiles) {
-      const delay = centerDist(t) * 200 * (0.6 + 0.4 * t.rnd);
-      moveTo(t, t.home, delay, 650, ease.inOut);
-      if (!t.part) fadeTo(t, 1, delay + 120, 480);
+    try { await loadHub(); } catch (err) {
+      console.error(err); phase = "unlocked"; root.classList.add("is-ready"); return;
     }
+    // 1. the bar's dots fly into the headline, turning pink
+    const head = makeHeadline(hubModule.title || "");
+    const { pts, r: pr, x0, x1 } = headlinePoints(head);
+    const inBar = dots.filter((d) => d.slot).sort((p, q) => p.x - q.x);
+    pts.sort((p, q) => p.x - q.x || p.y - q.y);
+    const targets = pts.length > inBar.length
+      ? Array.from({ length: inBar.length }, (_, k) => pts[Math.floor((k * pts.length) / inBar.length)])
+      : pts;
+    inBar.forEach((d, i) => {
+      d.col = INK; d.m = 0;
+      const t = targets[i];
+      if (t) {
+        d.tint = foilAt((t.x - x0) / Math.max(1, x1 - x0));
+        go(d, { x: t.x, y: t.y, r: pr * (0.8 + 0.4 * d.rnd), a: 1, m: 1 }, d.rnd * 220, 900, ease.inOut, 0.5);
+      } else {
+        go(d, { a: 0, r: 0 }, d.rnd * 200, 500);
+      }
+    });
     await settled();
-    // ...the private page is laid in underneath, and the pieces fall away one by one to show it
+    // 2. the headline itself appears over its dots; the private page fades in beneath
     hubEl.hidden = false;
+    hubEl.classList.add("is-arriving");
     hubInstance = hubModule.mount(hubEl, { data: payload.data, file: getFile, exit: leave });
-    seeThrough = true;
-    for (const t of tiles) fadeTo(t, 0, (t.rnd * 0.6 + centerDist(t) * 0.4) * 520, 260);
+    head.classList.add("is-on");
+    for (const d of dots) go(d, { a: 0, r: d.r * 0.5 }, 120 + d.rnd * 220, 380);
+    tween((v) => { bgAlpha = v; }, 1, 0, 650, 250);
     await settled();
     stopLoop();
     root.hidden = true;
+    // 3. it settles into the corner, as the page's logo
+    const to = hubInstance.logo.getBoundingClientRect();
+    const from = head.getBoundingClientRect();
+    head.style.transition = reducedMotion ? "none" : "transform 1.15s cubic-bezier(.65,0,.35,1)";
+    head.style.transform = `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`;
+    head.classList.add("is-settled");
+    await wait(1200);
+    hubEl.classList.remove("is-arriving");
+    head.remove();
     phase = "hub";
   }
 
   async function leave() {
     if (phase !== "hub") return;
     phase = "leaving";
-    // the pieces of the site fall back into place over the private page...
+    const logo = hubInstance?.logo?.getBoundingClientRect();
+    const sameSize = W === window.innerWidth && H === window.innerHeight;
     root.hidden = false;
     root.classList.remove("is-ready");
-    seeThrough = true;
-    for (const t of tiles) { t.alpha = 0; t.x = t.home.x; t.y = t.home.y; t.w = t.home.w; t.h = t.home.h; t.r = 0; }
+    snapAlpha = 0;
     startLoop();
-    for (const t of tiles) fadeTo(t, 1, ((1 - t.rnd) * 0.6 + (1 - centerDist(t)) * 0.4) * 520, 260);
+    tween((v) => { bgAlpha = v; }, 0, 1, 420);
+    if (sameSize && logo && !reducedMotion) {
+      // the dots pour out of the logo, back into the page
+      for (const d of dots) {
+        d.x = logo.left + Math.random() * logo.width; d.y = logo.top + Math.random() * logo.height;
+        d.r = 0.6 + Math.random() * 1.2; d.a = 0; d.m = 1; d.col = d.base; d.tint = INK;
+        go(d, { a: 1 }, d.rnd * 160, 220);
+      }
+    }
     await settled();
-    hubInstance?.unmount?.();
+    hubInstance?.unmount();
     hubInstance = null;
     hubEl.hidden = true;
     hubEl.innerHTML = "";
-    // ...and that's the site again, exactly as it was left
+    forget();
+    if (sameSize && logo && !reducedMotion) await scatterHome();
     finish();
   }
 
@@ -538,9 +627,11 @@ export function initAccess({ space }) {
     else if (e.key === "ArrowRight" && phase === "unlocked") { e.preventDefault(); enter(); }
   });
   window.addEventListener("resize", () => {
-    // the pieces are cut for one window size: a resize while the field is up just closes it
+    // the dots are laid out for one window size: a resize while the field is up just closes it
     if (phase === "locked" || phase === "unlocked") {
-      for (const t of tiles) { t.a = null; t.f = null; }
+      forget();
+      for (const d of dots) d.anim = null;
+      tweens.length = 0;
       root.classList.remove("is-ready");
       finish();
     }

@@ -161,7 +161,7 @@ function makeEnvironment(renderer) {
   soft(0.8, 18, 3.4, "#ffe4f2", [-11, 2, 7]);    // narrow strip, left: white with a faint pink tint
   soft(0.6, 18, 2.8, "#fbd8ec", [11, -1, 6]);    // narrow strip, right: a touch more rose
   soft(20, 0.7, 3, "#ffffff", [0, 9, 12]);       // long strip above: white
-  soft(10, 5, 0.5, "#ffffff", [-2, 3, 14]);      // broad, very faint white sheen in front: just the gloss of clear plastic
+  // (no broad light: on the domed sleeve a wide light reflects as a curved, bean-shaped blob)
   panel(0.05, 10, 3, "#fbe3f0", [2, 4, 14]);     // one fine, crisp line for a sharp, pale pink glint
   panel(12, 0.6, 0.8, "#ffffff", [0, 11, -7]);   // faint rim from behind
 
@@ -402,6 +402,19 @@ function pillowBox(w, h, depth, seg = 64) {
   return g;
 }
 
+function flattenNormals(g, k) {
+  const nrm = g.attributes.normal;
+  const n = new THREE.Vector3();
+  for (let i = 0; i < nrm.count; i++) {
+    n.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
+    if (Math.abs(n.z) < 0.5) continue; // front and back faces only
+    n.x *= 1 - k; n.y *= 1 - k;
+    n.normalize();
+    nrm.setXYZ(i, n.x, n.y, n.z);
+  }
+  return g;
+}
+
 // ============================================================
 //  Public API
 // ============================================================
@@ -415,6 +428,9 @@ export function createShared(renderer) {
     sleeveGeo: pillowBox(SLEEVE, SLEEVE, SLEEVE_DEPTH),
     // the wrap hugs the same shape, a hair bigger: plastic pulled tight over the edges
     wrapGeo: pillowBox(SLEEVE + 0.005, SLEEVE + 0.005, SLEEVE_DEPTH + 0.005),
+    // the same wrap for the reflections, but read as almost flat: highlights run as straight
+    // streaks broken up by the creases, instead of bending round the disc's dome
+    shineGeo: flattenNormals(pillowBox(SLEEVE + 0.005, SLEEVE + 0.005, SLEEVE_DEPTH + 0.005), 0.9),
   };
 }
 
@@ -507,7 +523,7 @@ export function buildRecord(rel, shared, index) {
       "#include <lights_fragment_end>\n  reflectedLight.directSpecular = vec3(0.0);\n  reflectedLight.directDiffuse = vec3(0.0);"
     );
   };
-  const shine = new THREE.Mesh(shared.wrapGeo, shineMat);
+  const shine = new THREE.Mesh(shared.shineGeo, shineMat);
   shine.renderOrder = 2;
 
   const group = new THREE.Group();
