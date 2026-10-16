@@ -562,6 +562,7 @@ export function initAccess({ space }) {
     });
     await settled();
     // 2. the headline itself appears over its dots; the private page fades in beneath
+    resetHub();
     hubEl.hidden = false;
     hubEl.classList.add("is-arriving");
     hubInstance = hubModule.mount(hubEl, { data: payload.data, file: getFile, exit: leave });
@@ -604,11 +605,20 @@ export function initAccess({ space }) {
     await settled();
     hubInstance?.unmount();
     hubInstance = null;
+    resetHub();
     hubEl.hidden = true;
-    hubEl.innerHTML = "";
     forget();
     if (sameSize && logo && !reducedMotion) await scatterHome();
     finish();
+  }
+
+  // the private page's container starts every visit clean: whatever state it was left in
+  // (an open in-depth view, a scroll position) must never carry over to the next visit
+  function resetHub() {
+    hubEl.innerHTML = "";
+    hubEl.className = "hub";
+    hubEl.removeAttribute("style");
+    hubEl.scrollTop = 0;
   }
 
   // ---------------------------------------------------------------- wiring
