@@ -72,11 +72,16 @@ function startSpace(releases, ui) {
   scene.environment = shared.env;
 
   // ---------- light: near darkness, a soft spotlight on the record in front ----------
-  scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+  // soft front light so every cover reads in its true colours; the fog lets the far ones sink into the dark
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  key.position.set(-1.5, 2, 5);
+  scene.add(key);
+  scene.fog = new THREE.Fog(BG, 6, 13);
   const rim = new THREE.DirectionalLight(MAGENTA, 0.3);
   rim.position.set(-4, 3, -5);
   scene.add(rim);
-  const spot = new THREE.SpotLight(0xfff8fb, 6.5, 0, 0.2, 0.9, 0);
+  const spot = new THREE.SpotLight(0xfff8fb, 3.2, 0, 0.26, 0.9, 0);
   spot.position.set(-1.6, 3.2, 4.2);
   spot.castShadow = true;
   spot.shadow.mapSize.set(1024, 1024);
@@ -138,37 +143,67 @@ function startSpace(releases, ui) {
   camera.add(heroSpot, heroTarget);
   heroSpot.target = heroTarget;
 
-  // ---------- camera: straight on, a little above ----------
-  function placeCamera() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.fov = camera.aspect < 1 ? 44 : 30;
-    camera.updateProjectionMatrix();
-    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    // the record in front fills ~40% of the height (or ~62% of a phone's width)
-    const byHeight = 1 / (2 * tanV * 0.4);
-    const byWidth = 1 / (2 * tanV * camera.aspect * 0.62);
-    const D = PUSH_FRONT + Math.max(byHeight, camera.aspect < 1 ? byWidth : 0);
-    camera.position.set(0, D * 0.07, D);
-    camera.lookAt(0, 0, 0);
-    camera.updateMatrixWorld();
+  // ---------- the push layout (after the sketch) ----------
+  // The record in focus sits big at the front left. The next one is to its right and a
+  // little further back; every one after that steps further away, up and to the right,
+  // each at its own angle. Records you've pushed past fly off below you.
+  // p = position, r = angle (x, y, z in radians), relative to facing you.
+  const PATH = [
+    { p: [-0.34, -0.30, 0.60], r: [0.03, 0.22, -0.09] },
+    { p: [0.62, -0.06, -0.30], r: [0.02, -0.28, 0.07] },
+    { p: [-0.10, 0.55, -1.25], r: [0.05, 0.18, -0.05] },
+    { p: [0.78, 0.98, -2.20], r: [0.03, -0.22, 0.08] },
+    { p: [0.30, 1.45, -3.15], r: [0.05, 0.16, -0.06] },
+  ];
+  const PASSED = [-1.0, -2.3, 1.5]; // where a pushed-away record goes, per step
+  function pathAt(k, outP, outR) {
+    if (k < PATH.length) {
+      outP.fromArray(PATH[k].p);
+      outR.fromArray(PATH[k].r);
+    } else {
+      // keep going up and away, alternating sides
+      const extra = k - (PATH.length - 1);
+      const last = PATH[PATH.length - 1];
+      outP.set(last.p[0] + (extra % 2 ? 0.48 : 0), last.p[1] + extra * 0.46, last.p[2] - extra * 0.95);
+      outR.set(0.04, extra % 2 ? -0.2 : 0.16, extra % 2 ? 0.07 : -0.06);
+    }
+  }
+  const pA = new THREE.Vector3(), pB = new THREE.Vector3(), rA = new THREE.Vector3(), rB = new THREE.Vector3();
+  function layout(d, outP, outR) {
+    if (d < 0) {
+      pathAt(0, outP, outR);
+      outP.x += PASSED[0] * -d;
+      outP.y += PASSED[1] * -d;
+      outP.z += PASSED[2] * -d;
+      outR.z += 0.25 * d;
+      return;
+    }
+    const k = Math.floor(d), f = d - k;
+    pathAt(k, pA, rA);
+    pathAt(k + 1, pB, rB);
+    outP.lerpVectors(pA, pB, f);
+    outR.lerpVectors(rA, rB, f);
+    // phones are narrow: pull the zig-zag in and keep the front record centred
+    if (camera.aspect < 1) outP.x = outP.x * 0.42 + 0.12;
   }
 
-  // ---------- the push layout ----------
-  // The record in focus is pushed toward you; the others step back and to the side,
-  // tucking slightly behind it. `focus` glides between records on a spring.
-  const PUSH_FRONT = 0.55, PUSH_BACK = -0.5, GAP = 0.98, STEP = 0.8, DEPTH_STEP = 0.32;
-  placeCamera();
-  function layout(d, out) {
-    const a = Math.abs(d), s = Math.sign(d);
-    const f = a >= 1 ? 1 : a * a * (3 - 2 * a); // smoothstep between "in front" and "behind"
-    const far = Math.max(0, a - 1);
-    out.set(
-      s * (f * GAP + far * STEP),
-      0,
-      PUSH_FRONT * (1 - f) + PUSH_BACK * f - far * DEPTH_STEP
-    );
-    return out;
+  // ---------- camera: straight on, framing the front record and the trail behind it ----------
+  function placeCamera() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.fov = camera.aspect < 1 ? 46 : 32;
+    camera.updateProjectionMatrix();
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    // the record in front fills ~42% of the height (or ~66% of a phone's width)
+    const byHeight = 1 / (2 * tanV * 0.42);
+    const byWidth = 1 / (2 * tanV * camera.aspect * 0.66);
+    const D = 0.6 + Math.max(byHeight, camera.aspect < 1 ? byWidth : 0);
+    const cx = camera.aspect < 1 ? 0.06 : 0.18;
+    const cy = camera.aspect < 1 ? 0.3 : 0.16;
+    camera.position.set(cx, cy, D);
+    camera.lookAt(cx, cy, -1);
+    camera.updateMatrixWorld();
   }
+  placeCamera();
 
   let focusIndex = 0;
   const focus = springState(0);
@@ -179,7 +214,6 @@ function startSpace(releases, ui) {
     i = clampIndex(i);
     if (i !== focusIndex) {
       focusIndex = i;
-      ui.setFocused(items[i].rel);
     }
   }
 
@@ -292,13 +326,14 @@ function startSpace(releases, ui) {
   const clock = new THREE.Clock();
   const rowPos = new THREE.Vector3();
   const rowQuat = new THREE.Quaternion();
+  const rowAngle = new THREE.Vector3();
   const heroPos = new THREE.Vector3();
   const heroQuat = new THREE.Quaternion();
   const euler = new THREE.Euler();
   const q = new THREE.Quaternion();
   const look = new THREE.Matrix4();
   const up = new THREE.Vector3(0, 1, 0);
-  const spotAim = new THREE.Vector3(0, 0, PUSH_FRONT);
+  const spotAim = new THREE.Vector3().fromArray(PATH[0].p);
   let heroScale = 1;
   let veilShown = 0;
 
@@ -339,19 +374,21 @@ function startSpace(releases, ui) {
       veilTarget = Math.max(veilTarget, b);
       const h = spring(it.hover, i === hovered && !open ? 1 : 0, 9, dt);
 
-      // place in the row, pushed forward or back
-      layout(i - focus.x, rowPos);
-      rowPos.y = Math.sin(t * 0.5 + it.phase[0]) * 0.025;
-      rowPos.z += h * 0.12;
+      // place on the trail, pushed forward or away
+      const d = i - focus.x;
+      it.holder.visible = d > -1.6 && d < 9;
+      layout(d, rowPos, rowAngle);
+      rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
+      rowPos.z += h * 0.1;
 
-      // always facing you, with a slow, slight tilt of its own
+      // facing you, at its own angle, drifting very slightly
       look.lookAt(camera.position, rowPos, up);
       rowQuat.setFromRotationMatrix(look);
       const m = reducedMotion ? 0.25 : 1;
       euler.set(
-        Math.sin(t * 0.17 + it.phase[0]) * 0.07 * m,
-        Math.sin(t * 0.13 + it.phase[1]) * 0.11 * m,
-        Math.sin(t * 0.11 + it.phase[2]) * 0.025 * m,
+        rowAngle.x + Math.sin(t * 0.17 + it.phase[0]) * 0.035 * m,
+        rowAngle.y + Math.sin(t * 0.13 + it.phase[1]) * 0.05 * m - h * rowAngle.y * 0.4,
+        rowAngle.z + Math.sin(t * 0.11 + it.phase[2]) * 0.015 * m,
         "YXZ"
       );
       rowQuat.multiply(q.setFromEuler(euler));
@@ -372,7 +409,8 @@ function startSpace(releases, ui) {
     spot.target.position.copy(spotAim);
     veilShown += (veilTarget - veilShown) * (1 - Math.exp(-dt * 8));
     // the room light goes out quickly when a record opens, so it never cuts across it
-    spot.intensity = 6.5 * Math.pow(1 - Math.min(1, veilShown * 2.5), 2);
+    spot.intensity = 3.2 * Math.pow(1 - Math.min(1, veilShown * 2.5), 2);
+    key.intensity = 1.1 * (1 - veilShown);
     heroSpot.intensity = 4 * veilShown;
     veil.material.opacity = veilShown * 0.97;
 
@@ -380,7 +418,6 @@ function startSpace(releases, ui) {
     requestAnimationFrame(frame);
   }
 
-  ui.setFocused(items[0].rel);
 
   return {
     select,
@@ -436,10 +473,8 @@ function buildUI(releases) {
     if (current !== -1) close();
     setIndex(indexEl.hidden);
   });
+  $("indexClose").addEventListener("click", () => setIndex(false));
 
-  // ---------- title of the record in front ----------
-  const caption = $("caption");
-  caption.addEventListener("click", () => space?.openFocused());
 
   // ---------- detail ----------
   function open(i) {
@@ -526,16 +561,6 @@ function buildUI(releases) {
       document.body.classList.add("detail-open");
       history.replaceState(null, "", `#${rel.slug}`);
     },
-    setFocused(rel) {
-      // cross-fade the title
-      const title = $("captionTitle");
-      clearTimeout(title._t);
-      title.classList.add("is-out");
-      title._t = setTimeout(() => {
-        title.textContent = rel.title;
-        title.classList.remove("is-out");
-      }, 260);
-    },
     scrollTop: () => scroller.scrollTop,
     attach(s) { space = s; },
     openBySlug(slug) {
@@ -568,33 +593,20 @@ function buildUI(releases) {
 }
 
 // ============================================================
-//  LOADER: the whole logo shows dark and brightens as the page loads,
-//  then glides to its place in the corner.
+//  LOADER: the white logo pulses softly while the page loads,
+//  then fades away.
 // ============================================================
 function makeLoader() {
-  const logo = $("loaderLogo");
   const startedAt = performance.now();
-  let shown = 0;
-  const set = (p) => {
-    shown = Math.max(shown, p);
-    logo.style.setProperty("--p", shown.toFixed(3));
-  };
-  requestAnimationFrame(() => set(0.15));
   return {
-    progress: set,
+    progress() {},
     async finish() {
-      set(1);
-      // give the brightening time to finish, so it never feels rushed
-      const minTotal = reducedMotion ? 0 : 1900;
-      const left = minTotal - (performance.now() - startedAt);
-      await wait(Math.max(reducedMotion ? 0 : 900, left));
-      const from = logo.getBoundingClientRect();
-      const to = $("wordmark").getBoundingClientRect();
-      const s = to.width / from.width;
-      logo.style.transform = `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${s})`;
+      // let it pulse at least a couple of times, so it never just blinks past
+      const left = (reducedMotion ? 0 : 2400) - (performance.now() - startedAt);
+      if (left > 0) await wait(left);
       $("loader").classList.add("is-leaving");
-      await wait(reducedMotion ? 0 : 1400);
       document.body.classList.add("is-loaded");
+      await wait(reducedMotion ? 0 : 1300);
       $("loader").classList.add("is-done");
     },
   };

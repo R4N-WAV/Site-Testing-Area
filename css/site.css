@@ -46,42 +46,24 @@ body.is-hovering #space{cursor:pointer;}
 .top > *{pointer-events:auto;}
 .logo{display:block;}
 .logo img{width:76px;height:auto;display:block;}
-.top .logo{opacity:0;transition:opacity .6s var(--ease);}
+/* the R4N in the corner: same tone as the background, just a little lighter */
+.top .logo{opacity:0;filter:brightness(0.12);transition:opacity 1.2s var(--ease) .4s,filter .6s var(--ease);}
 body.is-loaded .top .logo{opacity:1;}
+.top .logo:hover{filter:brightness(0.3);}
 
 .textBtn{
   color:var(--muted);letter-spacing:2px;font-size:12px;padding:8px 0;
   transition:color .4s var(--ease),opacity .6s var(--ease);
 }
 .textBtn:hover,.textBtn[aria-expanded="true"]{color:var(--fg);}
-#indexBtn{opacity:0;}
-body.is-loaded #indexBtn{opacity:1;}
-
+/* links live inside an opened record; the main screen shows only the covers */
 .socials{
-  position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:20;
+  margin:44px auto 0;justify-content:center;
   color:var(--muted);font-size:12px;letter-spacing:.4px;white-space:nowrap;
-  display:flex;gap:10px;transition:opacity .6s var(--ease);
+  display:flex;gap:10px;
 }
 .socials a{text-decoration:none;transition:color .4s var(--ease);}
 .socials a:hover{color:var(--fg);}
-
-/* ---------- title of the record in front ---------- */
-.caption{
-  position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:20;
-  width:min(90vw,640px);text-align:center;
-  transition:opacity .6s var(--ease);
-}
-.caption__title{
-  display:inline-block;
-  font-size:clamp(14px,1.6vw,18px);font-weight:500;
-  letter-spacing:4px;text-transform:uppercase;overflow-wrap:anywhere;
-  transition:opacity .5s var(--ease),transform .7s var(--ease),filter .5s var(--ease);
-}
-.caption__title.is-out{opacity:0;transform:translateY(6px);filter:blur(3px);}
-
-body:not(.is-loaded) .socials,body:not(.is-loaded) .caption,
-body.detail-open .socials,body.detail-open #indexBtn,
-body.detail-open .caption,body.index-open .caption{opacity:0;pointer-events:none;}
 
 /* ---------- index list ---------- */
 .index{
@@ -93,6 +75,7 @@ body.detail-open .caption,body.index-open .caption{opacity:0;pointer-events:none
   animation:fadeIn .6s var(--ease) both;
 }
 @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.index__close{position:fixed;top:14px;right:var(--pad);padding:14px 0;}
 .index__list{list-style:none;max-width:760px;margin:0 auto;}
 .index__item button{
   width:100%;display:grid;grid-template-columns:28px 56px 1fr auto;gap:18px;align-items:center;
@@ -151,23 +134,24 @@ body.no3d .detail__hero img{display:block;height:var(--hero-h);width:var(--hero-
   transition:background .5s var(--ease),color .5s var(--ease),border-color .5s var(--ease);
 }
 .listen:hover{background:var(--fg);color:var(--bg);border-color:var(--fg);}
-.detail__nav{margin:34px auto 0;display:flex;justify-content:space-between;max-width:420px;}
+.detail__nav{margin:34px auto 0;display:flex;justify-content:space-between;align-items:center;max-width:420px;}
 
-/* ---------- loader: the logo brightens from dark as the page loads ---------- */
+/* ---------- loader: the white logo pulses softly, then fades away ---------- */
 .loader{
   position:fixed;inset:0;z-index:60;background:var(--bg);
   display:grid;place-items:center;
-  transition:background-color 1.2s var(--ease);
+  transition:opacity 1.2s var(--ease);
 }
 .loader__logo{
-  --p:0;
-  width:min(46vw,300px);height:auto;display:block;
-  transform-origin:0 0;
-  filter:brightness(calc(0.07 + var(--p) * 0.93));
-  transition:filter 1.6s var(--ease),transform 1.3s var(--ease-io);
+  width:min(42vw,260px);height:auto;display:block;
+  animation:pulse 2.2s cubic-bezier(.45,0,.55,1) infinite;
+}
+@keyframes pulse{
+  0%,100%{opacity:0.28;}
+  50%{opacity:1;}
 }
 .loader__note{position:absolute;bottom:40px;left:0;right:0;text-align:center;color:var(--muted);font-size:11px;letter-spacing:2px;}
-.loader.is-leaving{background-color:rgba(0,0,0,0);pointer-events:none;}
+.loader.is-leaving{opacity:0;pointer-events:none;}
 .loader.is-done{display:none;}
 
 .noscript{position:fixed;inset:auto 0 50% 0;text-align:center;z-index:70;}
@@ -177,8 +161,6 @@ body.no3d .detail__hero img{display:block;height:var(--hero-h);width:var(--hero-
   :root{--pad:16px;}
   .top{height:60px;}
   .logo img{width:62px;}
-  .caption{bottom:calc(64px + env(safe-area-inset-bottom));}
-  .socials{bottom:calc(20px + env(safe-area-inset-bottom));}
   .detail__hero{padding-bottom:22px;}
 }
 

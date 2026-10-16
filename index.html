@@ -22,22 +22,11 @@
 
   <header class="top">
     <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
-    <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
-
-  <!-- title of the record in front -->
-  <button class="caption" id="caption" type="button"><span class="caption__title" id="captionTitle"></span></button>
-
-  <nav class="socials" aria-label="Social links">
-    <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
-    <span>/</span>
-    <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
-    <span>/</span>
-    <a href="mailto:r4nmusic@outlook.com">contact</a>
-  </nav>
 
   <!-- List of every release: the INDEX button, and the fallback when 3D isn't available -->
   <section class="index" id="index" aria-label="All releases" hidden>
+    <button class="textBtn index__close" id="indexClose" type="button">CLOSE ✕</button>
     <ol class="index__list" id="indexList"></ol>
   </section>
 
@@ -55,8 +44,16 @@
         <div class="detail__links" id="dLinks"></div>
         <div class="detail__nav">
           <button class="textBtn" id="dPrev" type="button">← PREV</button>
+          <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">ALL</button>
           <button class="textBtn" id="dNext" type="button">NEXT →</button>
         </div>
+        <nav class="socials" aria-label="Social links">
+          <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
+          <span>/</span>
+          <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
+          <span>/</span>
+          <a href="mailto:r4nmusic@outlook.com">contact</a>
+        </nav>
       </article>
     </div>
   </section>

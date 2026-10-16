@@ -229,7 +229,8 @@ function wrapNormal(S = 1024, seed = 3) {
         h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i]
       );
       const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
-      const v = 0.26 + Math.min(0.5, lap * 11) + Math.max(0, 0.035 - edge) * 8;
+      // clear over the artwork; only creases and the very edges go a little white
+      const v = 0.015 + Math.min(0.3, lap * 9) + Math.max(0, 0.03 - edge) * 6;
       haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
       haze[i * 4 + 3] = 255;
     }
@@ -379,7 +380,7 @@ export function buildRecord(rel, shared, index) {
     specularIntensity: 1,
     normalMap: variant(maps.normal),
     normalScale: new THREE.Vector2(0.3, 0.3),
-    envMapIntensity: 1.4,
+    envMapIntensity: 1.12,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
