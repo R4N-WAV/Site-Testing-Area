@@ -144,33 +144,34 @@ function startSpace(releases, ui) {
   heroSpot.target = heroTarget;
 
   // ---------- the push layout (after the sketch) ----------
-  // The record in focus sits big at the front left. The others step straight back into
-  // the distance, zig-zagging left and right and getting clearly smaller, without
+  // The record in focus sits big in the middle. The others step straight back into
+  // the distance, alternating right and left and getting clearly smaller, without
   // climbing up the screen. Records you've pushed past fly off below you.
   // x/y are where it sits on screen (in front-record units), z is how far back it is,
   // s is an extra size step-down, r is its angle (x, y, z in radians).
   const PATH = [
-    { x: -0.30, y: 0.00, z: 0.6,  s: 1.0,  r: [0.03, 0.22, -0.09] },
-    { x: 0.64,  y: 0.05, z: -1.0, s: 0.84, r: [0.02, -0.26, 0.07] },
-    { x: 1.22,  y: 0.01, z: -2.7, s: 0.72, r: [0.05, 0.2, -0.05] },
-    { x: 1.56,  y: 0.06, z: -4.4, s: 0.64, r: [0.03, -0.22, 0.08] },
-    { x: 1.82,  y: 0.02, z: -6.1, s: 0.58, r: [0.05, 0.16, -0.06] },
+    { x: 0.0,   y: 0.00, z: 0.6,  s: 1.0,  r: [0.03, 0.14, -0.06] },
+    { x: 0.86,  y: 0.04, z: -1.0, s: 0.84, r: [0.02, -0.26, 0.07] },
+    { x: -0.92, y: 0.02, z: -2.7, s: 0.72, r: [0.04, 0.24, -0.06] },
+    { x: 1.30,  y: 0.06, z: -4.4, s: 0.64, r: [0.03, -0.22, 0.08] },
+    { x: -1.38, y: 0.03, z: -6.1, s: 0.58, r: [0.05, 0.2, -0.06] },
   ];
   const PASSED = [-1.0, -2.3, 1.5]; // where a pushed-away record goes, per step
   const pathKey = (k) => {
     if (k < PATH.length) return PATH[k];
     const extra = k - (PATH.length - 1), last = PATH[PATH.length - 1];
     return {
-      x: last.x + extra * 0.2, y: last.y + (extra % 2 ? 0.04 : 0), z: last.z - extra * 1.7,
+      // keep alternating sides, a little wider each time
+      x: (extra % 2 ? 1 : -1) * (Math.abs(last.x) + extra * 0.1), y: last.y + (extra % 2 ? 0.03 : 0), z: last.z - extra * 1.7,
       s: Math.max(0.4, last.s - extra * 0.05),
-      r: [0.04, extra % 2 ? -0.2 : 0.16, extra % 2 ? 0.07 : -0.06],
+      r: [0.04, extra % 2 ? -0.2 : 0.2, extra % 2 ? 0.07 : -0.06],
     };
   };
   // turn a screen spot + depth into a world position, so far records don't drift upward
   function place(xr, yr, z, out) {
     const cam = camera.position;
     const ratio = (cam.z - z) / (cam.z - PATH[0].z);
-    if (camera.aspect < 1) xr = xr * 0.55 + 0.08; // phones are narrow: pull the trail in
+    if (camera.aspect < 1) xr = xr * 0.66; // phones are narrow: pull the trail in
     return out.set(cam.x + (xr - cam.x) * ratio, cam.y + (yr - cam.y) * ratio, z);
   }
   function layout(d, outP, outR) {
@@ -202,7 +203,7 @@ function startSpace(releases, ui) {
     const byHeight = 1 / (2 * tanV * 0.42);
     const byWidth = 1 / (2 * tanV * camera.aspect * 0.66);
     const D = 0.6 + Math.max(byHeight, camera.aspect < 1 ? byWidth : 0);
-    const cx = camera.aspect < 1 ? 0.1 : 0.42;
+    const cx = 0;
     const cy = camera.aspect < 1 ? 0.12 : 0.1;
     camera.position.set(cx, cy, D);
     camera.lookAt(cx, cy, -1);
