@@ -184,7 +184,11 @@ function startSpace(releases, ui) {
   const focus = springState(0);
   let hovered = -1;
   let selected = -1;
-  const clampIndex = (i) => clamp(i, 0, items.length - 1);
+  // which records are shown, in tunnel order (the toggle filters this); slot = place in the tunnel
+  let order = items.map((_, i) => i);
+  items.forEach((it, i) => { it.slot = i; it.slotS = springState(i); });
+  const count = () => Math.max(1, order.length);
+  const clampIndex = (i) => clamp(i, 0, count() - 1);
   let travel = 0; // where you're heading along the tunnel (in records); scroll moves it smoothly
   function focusOn(i) {
     i = clampIndex(i);
@@ -200,7 +204,8 @@ function startSpace(releases, ui) {
   function pick(x, y) {
     ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
-    const hit = raycaster.intersectObjects(pickables, false)[0];
+    // hidden records (filtered out by the toggle) can't be clicked
+    const hit = raycaster.intersectObjects(pickables, false).find((h) => items[h.object.userData.index].slot >= 0);
     return hit ? hit.object.userData.index : -1;
   }
 
@@ -222,7 +227,7 @@ function startSpace(releases, ui) {
         const stepD = (Math.abs(dx) >= Math.abs(dy) ? -(e.clientX - drag.last) : e.clientY - drag.lastY) / pxPerRecord();
         drag.v = drag.v * 0.6 + (stepD / Math.max(0.008, (now - drag.t) / 1000)) * 0.4;
         drag.last = e.clientX; drag.lastY = e.clientY; drag.t = now;
-        focus.x = clamp(drag.start + d / pxPerRecord(), -0.35, items.length - 0.65);
+        focus.x = clamp(drag.start + d / pxPerRecord(), -0.35, count() - 0.65);
         focus.v = 0;
         hovered = -1;
         document.body.classList.remove("is-hovering");
@@ -263,7 +268,7 @@ function startSpace(releases, ui) {
     if (selected !== -1 || document.body.classList.contains("index-open")) return;
     const delta = e.deltaMode === 1 ? e.deltaY * 16 : (Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
     if (scrollFrom === null) scrollFrom = focusIndex;
-    travel = clamp(travel + clamp(delta, -120, 120) / 420, -0.3, items.length - 0.7);
+    travel = clamp(travel + clamp(delta, -120, 120) / 420, -0.3, count() - 0.7);
     clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
       const moved = travel - scrollFrom;
@@ -360,10 +365,11 @@ function startSpace(releases, ui) {
       veilTarget = Math.max(veilTarget, b);
       const h = spring(it.hover, i === hovered && !open ? 1 : 0, 9, dt);
 
-      // place on the trail, pushed forward or away
-      const d = i - focus.x;
-      it.holder.visible = d > -1.4 && d < 10;
-      const rowScale = layout(d, i, rowPos, rowAngle) * (1 + h * 0.03);
+      // place in the tunnel; when the filter changes, records glide to their new places
+      const slot = spring(it.slotS, it.slot >= 0 ? it.slot : it.slotS.x, 5, dt);
+      const d = slot - focus.x;
+      it.holder.visible = (it.slot >= 0 && d > -1.4 && d < 10) || b > 0.002;
+      const rowScale = layout(d, Math.round(slot), rowPos, rowAngle) * (1 + h * 0.03);
       rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
       rowPos.z += h * 0.1;
 
@@ -389,7 +395,7 @@ function startSpace(releases, ui) {
         it.holder.quaternion.copy(rowQuat);
         it.holder.scale.setScalar(rowScale);
       }
-      if (i === focusIndex) spotAim.lerp(rowPos, 1 - Math.exp(-dt * 6));
+      if (it.slot === focusIndex) spotAim.lerp(rowPos, 1 - Math.exp(-dt * 6));
     });
 
     spot.target.position.copy(spotAim);
@@ -412,7 +418,14 @@ function startSpace(releases, ui) {
     tiltBy,
     tiltEnd() { tilting = false; },
     nudge(dir) { focusOn(focusIndex + dir); },
-    openFocused() { select(focusIndex); },
+    openFocused() { if (order.length) select(order[focusIndex]); },
+    // show only these records (item indexes, in order); the rest leave the tunnel
+    setFilter(visible) {
+      order = visible.slice();
+      items.forEach((it) => { it.slot = -1; });
+      order.forEach((i, k) => { items[i].slot = k; });
+      focusOn(0);
+    },
     // the very first frame, so the loader can wait until the scene is really on screen
     firstFrame: () => new Promise((resolve) => {
       renderer.render(scene, camera);
@@ -433,23 +446,45 @@ function buildUI(releases) {
   let space = null;
   let current = -1;
 
-  // ---------- index list ----------
-  const list = $("indexList");
-  if (!releases.length) list.innerHTML = `<li class="index__empty">NOTHING HERE YET</li>`;
-  releases.forEach((rel, i) => {
-    const li = document.createElement("li");
-    li.className = "index__item";
-    li.innerHTML = `
-      <button type="button">
-        <span class="index__num">${String(i + 1).padStart(2, "0")}</span>
-        <img src="${escapeHTML(rel.coverUrl)}" alt="" loading="lazy">
-        <span><span class="index__title">${escapeHTML(rel.title)}</span>
-        <span class="index__sub">${escapeHTML([rel.type, rel.artist].filter(Boolean).join(" · "))}</span></span>
-        <span class="index__year">${escapeHTML(yearOf(rel))}</span>
-      </button>`;
-    li.querySelector("button").addEventListener("click", () => { setIndex(false); open(i); });
-    list.appendChild(li);
+  // ---------- MY SONGS / WORKED ON toggle ----------
+  let mode = "mine";
+  let shown = [];   // release indexes in the current mode
+  const emptyNote = $("emptyNote");
+  function applyMode(next) {
+    mode = next;
+    shown = releases.map((r, i) => (r.category === mode ? i : -1)).filter((i) => i !== -1);
+    document.querySelectorAll(".modeToggle button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+    });
+    emptyNote.hidden = shown.length > 0;
+    buildIndex();
+    space?.setFilter(shown);
+  }
+  document.querySelectorAll(".modeToggle button").forEach((b) => {
+    b.addEventListener("click", () => { if (b.dataset.mode !== mode) applyMode(b.dataset.mode); });
   });
+
+  // ---------- index list (follows the toggle) ----------
+  const list = $("indexList");
+  function buildIndex() {
+    list.innerHTML = "";
+    if (!shown.length) list.innerHTML = `<li class="index__empty">NOTHING HERE YET</li>`;
+    shown.forEach((i, k) => {
+      const rel = releases[i];
+      const li = document.createElement("li");
+      li.className = "index__item";
+      li.innerHTML = `
+        <button type="button">
+          <span class="index__num">${String(k + 1).padStart(2, "0")}</span>
+          <img src="${escapeHTML(rel.coverUrl)}" alt="" loading="lazy">
+          <span><span class="index__title">${escapeHTML(rel.title)}</span>
+          <span class="index__sub">${escapeHTML([rel.type, rel.artist].filter(Boolean).join(" · "))}</span></span>
+          <span class="index__year">${escapeHTML(yearOf(rel))}</span>
+        </button>`;
+      li.querySelector("button").addEventListener("click", () => { setIndex(false); open(i); });
+      list.appendChild(li);
+    });
+  }
   function setIndex(show) {
     indexEl.hidden = !show;
     indexBtn.setAttribute("aria-expanded", String(show));
@@ -488,6 +523,8 @@ function buildUI(releases) {
     $("dTitle").textContent = rel.title;
     $("dArtist").textContent = rel.artist;
     $("dDesc").innerHTML = richText(rel.description);
+    $("dAbout").open = false;
+    $("dAbout").hidden = !rel.description;
 
     const credits = $("dCredits");
     credits.innerHTML = "";
@@ -512,7 +549,7 @@ function buildUI(releases) {
       links.insertAdjacentHTML("beforeend",
         `<a class="listen" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer"><span>Listen on ${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
     }
-    const many = releases.length > 1;
+    const many = shown.length > 1;
     $("dPrev").hidden = !many;
     $("dNext").hidden = !many;
   }
@@ -552,15 +589,22 @@ function buildUI(releases) {
       history.replaceState(null, "", `#${rel.slug}`);
     },
     scrollTop: () => scroller.scrollTop,
-    attach(s) { space = s; },
+    attach(s) { space = s; space.setFilter(shown); },
+    applyMode,
     openBySlug(slug) {
       const i = releases.findIndex((r) => r.slug === slug);
-      if (i !== -1) open(i);
+      if (i === -1) return;
+      if (releases[i].category !== mode) applyMode(releases[i].category);
+      open(i);
     },
     showIndex: () => setIndex(true),
   };
 
-  const stepDetail = (d) => { if (current !== -1) open((current + d + releases.length) % releases.length); };
+  const stepDetail = (d) => {
+    if (current === -1 || !shown.length) return;
+    const k = shown.indexOf(current);
+    open(shown[(k + d + shown.length) % shown.length]);
+  };
   $("detailClose").addEventListener("click", close);
   $("dPrev").addEventListener("click", () => stepDetail(-1));
   $("dNext").addEventListener("click", () => stepDetail(1));
@@ -579,6 +623,7 @@ function buildUI(releases) {
     if (e.key === "Enter") space.openFocused();
   });
 
+  applyMode("mine");
   return ui;
 }
 

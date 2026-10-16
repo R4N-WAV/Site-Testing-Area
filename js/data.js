@@ -84,6 +84,8 @@ async function loadRelease(folder) {
     credits: Array.isArray(info.credits) ? info.credits : [],
     links: info.links && typeof info.links === "object" ? info.links : {},
     vinyl: /^#[0-9a-f]{6}$/i.test(info.vinyl || "") ? info.vinyl : "#0b0b0b",
+    // "mine" = an R4N release; "worked-on" = a song R4N worked on for someone else
+    category: /^worked/i.test(String(info.category || "")) ? "worked-on" : "mine",
     coverCandidates: coverCandidates.map((c) => base + c),
     coverUrl: null,
     image: null,

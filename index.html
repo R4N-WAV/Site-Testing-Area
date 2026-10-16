@@ -9,12 +9,12 @@
   <link rel="icon" type="image/png" href="assets/icon.png" />
   <link rel="preload" as="image" href="assets/logo-white.png" />
   <!-- ?v= numbers force browsers to fetch fresh files after each update -->
-  <link rel="stylesheet" href="css/site.css?v=20261016151341" />
+  <link rel="stylesheet" href="css/site.css?v=20261016161903" />
   <script type="importmap">
     { "imports": {
         "three": "./vendor/three.module.min.js",
-        "./js/data.js": "./js/data.js?v=20261016151341",
-        "./js/materials.js": "./js/materials.js?v=20261016151341"
+        "./js/data.js": "./js/data.js?v=20261016161903",
+        "./js/materials.js": "./js/materials.js?v=20261016161903"
     } }
   </script>
 </head>
@@ -24,8 +24,14 @@
 
   <header class="top">
     <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
+    <!-- switch between R4N's own songs and songs R4N worked on for others -->
+    <div class="modeToggle" role="group" aria-label="Which songs to show">
+      <button type="button" data-mode="mine" aria-pressed="true">MY SONGS</button>
+      <button type="button" data-mode="worked-on" aria-pressed="false">WORKED ON</button>
+    </div>
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
+  <p class="emptyNote" id="emptyNote" hidden>NOTHING HERE YET</p>
 
   <!-- List of every release: the INDEX button, and the fallback when 3D isn't available -->
   <section class="index" id="index" aria-label="All releases" hidden>
@@ -42,7 +48,10 @@
         <p class="detail__meta" id="dMeta"></p>
         <h1 class="detail__title" id="dTitle"></h1>
         <p class="detail__artist" id="dArtist"></p>
-        <div class="detail__desc" id="dDesc"></div>
+        <details class="about" id="dAbout">
+          <summary>ABOUT</summary>
+          <div class="detail__desc" id="dDesc"></div>
+        </details>
         <dl class="detail__credits" id="dCredits"></dl>
         <div class="detail__links" id="dLinks"></div>
         <div class="detail__nav">
@@ -68,6 +77,6 @@
 
   <noscript><p class="noscript">This site needs JavaScript. Find R4N on <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr">Spotify</a>.</p></noscript>
 
-  <script type="module" src="js/site.js?v=20261016151341"></script>
+  <script type="module" src="js/site.js?v=20261016161903"></script>
 </body>
 </html>

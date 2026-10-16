@@ -186,3 +186,37 @@ body.no3d .detail__hero img{display:block;height:var(--hero-h);width:var(--hero-
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:.01s !important;transition-delay:0s !important;animation-duration:.01s !important;animation-delay:0s !important;}
 }
+
+/* ---------- MY SONGS / WORKED ON ---------- */
+.modeToggle{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;gap:4px;padding:3px;border:1px solid var(--faint);border-radius:999px;
+  opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s;
+}
+body.is-loaded .modeToggle{opacity:1;pointer-events:auto;}
+body.detail-open .modeToggle,body.index-open .modeToggle{opacity:0;pointer-events:none;transition-delay:0s;}
+.modeToggle button{
+  font-size:11px;letter-spacing:1.8px;padding:7px 14px;border-radius:999px;color:var(--muted);white-space:nowrap;
+  transition:background .5s var(--ease),color .5s var(--ease);
+}
+.modeToggle button[aria-pressed="true"]{background:var(--fg);color:var(--bg);}
+.modeToggle button:not([aria-pressed="true"]):hover{color:var(--fg);}
+.emptyNote{position:fixed;inset:auto 0 50% 0;text-align:center;color:var(--muted);font-size:11px;letter-spacing:2px;z-index:5;}
+
+/* ---------- ABOUT dropdown ---------- */
+.about{margin:24px auto 0;max-width:520px;}
+.about summary{
+  list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+  color:var(--muted);font-size:11px;letter-spacing:2px;padding:6px 0;
+  transition:color .4s var(--ease);
+}
+.about summary::-webkit-details-marker{display:none;}
+.about summary::after{content:"+";font-size:13px;transition:transform .5s var(--ease);}
+.about[open] summary::after{transform:rotate(45deg);}
+.about summary:hover{color:var(--fg);}
+.about .detail__desc{margin-top:10px;animation:rise .7s var(--ease) both;}
+
+@media (max-width:768px){
+  .modeToggle{position:fixed;top:auto;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);}
+  .modeToggle button{padding:8px 13px;}
+}
