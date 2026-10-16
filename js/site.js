@@ -283,7 +283,7 @@ function startSpace(releases, ui) {
       return;
     }
     if (e.pointerType !== "touch") {
-      pointer.x = e.clientX; pointer.y = e.clientY;
+      pointer.x = e.clientX; pointer.y = e.clientY; pointer.in = true;
       setHovered(pick(e.clientX, e.clientY));
     }
   });
@@ -306,11 +306,11 @@ function startSpace(releases, ui) {
     select(i);
   });
   canvas.addEventListener("pointercancel", () => { drag = null; });
-  canvas.addEventListener("pointerleave", () => { if (!drag) setHovered(-1); });
+  canvas.addEventListener("pointerleave", () => { pointer.in = false; if (!drag) setHovered(-1); });
 
   // ---------- the song's name by the cursor, after hovering a record for a moment ----------
   const tag = $("hoverTag");
-  const pointer = { x: 0, y: 0 };
+  const pointer = { x: 0, y: 0, in: false };
   let hoverSince = 0;
   const HOVER_DELAY = 0.66; // seconds
   function setHovered(i) {
@@ -577,6 +577,8 @@ function startSpace(releases, ui) {
       camera.layers.set(TOP);
       renderer.render(scene, camera);
     }
+    // a still mouse over a moving tunnel: what's under it changes, so check again
+    if (pointer.in && !drag && !open && (Math.abs(focus.v) > 1e-3 || warp)) setHovered(pick(pointer.x, pointer.y));
     updateHoverTag(t, open);
     if (captureWaiters.length) {
       // copied straight after drawing, while the frame is still in the canvas
