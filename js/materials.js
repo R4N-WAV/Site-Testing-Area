@@ -343,7 +343,7 @@ export function createShared(renderer) {
     env: makeEnvironment(renderer),
     paper: paperBump(),
     // crease texture for the reflections + a smooth thin-film map for the holo colour
-    wraps: [3, 11].map((seed, k) => ({ normal: wrapNormal(1024, seed).normal, film: cleanWrapMaps(512, 5 + k * 4).film })),
+    wraps: [3, 11].map((seed, k) => ({ ...wrapNormal(1024, seed), film: cleanWrapMaps(512, 5 + k * 4).film })),
     // softly rounded edges catch a line of light, which is most of what makes it read as an object
     sleeveGeo: new RoundedBoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH, 3, 0.0045),
     // the wrap is a little bigger and rounder: plastic pulled over the edges
@@ -381,8 +381,23 @@ export function buildRecord(rel, shared, index) {
     t.rotation = (index % 4) * (Math.PI / 2);
     return t;
   };
-  // The wrap: fully clear, no colour of its own, only reflections added on top so the
-  // artwork shows through untouched. A thin-film (iridescent) coating gives the
+  // Layer 1: the creases. Clear on flat areas; only folds and the very edge catch a
+  // little light and whiten, which is what makes the plastic read.
+  const hazeMat = new THREE.MeshStandardMaterial({
+    color: 0xf4eef2,
+    roughness: 0.55,
+    metalness: 0,
+    alphaMap: variant(maps.haze),
+    normalMap: variant(maps.normal),
+    normalScale: new THREE.Vector2(0.3, 0.3),
+    envMapIntensity: 0.25,
+    transparent: true,
+    depthWrite: false,
+  });
+  const haze = new THREE.Mesh(shared.wrapGeo, hazeMat);
+  haze.renderOrder = 1;
+
+  // Layer 2: reflections only, added on top so the artwork shows through untouched. A thin-film (iridescent) coating gives the
   // reflections a holo-foil colour shift as the record turns.
   const shineMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000,
@@ -395,7 +410,7 @@ export function buildRecord(rel, shared, index) {
     iridescenceThicknessRange: [380, 460],
     iridescenceThicknessMap: variant(maps.film),
     normalMap: variant(maps.normal),
-    normalScale: new THREE.Vector2(0.3, 0.3),
+    normalScale: new THREE.Vector2(0.55, 0.55), // creases break the reflections into glints
     envMapIntensity: 1.0,
     transparent: true,
     blending: THREE.AdditiveBlending,
@@ -413,7 +428,7 @@ export function buildRecord(rel, shared, index) {
   shine.renderOrder = 2;
 
   const group = new THREE.Group();
-  group.add(sleeve, shine);
-  for (const m of [sleeve, shine]) m.userData.index = index;
-  return { group, pickables: [sleeve], materials: { front, shineMat } };
+  group.add(sleeve, haze, shine);
+  for (const m of [sleeve, haze, shine]) m.userData.index = index;
+  return { group, pickables: [sleeve], materials: { front, hazeMat, shineMat } };
 }

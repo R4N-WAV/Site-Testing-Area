@@ -267,8 +267,8 @@ function startSpace(releases, ui) {
   }, { passive: true });
 
   function select(i) {
+    // opening doesn't move you down the tunnel, so closing puts everything back as it was
     selected = i;
-    focusOn(i);
     items.forEach((it, k) => { it.blendTarget = k === i ? 1 : 0; });
     hovered = -1;
     heroTilt.x.x = heroTilt.y.x = heroTilt.x.v = heroTilt.y.v = 0;
