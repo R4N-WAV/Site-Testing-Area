@@ -7,7 +7,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 
 // Real proportions: a 12" sleeve is 31.4 cm square, the disc inside 30 cm.
 export const SLEEVE = 1;
-export const SLEEVE_DEPTH = 0.016; // a touch thicker than real so the edges read in 3D
+export const SLEEVE_DEPTH = 0.024; // a touch thicker than real so the edges read in 3D
 const DISC_R = 0.477; // only used for the ring wear it leaves on the sleeve
 
 // ---------- small helpers ----------
@@ -222,22 +222,26 @@ function wrapNormal(S = 1024, seed = 3) {
 
   // Haze: the plastic is milky everywhere, and goes whiter where it creases or
   // bunches up at the edges (stretched and folded film scatters more light).
+  // Two maps from the same creases: ridges whiten (haze), valleys darken (shade).
+  // Clear on flat plastic, so the artwork still shows through untouched.
   const haze = new Uint8Array(S * S * 4);
+  const shade = new Uint8Array(S * S * 4);
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const i = y * S + x;
-      const lap = Math.abs(
+      const lap =
         h[y * S + Math.min(S - 1, x + 2)] + h[y * S + Math.max(0, x - 2)] +
-        h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i]
-      );
+        h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i];
       const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
-      // almost perfectly clear: just a whisper of white on the sharpest creases and the very edge
-      const v = Math.min(0.1, lap * 4) + Math.max(0, 0.02 - edge) * 4;
+      const ridge = Math.max(0, -lap), valley = Math.max(0, lap);
+      const v = Math.min(0.45, ridge * 14) + Math.max(0, 0.025 - edge) * 10;
+      const d = Math.min(0.4, valley * 12);
       haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
-      haze[i * 4 + 3] = 255;
+      shade[i * 4] = shade[i * 4 + 1] = shade[i * 4 + 2] = d * 255;
+      haze[i * 4 + 3] = shade[i * 4 + 3] = 255;
     }
   }
-  return { normal: dataTexture(heightToNormal(h, S, 7), S), haze: dataTexture(haze, S) };
+  return { normal: dataTexture(heightToNormal(h, S, 7), S), haze: dataTexture(haze, S), shade: dataTexture(shade, S) };
 }
 
 // ============================================================
@@ -335,6 +339,25 @@ function cleanWrapMaps(S = 512, seed = 5) {
   return { normal: dataTexture(heightToNormal(h, S, 2.2), S), film: dataTexture(film, S) };
 }
 
+// A soft square shadow, computed per pixel (canvas blur filters aren't supported everywhere).
+function shadowTexture() {
+  const S = 128;
+  const bytes = new Uint8Array(S * S * 4);
+  const inner = 0.3, soft = 0.2; // square half-size and falloff, in texture units
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const dx = Math.max(0, Math.abs((x + 0.5) / S - 0.5) - inner);
+      const dy = Math.max(0, Math.abs((y + 0.5) / S - 0.5) - inner);
+      const t = Math.min(1, Math.hypot(dx, dy) / soft);
+      const a = (1 - t) * (1 - t) * (1 - t * 0.5);
+      const o = (y * S + x) * 4;
+      bytes[o] = bytes[o + 1] = bytes[o + 2] = a * 255;
+      bytes[o + 3] = 255;
+    }
+  }
+  return dataTexture(bytes, S);
+}
+
 // ============================================================
 //  Public API
 // ============================================================
@@ -347,6 +370,8 @@ export function createShared(renderer) {
     // softly rounded edges catch a line of light, which is most of what makes it read as an object
     sleeveGeo: new RoundedBoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH, 3, 0.0045),
     // the wrap is a little bigger and rounder: plastic pulled over the edges
+    shadowGeo: new THREE.PlaneGeometry(1.55, 1.55),
+    shadowMat: new THREE.MeshBasicMaterial({ alphaMap: shadowTexture(), color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false, toneMapped: false }),
     wrapGeo: new RoundedBoxGeometry(SLEEVE + 0.01, SLEEVE + 0.01, SLEEVE_DEPTH + 0.008, 4, 0.011),
   };
 }
@@ -396,6 +421,21 @@ export function buildRecord(rel, shared, index) {
   });
   const haze = new THREE.Mesh(shared.wrapGeo, hazeMat);
   haze.renderOrder = 1;
+  // ...and the fold valleys catch a little shadow, so creases read on light covers too
+  const shadeMat = new THREE.MeshBasicMaterial({
+    color: 0x1a1a1f,
+    alphaMap: variant(maps.shade),
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const shadeMesh = new THREE.Mesh(shared.wrapGeo, shadeMat);
+  shadeMesh.renderOrder = 1;
+
+  // soft shadow the record casts behind it, so it floats off the white
+  const dropShadow = new THREE.Mesh(shared.shadowGeo, shared.shadowMat);
+  dropShadow.position.set(0.035, -0.06, -0.09);
+  dropShadow.renderOrder = -1;
 
   // Layer 2: reflections only, added on top so the artwork shows through untouched. A thin-film (iridescent) coating gives the
   // reflections a holo-foil colour shift as the record turns.
@@ -428,7 +468,7 @@ export function buildRecord(rel, shared, index) {
   shine.renderOrder = 2;
 
   const group = new THREE.Group();
-  group.add(sleeve, haze, shine);
+  group.add(dropShadow, sleeve, shadeMesh, haze, shine);
   for (const m of [sleeve, haze, shine]) m.userData.index = index;
   return { group, pickables: [sleeve], materials: { front, hazeMat, shineMat } };
 }

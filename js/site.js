@@ -72,10 +72,12 @@ function startSpace(releases, ui) {
   scene.environment = shared.env;
 
   // ---------- light: near darkness, a soft spotlight on the record in front ----------
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55)); // a bright room now, so covers read in full colour
+  scene.add(new THREE.AmbientLight(0xffffff, 0.28));
+  // soft sky fill from above + a darker bounce from below gives every sleeve a gradient
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a92, 0.55));
   // soft front light so every cover reads in its true colours; the fog lets the far ones sink into the dark
   const key = new THREE.DirectionalLight(0xffffff, 1.5);
-  key.position.set(0, 1.5, 6);
+  key.position.set(-2.2, 3.2, 5); // from upper left: edges on one side catch light, the other side falls off
   scene.add(key);
   scene.fog = new THREE.Fog(BG, 4.5, 13);
   const rim = new THREE.DirectionalLight(MAGENTA, 0.3);
