@@ -16,8 +16,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 function heroLayout() {
   const W = window.innerWidth, H = window.innerHeight;
   const top = H < 600 ? 50 : isPhone() ? 62 : 76;
-  // leave the rest of the height for the details (they need roughly 330px)
-  const size = Math.round(clamp(Math.min(W * 0.84, H - top - 350, 440), Math.min(W * 0.5, H * 0.3), 440));
+  // the rest of the height goes to the details (~270px) and the footer (~70px), with room to breathe
+  const size = Math.round(clamp(Math.min(W * 0.8, H * 0.44, H - top - 360, 460), Math.min(W * 0.5, H * 0.28), 460));
   return { top, size, cx: W / 2, cy: top + size / 2 };
 }
 function applyHeroLayout() {
@@ -56,14 +56,15 @@ const springState = (x = 0) => ({ x, v: 0 });
 function startSpace(releases, ui) {
   const canvas = $("space");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // sharp on retina screens, but capped so big displays stay smooth
+  const pixelRatio = () => Math.min(window.devicePixelRatio, 2, Math.sqrt(3.6e6 / (window.innerWidth * window.innerHeight)));
+  renderer.setPixelRatio(pixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.autoClear = false; // two passes per frame: the tunnel, then the opened record on top
   renderer.setClearColor(0x000000, 0); // transparent: the page background (white + faint blue glow) shows through
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // "Neutral" keeps cover art colours true while still handling bright reflections
   renderer.toneMapping = THREE.NeutralToneMapping;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.05, 100);
@@ -86,11 +87,6 @@ function startSpace(releases, ui) {
   scene.add(rim);
   const spot = new THREE.SpotLight(0xffffff, 3.2, 0, 0.26, 0.9, 0);
   spot.position.set(0, 2.6, 3.4);
-  spot.castShadow = true;
-  spot.shadow.mapSize.set(1024, 1024);
-  spot.shadow.bias = -0.0004;
-  spot.shadow.normalBias = 0.01;
-  spot.shadow.radius = 6;
   scene.add(spot, spot.target);
 
   // ---------- records ----------
@@ -104,9 +100,8 @@ function startSpace(releases, ui) {
       rel, holder, pickables: rec.pickables,
       phase: [seed, seed * 1.7 + 1, seed * 0.6 + 2],
       hover: springState(),
-      aside: springState(),
-      heroOff: springState(),   // sideways slide when stepping PREV / NEXT
-      heroOffTarget: 0,
+      off: 0,         // sideways slide when stepping PREV / NEXT (in screen widths)
+      slide: null,    // the timed slide in progress
       leaving: false,
       blend: springState(),
       blendTarget: 0,
@@ -126,20 +121,14 @@ function startSpace(releases, ui) {
   veil.renderOrder = 10;
   camera.add(veil);
 
-  // The opened record is drawn after the veil, so it is never dimmed or cut by it,
-  // however it is tilted on its way in or out.
+  // The opened record is drawn in a second pass, after the tunnel and the veil, with the
+  // depth cleared in between: it is never dimmed by the veil and never cuts into another
+  // record, however it is tilted on its way in or out.
+  const TOP = 1;
   function setOnTop(it, on) {
     if (it.onTop === on) return;
     it.onTop = on;
-    it.holder.traverse((o) => {
-      if (!o.isMesh) return;
-      if (o.userData.baseOrder === undefined) o.userData.baseOrder = o.renderOrder;
-      o.renderOrder = on ? 20 + o.userData.baseOrder : o.userData.baseOrder;
-      for (const m of [].concat(o.material)) {
-        if (m.userData.wasTransparent === undefined) m.userData.wasTransparent = m.transparent;
-        m.transparent = on ? true : m.userData.wasTransparent;
-      }
-    });
+    it.holder.traverse((o) => { if (o.isMesh) o.layers.set(on ? TOP : 0); });
   }
 
   // the enlarged record gets its own soft spotlight, carried with the camera
@@ -149,6 +138,8 @@ function startSpace(releases, ui) {
   heroTarget.position.set(0, 0, -HERO_DEPTH);
   camera.add(heroSpot, heroTarget);
   heroSpot.target = heroTarget;
+  // every light shines in both passes
+  scene.traverse((o) => { if (o.isLight) o.layers.enableAll(); });
 
   // ---------- the tunnel ----------
   // The centre stays empty. Records line the left and right like the walls of a tunnel,
@@ -245,14 +236,13 @@ function startSpace(releases, ui) {
         drag.last = e.clientX; drag.lastY = e.clientY; drag.t = now;
         focus.x = clamp(drag.start + d / pxPerRecord(), -0.35, count() - 0.65);
         focus.v = 0;
-        hovered = -1;
-        document.body.classList.remove("is-hovering");
+        setHovered(-1);
       }
       return;
     }
     if (e.pointerType !== "touch") {
-      hovered = pick(e.clientX, e.clientY);
-      document.body.classList.toggle("is-hovering", hovered !== -1);
+      pointer.x = e.clientX; pointer.y = e.clientY;
+      setHovered(pick(e.clientX, e.clientY));
     }
   });
   canvas.addEventListener("pointerup", (e) => {
@@ -274,7 +264,27 @@ function startSpace(releases, ui) {
     select(i);
   });
   canvas.addEventListener("pointercancel", () => { drag = null; });
-  canvas.addEventListener("pointerleave", () => { if (!drag) { hovered = -1; document.body.classList.remove("is-hovering"); } });
+  canvas.addEventListener("pointerleave", () => { if (!drag) setHovered(-1); });
+
+  // ---------- the song's name by the cursor, after hovering a record for a moment ----------
+  const tag = $("hoverTag");
+  const pointer = { x: 0, y: 0 };
+  let hoverSince = 0;
+  const HOVER_DELAY = 0.66; // seconds
+  function setHovered(i) {
+    if (i !== hovered) { hoverSince = clock.elapsedTime; tag.classList.remove("is-shown"); }
+    hovered = i;
+    document.body.classList.toggle("is-hovering", hovered !== -1);
+    if (i !== -1) {
+      $("hoverTitle").textContent = items[i].rel.title;
+      $("hoverArtist").textContent = items[i].rel.artist;
+    }
+  }
+  function updateHoverTag(t, open) {
+    const show = hovered !== -1 && !open && !drag && !warp && t - hoverSince > HOVER_DELAY;
+    if (show) tag.style.transform = `translate3d(${Math.round(pointer.x + 16)}px, ${Math.round(pointer.y + 18)}px, 0)`;
+    tag.classList.toggle("is-shown", show);
+  }
 
   // scrolling carries you down the tunnel; when you stop, it settles on the nearest record
   // Any deliberate scroll carries you at least one record in that direction, however slowly
@@ -296,37 +306,46 @@ function startSpace(releases, ui) {
     }, 220);
   }, { passive: true });
 
+  // PREV / NEXT: the open record slides out one side while the next slides in from the
+  // other, on a fixed timeline, both staying up front: nothing flies back through the tunnel
+  const easeIn = (k) => k * k * k;
+  const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+  function startSlide(it, from, to, dur, ease) {
+    it.off = from;
+    it.slide = { from, to, t0: clock.elapsedTime, dur: reducedMotion ? 0.01 : dur, ease };
+  }
   function select(i, dir = 0) {
     // opening doesn't move you down the tunnel, so closing puts everything back as it was
     const prev = selected;
     selected = i;
-    items.forEach((it, k) => {
-      if (k === i || (it.leaving && k !== prev)) return;
-      it.blendTarget = 0; it.heroOffTarget = 0; it.leaving = false;
+    items.forEach((other, k) => {
+      if (k === i || other.leaving) return;
+      other.blendTarget = 0; other.slide = null; other.off = 0;
     });
     const it = items[i];
-    if (dir && prev !== -1 && prev !== i) {
-      // PREV / NEXT: the open record slides out one side, the next one slides in from the other,
-      // both staying up front, so nothing flies back into the tunnel
+    it.leaving = false;
+    if (dir && prev !== -1 && prev !== i && items[prev].blend.x > 0.5) {
       const old = items[prev];
       old.leaving = true;
-      old.heroOffTarget = -dir;
-      it.leaving = false;
-      if (it.blend.x < 0.5) { it.heroOff.x = dir; it.heroOff.v = 0; } // (if it's still half on screen, it just comes back)
-      it.blend.x = 1; it.blend.v = 0;
+      old.blendTarget = 1; // stays up front for the whole slide, then goes home behind the veil
+      startSlide(old, old.off, -dir, 0.5, easeIn);
+      // coming back while it was still on its way out: it just turns round
+      if (it.blend.x > 0.5) startSlide(it, it.off, 0, 0.7, easeOut);
+      else { it.blend.x = 1; it.blend.v = 0; startSlide(it, dir, 0, 0.75, easeOut); }
     } else {
-      it.leaving = false;
+      it.slide = null; it.off = 0;
     }
     it.blendTarget = 1;
-    it.heroOffTarget = 0;
     hovered = -1;
     heroTilt.x.x = heroTilt.y.x = heroTilt.x.v = heroTilt.y.v = 0;
+    tiltGoal.set(0, 0);
     document.body.classList.remove("is-hovering");
     ui.showDetail(items[i].rel, i);
   }
   function deselect() {
     selected = -1;
-    items.forEach((it) => { it.blendTarget = 0; it.heroOffTarget = 0; it.leaving = false; });
+    // a record still sliding out finishes its slide first, then goes home on its own
+    items.forEach((it) => { if (!it.leaving) { it.blendTarget = 0; it.slide = null; it.off = 0; } });
   }
 
   // ---------- tilting the enlarged record by dragging ----------
@@ -344,6 +363,7 @@ function startSpace(releases, ui) {
   }
 
   window.addEventListener("resize", () => {
+    renderer.setPixelRatio(pixelRatio());
     renderer.setSize(window.innerWidth, window.innerHeight);
     placeCamera();
   });
@@ -426,22 +446,23 @@ function startSpace(releases, ui) {
 
     let veilTarget = 0;
     items.forEach((it, i) => {
-      // sliding out to the side (PREV / NEXT): once it's off screen, it quietly goes home
-      const off = spring(it.heroOff, it.heroOffTarget, 7.5, dt);
-      if (it.leaving && Math.abs(off) > 0.97) {
-        it.leaving = false;
-        it.blendTarget = 0; it.blend.x = 0; it.blend.v = 0;
-        it.heroOffTarget = 0; it.heroOff.x = 0; it.heroOff.v = 0;
+      // PREV / NEXT slide; once a leaving record is off screen, it quietly goes home behind the veil
+      if (it.slide) {
+        const k = clamp((t - it.slide.t0) / it.slide.dur, 0, 1);
+        it.off = it.slide.from + (it.slide.to - it.slide.from) * it.slide.ease(k);
+        if (k >= 1) {
+          it.slide = null;
+          if (it.leaving) {
+            it.leaving = false; it.off = 0;
+            it.blendTarget = 0; it.blend.x = 0; it.blend.v = 0;
+          }
+        }
       }
 
       const b = clamp(spring(it.blend, it.blendTarget, reducedMotion ? 30 : 5.2, dt), 0, 1);
       setOnTop(it, it.blendTarget === 1 || b > 0.002);
       veilTarget = Math.max(veilTarget, b);
       const h = spring(it.hover, i === hovered && !open ? 1 : 0, 9, dt);
-      // hovering a record that's further down the tunnel: the ones in front of it step aside
-      const hv = hovered !== -1 && !open ? items[hovered] : null;
-      const blocking = hv && it.slot >= 0 && it.slot < hv.slot && it.slot >= Math.floor(focus.x) - 1 ? 1 : 0;
-      const a = spring(it.aside, blocking, 7, dt);
 
       // place in the tunnel; when the filter changes, records glide to their new places
       const slot = spring(it.slotS, it.slot >= 0 ? it.slot : it.slotS.x, 5, dt);
@@ -451,7 +472,6 @@ function startSpace(releases, ui) {
       const rowScale = layout(d, Math.round(slot), rowPos, rowAngle) * (1 + h * 0.04);
       rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
       rowPos.z += h * 0.1;
-      rowPos.x += side * (a * 0.75 - h * 0.08);  // step aside / the hovered one leans in a touch
       // when a record is opened, the rest of the tunnel parts to the sides and falls away
       const clear = open && b < 0.5 ? veilShown : 0;
       rowPos.x += side * clear * 2.2;
@@ -463,7 +483,7 @@ function startSpace(releases, ui) {
       const m = reducedMotion ? 0.25 : 1;
       euler.set(
         rowAngle.x + Math.sin(t * 0.17 + it.phase[0]) * 0.035 * m,
-        rowAngle.y + Math.sin(t * 0.13 + it.phase[1]) * 0.05 * m - h * rowAngle.y * 0.4 - side * a * 0.35,
+        rowAngle.y + Math.sin(t * 0.13 + it.phase[1]) * 0.05 * m - h * rowAngle.y * 0.4,
         rowAngle.z + Math.sin(t * 0.11 + it.phase[2]) * 0.015 * m,
         "YXZ"
       );
@@ -474,8 +494,8 @@ function startSpace(releases, ui) {
         const { size } = heroLayout();
         const travelPx = window.innerWidth / 2 + size * 0.75;
         heroRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
-        slidPos.copy(heroPos).addScaledVector(heroRight, it.heroOff.x * travelPx * worldPerPx);
-        slidQuat.copy(heroQuat).multiply(q.setFromAxisAngle(up, -it.heroOff.x * 0.7));
+        slidPos.copy(heroPos).addScaledVector(heroRight, it.off * travelPx * worldPerPx);
+        slidQuat.copy(heroQuat).multiply(q.setFromAxisAngle(up, -it.off * 0.5));
         it.holder.position.lerpVectors(rowPos, slidPos, b);
         it.holder.quaternion.slerpQuaternions(rowQuat, slidQuat, b);
         it.holder.scale.setScalar(rowScale + (heroScale - rowScale) * b);
@@ -495,7 +515,15 @@ function startSpace(releases, ui) {
     heroSpot.intensity = 4 * veilShown;
     veil.material.opacity = Math.max(veilShown, warpFlash * 0.85);
 
+    renderer.clear();
+    camera.layers.set(0);
     renderer.render(scene, camera);
+    if (items.some((it) => it.onTop)) {
+      renderer.clearDepth();
+      camera.layers.set(TOP);
+      renderer.render(scene, camera);
+    }
+    updateHoverTag(t, open);
     requestAnimationFrame(frame);
   }
 
@@ -515,6 +543,7 @@ function startSpace(releases, ui) {
     },
     // the very first frame, so the loader can wait until the scene is really on screen
     firstFrame: () => new Promise((resolve) => {
+      renderer.clear();
       renderer.render(scene, camera);
       requestAnimationFrame(() => { requestAnimationFrame(frame); resolve(); });
     }),
@@ -642,7 +671,7 @@ function buildUI(releases) {
       if (!url) continue;
       const name = PLATFORMS[key.toLowerCase()] || key;
       links.insertAdjacentHTML("beforeend",
-        `<a class="listen" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="Listen on ${escapeHTML(name)}"><span>${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
+        `<a class="listen listen--${escapeHTML(key.toLowerCase())}" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="Listen on ${escapeHTML(name)}"><span>${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
     }
     const many = shown.length > 1;
     $("dPrev").hidden = !many;

@@ -158,11 +158,11 @@ function makeEnvironment(renderer) {
   // The plastic itself is clear and the soft light on it is neutral white. Only the narrow
   // highlight strips are pink, so pink shows up as flares that sweep across, never as a tint.
   // (set well off to the sides: seen straight on the plastic is clear; turn it and a pink flare sweeps across)
-  soft(1.3, 18, 13, "#ff8fd6", [-11, 2, 7]);     // tall strip, left: hot pink flare
-  soft(1.0, 18, 12, "#ff3fc4", [11, -1, 6]);     // tall strip, right: magenta flare
-  soft(20, 0.9, 4, "#ffffff", [0, 9, 12]);       // long strip above: white
-  soft(10, 5, 1.3, "#ffffff", [-2, 3, 14]);      // broad, faint white sheen in front: the gloss of clear plastic
-  panel(0.06, 10, 6, "#ffc6ea", [2, 4, 14]);     // one fine, crisp line for a sharp pink glint
+  soft(0.8, 18, 3.4, "#ffe4f2", [-11, 2, 7]);    // narrow strip, left: white with a faint pink tint
+  soft(0.6, 18, 2.8, "#fbd8ec", [11, -1, 6]);    // narrow strip, right: a touch more rose
+  soft(20, 0.7, 3, "#ffffff", [0, 9, 12]);       // long strip above: white
+  soft(10, 5, 0.5, "#ffffff", [-2, 3, 14]);      // broad, very faint white sheen in front: just the gloss of clear plastic
+  panel(0.05, 10, 3, "#fbe3f0", [2, 4, 14]);     // one fine, crisp line for a sharp, pale pink glint
   panel(12, 0.6, 0.8, "#ffffff", [0, 11, -7]);   // faint rim from behind
 
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -279,8 +279,11 @@ function wrapNormal(S = 1024, seed = 3) {
         h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i];
       const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
       const ridge = Math.max(0, -lap), valley = Math.max(0, lap);
-      const v = Math.min(0.45, ridge * 14) + Math.max(0, 0.025 - edge) * 10;
-      const d = Math.min(0.4, valley * 12);
+      // the very border of the map is left clean: sampling past the edge reads as a fake
+      // fold there and draws a dark outline round the whole record
+      const inside = smoothstep(0.004, 0.03, edge);
+      const v = (Math.min(0.35, ridge * 12) + Math.max(0, 0.02 - edge) * 4) * Math.max(inside, 0.3);
+      const d = Math.min(0.3, valley * 10) * inside;
       haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
       shade[i * 4] = shade[i * 4 + 1] = shade[i * 4 + 2] = d * 255;
       haze[i * 4 + 3] = shade[i * 4 + 3] = 255;
@@ -366,6 +369,7 @@ function pillowBox(w, h, depth, seg = 64) {
   const nrm = g.attributes.normal;
   const uv = g.attributes.uv;
   const eps = 1e-6;
+  const side = new Uint8Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const theta = (z / (depth / 2)) * (Math.PI / 2);   // -90°..90° around the rounded edge
@@ -382,8 +386,19 @@ function pillowBox(w, h, depth, seg = 64) {
     const nx = nrm.getX(i), ny = nrm.getY(i);
     if (Math.abs(nx) > 0.5) uv.setXY(i, nx > 0 ? 0.997 : 0.003, y / h + 0.5);
     else if (Math.abs(ny) > 0.5) uv.setXY(i, x / w + 0.5, ny > 0 ? 0.997 : 0.003);
+    side[i] = Math.abs(nx) > 0.5 || Math.abs(ny) > 0.5 ? 1 : 0;
   }
   g.computeVertexNormals();
+  // The rounded edge keeps its shape, but is shaded mostly like the face it belongs to:
+  // a hard turn to the side would light it darker than the cover and draw a dark outline.
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    if (!side[i]) continue;
+    n.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i)).multiplyScalar(0.35);
+    n.z += 0.65; // both halves: a front-lit edge never goes dark against the background
+    n.normalize();
+    nrm.setXYZ(i, n.x, n.y, n.z);
+  }
   return g;
 }
 
@@ -419,9 +434,10 @@ export function buildRecord(rel, shared, index) {
   const front = new THREE.MeshPhysicalMaterial({ map: canvasTexture(frontCanvas(rel.image)), ...paper });
   const back = new THREE.MeshPhysicalMaterial({ map: canvasTexture(backCanvas(rel, tint)), ...paper, roughness: 0.7 });
   // box faces: +x, -x, +y, -y (the rounded edges, cover print wrapped round), +z (front), -z (back)
-  const sleeve = new THREE.Mesh(shared.sleeveGeo, [front, front, front, front, front, back]);
-  sleeve.castShadow = true;
-  sleeve.receiveShadow = true;
+  // the edges: the same print, without the paper bump (stretched across the thin edge it would shade dark)
+  const edge = front.clone();
+  edge.bumpMap = null;
+  const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, edge, edge, edge, front, back]);
 
   const maps = shared.wraps[index % shared.wraps.length];
   const variant = (tex) => {
@@ -454,7 +470,10 @@ export function buildRecord(rel, shared, index) {
     depthWrite: false,
     toneMapped: false,
   });
-  const shadeMesh = new THREE.Mesh(shared.wrapGeo, shadeMat);
+  // only on the front and back: on the thin edges, seen side-on, the crease shading would
+  // blur into a dark line round the record
+  const none = new THREE.MeshBasicMaterial({ visible: false });
+  const shadeMesh = new THREE.Mesh(shared.wrapGeo, [none, none, none, none, shadeMat, shadeMat]);
   shadeMesh.renderOrder = 1;
 
 
@@ -468,9 +487,16 @@ export function buildRecord(rel, shared, index) {
     specularIntensity: 1,
     normalMap: variant(maps.normal),
     normalScale: new THREE.Vector2(0.55, 0.55), // creases break the reflections into glints
-    envMapIntensity: 2.6,
+    envMapIntensity: 1.1,
     transparent: true,
-    blending: THREE.AdditiveBlending,
+    // adds light, and never touches the canvas's transparency: plain additive blending would make
+    // the plastic's rim that sticks out past the sleeve opaque black, drawing an outline round the record
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.SrcAlphaFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
     depthWrite: false,
   });
   // The wrap only ever shows the soft strip reflections from the studio map, never a hot
