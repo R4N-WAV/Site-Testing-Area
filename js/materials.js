@@ -3,11 +3,10 @@
 // and clear, creased shrink-wrap with a pink holo sheen sealing it.
 // All textures are generated here, so a new release only needs its cover art.
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
 // Real proportions: a 12" sleeve is 31.4 cm square, the disc inside 30 cm.
 export const SLEEVE = 1;
-export const SLEEVE_DEPTH = 0.024; // a touch thicker than real so the edges read in 3D
+export const SLEEVE_DEPTH = 0.05; // thickness at the middle, where the disc is; the edges taper to ~a third // a touch thicker than real so the edges read in 3D
 const DISC_R = 0.477; // only used for the ring wear it leaves on the sleeve
 
 // ---------- small helpers ----------
@@ -339,23 +338,28 @@ function cleanWrapMaps(S = 512, seed = 5) {
   return { normal: dataTexture(heightToNormal(h, S, 2.2), S), film: dataTexture(film, S) };
 }
 
-// A soft square shadow, computed per pixel (canvas blur filters aren't supported everywhere).
-function shadowTexture() {
-  const S = 128;
-  const bytes = new Uint8Array(S * S * 4);
-  const inner = 0.3, soft = 0.2; // square half-size and falloff, in texture units
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const dx = Math.max(0, Math.abs((x + 0.5) / S - 0.5) - inner);
-      const dy = Math.max(0, Math.abs((y + 0.5) / S - 0.5) - inner);
-      const t = Math.min(1, Math.hypot(dx, dy) / soft);
-      const a = (1 - t) * (1 - t) * (1 - t * 0.5);
-      const o = (y * S + x) * 4;
-      bytes[o] = bytes[o + 1] = bytes[o + 2] = a * 255;
-      bytes[o + 3] = 255;
-    }
+// A sleeve with a record inside: the middle bulges out in a round dome where the disc
+// sits, then tapers thinner toward the edges, like a real 12" in its shrink-wrap.
+function pillowProfile(u, v) {
+  // u, v in -0.5..0.5 across the face
+  const r = Math.hypot(u, v);
+  const disc = 1 - smoothstep(0.26, 0.52, r);                       // the dome over the disc, with a soft shoulder
+  const edge = smoothstep(0, 0.09, 0.5 - Math.max(Math.abs(u), Math.abs(v))); // taper to the rim
+  return 0.32 + 0.68 * edge * (0.45 + 0.55 * disc);
+}
+function smoothstep(a, b, x) {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+function pillowBox(w, h, depth, seg = 64) {
+  const g = new THREE.BoxGeometry(w, h, depth, seg, seg, 1);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    pos.setZ(i, z * pillowProfile(x / w, y / h));
   }
-  return dataTexture(bytes, S);
+  g.computeVertexNormals();
+  return g;
 }
 
 // ============================================================
@@ -368,11 +372,10 @@ export function createShared(renderer) {
     // crease texture for the reflections + a smooth thin-film map for the holo colour
     wraps: [3, 11].map((seed, k) => ({ ...wrapNormal(1024, seed), film: cleanWrapMaps(512, 5 + k * 4).film })),
     // softly rounded edges catch a line of light, which is most of what makes it read as an object
-    sleeveGeo: new RoundedBoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH, 3, 0.0045),
+    sleeveGeo: pillowBox(SLEEVE, SLEEVE, SLEEVE_DEPTH),
     // the wrap is a little bigger and rounder: plastic pulled over the edges
-    shadowGeo: new THREE.PlaneGeometry(1.55, 1.55),
-    shadowMat: new THREE.MeshBasicMaterial({ alphaMap: shadowTexture(), color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false, toneMapped: false }),
-    wrapGeo: new RoundedBoxGeometry(SLEEVE + 0.01, SLEEVE + 0.01, SLEEVE_DEPTH + 0.008, 4, 0.011),
+    // the wrap hugs the same shape, a hair bigger
+    wrapGeo: pillowBox(SLEEVE + 0.008, SLEEVE + 0.008, SLEEVE_DEPTH + 0.006),
   };
 }
 
@@ -432,10 +435,6 @@ export function buildRecord(rel, shared, index) {
   const shadeMesh = new THREE.Mesh(shared.wrapGeo, shadeMat);
   shadeMesh.renderOrder = 1;
 
-  // soft shadow the record casts behind it, so it floats off the white
-  const dropShadow = new THREE.Mesh(shared.shadowGeo, shared.shadowMat);
-  dropShadow.position.set(0.035, -0.06, -0.09);
-  dropShadow.renderOrder = -1;
 
   // Layer 2: reflections only, added on top so the artwork shows through untouched. A thin-film (iridescent) coating gives the
   // reflections a holo-foil colour shift as the record turns.
@@ -451,7 +450,7 @@ export function buildRecord(rel, shared, index) {
     iridescenceThicknessMap: variant(maps.film),
     normalMap: variant(maps.normal),
     normalScale: new THREE.Vector2(0.55, 0.55), // creases break the reflections into glints
-    envMapIntensity: 1.0,
+    envMapIntensity: 0.8,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -468,7 +467,7 @@ export function buildRecord(rel, shared, index) {
   shine.renderOrder = 2;
 
   const group = new THREE.Group();
-  group.add(dropShadow, sleeve, shadeMesh, haze, shine);
+  group.add(sleeve, shadeMesh, haze, shine);
   for (const m of [sleeve, haze, shine]) m.userData.index = index;
   return { group, pickables: [sleeve], materials: { front, hazeMat, shineMat } };
 }
