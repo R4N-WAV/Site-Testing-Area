@@ -7,12 +7,13 @@
   <meta name="description" content="R4N — music." />
   <meta name="theme-color" content="#000000" />
   <link rel="icon" type="image/png" href="assets/icon.png" />
-  <link rel="preload" as="image" href="assets/logo-r.png" crossorigin />
-  <link rel="preload" as="image" href="assets/logo-4.png" crossorigin />
-  <link rel="preload" as="image" href="assets/logo-n.png" crossorigin />
+  <link rel="preload" as="image" href="assets/logo-white.png" />
   <link rel="stylesheet" href="css/site.css" />
   <script type="importmap">
-    { "imports": { "three": "./vendor/three.module.min.js" } }
+    { "imports": {
+        "three": "./vendor/three.module.min.js",
+        "three/addons/geometries/RoundedBoxGeometry.js": "./vendor/RoundedBoxGeometry.js"
+    } }
   </script>
 </head>
 <body>
@@ -20,20 +21,12 @@
   <div class="grain" aria-hidden="true"></div>
 
   <header class="top">
-    <a href="./" class="logo" id="wordmark" aria-label="R4N home">
-      <span class="lt lt--r"></span><span class="lt lt--4"></span><span class="lt lt--n"></span>
-    </a>
+    <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
 
-  <!-- the record at the front of the ring -->
-  <div class="caption" id="caption">
-    <p class="caption__num" id="captionNum"></p>
-    <h2 class="caption__title" id="captionTitle"></h2>
-    <button class="textBtn caption__open" id="captionOpen" type="button">OPEN ↗</button>
-  </div>
-
-  <p class="hint" id="hint">SCROLL OR DRAG TO SPIN &nbsp;·&nbsp; CLICK A RECORD</p>
+  <!-- title of the record in front -->
+  <button class="caption" id="caption" type="button"><span class="caption__title" id="captionTitle"></span></button>
 
   <nav class="socials" aria-label="Social links">
     <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
@@ -52,9 +45,8 @@
   <section class="detail" id="detail" aria-label="Release details" aria-hidden="true">
     <button class="textBtn detail__close" id="detailClose" type="button">CLOSE ✕</button>
     <div class="detail__scroll" id="detailScroll">
-      <div class="detail__hero" id="detailHero" title="Drag to tilt"><img id="dCover" alt="" /></div>
+      <div class="detail__hero" id="detailHero"><img id="dCover" alt="" /></div>
       <article class="detail__info">
-        <p class="detail__hint">DRAG THE RECORD TO TILT IT</p>
         <p class="detail__meta" id="dMeta"></p>
         <h1 class="detail__title" id="dTitle"></h1>
         <p class="detail__artist" id="dArtist"></p>
@@ -70,9 +62,7 @@
   </section>
 
   <div class="loader" id="loader" role="status" aria-label="Loading">
-    <div class="loader__logo" id="loaderLogo">
-      <span class="lt lt--r"></span><span class="lt lt--4"></span><span class="lt lt--n"></span>
-    </div>
+    <img class="loader__logo" id="loaderLogo" src="assets/logo-white.png" alt="R4N" />
     <p class="loader__note" id="loaderNote"></p>
   </div>
 

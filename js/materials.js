@@ -3,10 +3,11 @@
 // and milky, creased shrink-wrap sealing it.
 // All textures are generated here, so a new release only needs its cover art.
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
 // Real proportions: a 12" sleeve is 31.4 cm square, the disc inside 30 cm.
 export const SLEEVE = 1;
-export const SLEEVE_DEPTH = 0.011;
+export const SLEEVE_DEPTH = 0.016; // a touch thicker than real so the edges read in 3D
 const DISC_R = 0.477; // only used for the ring wear it leaves on the sleeve
 
 // ---------- small helpers ----------
@@ -228,7 +229,7 @@ function wrapNormal(S = 1024, seed = 3) {
         h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i]
       );
       const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
-      const v = 0.1 + Math.min(0.55, lap * 11) + Math.max(0, 0.03 - edge) * 7;
+      const v = 0.26 + Math.min(0.5, lap * 11) + Math.max(0, 0.035 - edge) * 8;
       haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
       haze[i * 4 + 3] = 255;
     }
@@ -317,8 +318,10 @@ export function createShared(renderer) {
     env: makeEnvironment(renderer),
     paper: paperBump(),
     wraps: [wrapNormal(1024, 3), wrapNormal(1024, 11)],
-    sleeveGeo: new THREE.BoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH),
-    wrapGeo: new THREE.BoxGeometry(SLEEVE + 0.008, SLEEVE + 0.008, SLEEVE_DEPTH + 0.005),
+    // softly rounded edges catch a line of light, which is most of what makes it read as an object
+    sleeveGeo: new RoundedBoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH, 3, 0.0045),
+    // the wrap is a little bigger and rounder: plastic pulled over the edges
+    wrapGeo: new RoundedBoxGeometry(SLEEVE + 0.01, SLEEVE + 0.01, SLEEVE_DEPTH + 0.008, 4, 0.011),
   };
 }
 
@@ -343,6 +346,8 @@ export function buildRecord(rel, shared, index) {
   const edge = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.6), roughness: 0.7, envMapIntensity: 0.18 });
   // box faces: +x (open side), -x (spine), +y, -y, +z (front), -z (back)
   const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, spine, edge, edge, front, back]);
+  sleeve.castShadow = true;
+  sleeve.receiveShadow = true;
 
   const maps = shared.wraps[index % shared.wraps.length];
   const variant = (tex) => {
