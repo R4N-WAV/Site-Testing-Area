@@ -9,12 +9,13 @@
   <link rel="icon" type="image/png" href="assets/icon.png" />
   <link rel="preload" as="image" href="assets/logo-white.png" />
   <!-- ?v= numbers force browsers to fetch fresh files after each update -->
-  <link rel="stylesheet" href="css/site.css?v=20261016192042" />
+  <link rel="stylesheet" href="css/site.css?v=20261016202228" />
   <script type="importmap">
     { "imports": {
         "three": "./vendor/three.module.min.js",
-        "./js/data.js": "./js/data.js?v=20261016192042",
-        "./js/materials.js": "./js/materials.js?v=20261016192042"
+        "./js/data.js": "./js/data.js?v=20261016202228",
+        "./js/materials.js": "./js/materials.js?v=20261016202228",
+        "./js/access.js": "./js/access.js?v=20261016202228"
     } }
   </script>
 </head>
@@ -34,6 +35,18 @@
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
   <p class="emptyNote" id="emptyNote" hidden>NOTHING HERE YET</p>
+  <button class="textBtn accessBtn" id="accessBtn" type="button">ACCESS</button>
+
+  <!-- ACCESS: the page breaks apart and collapses into one password field -->
+  <div class="access" id="access" hidden>
+    <canvas class="access__canvas" id="accessCanvas" aria-hidden="true"></canvas>
+    <form class="access__field" id="accessField" autocomplete="off">
+      <input class="access__input" id="accessInput" type="password" autocomplete="off" spellcheck="false" aria-label="Password" />
+      <button class="access__go" id="accessGo" type="button" aria-label="Continue" hidden>→</button>
+    </form>
+    <p class="access__note" id="accessNote" aria-live="polite"></p>
+  </div>
+  <div class="hub" id="hub" hidden></div>
 
   <!-- List of every release: the INDEX button, and the fallback when 3D isn't available -->
   <section class="index" id="index" aria-label="All releases" hidden>
@@ -84,6 +97,6 @@
 
   <noscript><p class="noscript">This site needs JavaScript. Find R4N on <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr">Spotify</a>.</p></noscript>
 
-  <script type="module" src="js/site.js?v=20261016192042"></script>
+  <script type="module" src="js/site.js?v=20261016202228"></script>
 </body>
 </html>

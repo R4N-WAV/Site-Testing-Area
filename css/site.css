@@ -274,3 +274,51 @@ body.detail-open .modeToggle{opacity:0;pointer-events:none;transition-delay:0s;}
 .hoverTag.is-shown{opacity:1;}
 #hoverTitle{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;}
 #hoverArtist{font-size:10px;letter-spacing:1px;color:var(--muted);}
+
+/* ---------- ACCESS (desktop only): barely there, bottom right ---------- */
+.accessBtn{
+  position:fixed;right:var(--pad);bottom:18px;z-index:40;
+  font-size:10px;letter-spacing:3.2px;padding:8px 0;
+  color:rgba(17,17,18,0.2);
+  opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s,color .5s var(--ease);
+}
+body.is-loaded .accessBtn{opacity:1;pointer-events:auto;}
+.accessBtn:hover{color:rgba(17,17,18,0.55);}
+body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessBtn{opacity:0;pointer-events:none;transition-delay:0s;}
+@media (max-width:900px),(hover:none){.accessBtn{display:none;}}
+
+/* the page in pieces, then the single field it collapses into */
+.access{position:fixed;inset:0;z-index:900;background:var(--bg);}
+.access__canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.access__field{
+  position:absolute;left:50%;top:50%;
+  width:var(--bar-w,480px);height:var(--bar-h,72px);
+  transform:translate(-50%,-50%) translateX(var(--shake,0px));
+  display:flex;align-items:center;
+  opacity:0;pointer-events:none;transition:opacity .5s var(--ease);
+}
+.access.is-ready .access__field{opacity:1;pointer-events:auto;}
+.access__input{
+  flex:1;min-width:0;height:100%;padding:0 22px;
+  background:none;border:0;outline:none;
+  font:inherit;font-size:15px;letter-spacing:6px;color:var(--fg);text-align:center;
+  caret-color:var(--fg);
+  /* a soft halo keeps what's typed readable over dark pieces */
+  text-shadow:0 0 2px var(--bg),0 0 6px var(--bg),0 0 12px var(--bg);
+}
+.access__go{
+  position:absolute;inset:0;width:100%;
+  font-size:22px;color:var(--fg);letter-spacing:0;
+  text-shadow:0 0 2px var(--bg),0 0 6px var(--bg),0 0 12px var(--bg);
+  animation:goPulse 1.8s cubic-bezier(.45,0,.55,1) infinite;
+}
+@keyframes goPulse{0%,100%{opacity:.45;}50%{opacity:1;}}
+.access__note{
+  position:absolute;left:0;right:0;top:calc(50% + var(--bar-h,72px) / 2 + 22px);
+  text-align:center;font-size:10px;letter-spacing:3px;color:var(--muted);
+  min-height:1em;
+}
+
+/* the private page (its look arrives with its content) */
+.hub{position:fixed;inset:0;z-index:895;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);}
+.access__go:focus-visible{outline:none;}

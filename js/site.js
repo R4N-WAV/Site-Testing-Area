@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, formatDate } from "./data.js";
 import { createShared, buildRecord, SLEEVE } from "./materials.js";
+import { initAccess } from "./access.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
 const BG = 0xf6f6f4; // white, keep in sync with --bg in css/site.css
@@ -291,7 +292,7 @@ function startSpace(releases, ui) {
   // the wheel or trackpad sends its ticks.
   let settleTimer = 0, scrollFrom = null;
   window.addEventListener("wheel", (e) => {
-    if (selected !== -1 || document.body.classList.contains("index-open")) return;
+    if (selected !== -1 || document.body.classList.contains("index-open") || document.body.classList.contains("access-open")) return;
     const delta = e.deltaMode === 1 ? e.deltaY * 16 : (Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
     if (scrollFrom === null) scrollFrom = focusIndex;
     travel = clamp(travel + clamp(delta, -120, 120) / 420, -0.3, count() - 0.7);
@@ -406,7 +407,12 @@ function startSpace(releases, ui) {
     heroQuat.copy(camera.quaternion).multiply(q.setFromEuler(euler));
   }
 
+  // paused while the ACCESS screen covers the site; a capture hands over the next frame as an image
+  let paused = false;
+  let captureWaiters = [];
+
   function frame() {
+    if (paused) { clock.getDelta(); requestAnimationFrame(frame); return; }
     const dt = Math.min(clock.getDelta(), window.__maxDt || 1 / 30); // __maxDt: only set by automated tests on slow machines
     const t = clock.elapsedTime;
     const open = selected !== -1;
@@ -473,7 +479,9 @@ function startSpace(releases, ui) {
       rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
       rowPos.z += h * 0.1;
       // when a record is opened, the rest of the tunnel parts to the sides and falls away
-      const clear = open && b < 0.5 ? veilShown : 0;
+      // (only records on their way out of view: the one being opened never gets this push,
+      // or it would jump sideways halfway through its flight)
+      const clear = open && it.blendTarget === 0 && !it.leaving ? veilShown : 0;
       rowPos.x += side * clear * 2.2;
       rowPos.z -= clear * 1.5;
 
@@ -524,6 +532,14 @@ function startSpace(releases, ui) {
       renderer.render(scene, camera);
     }
     updateHoverTag(t, open);
+    if (captureWaiters.length) {
+      // copied straight after drawing, while the frame is still in the canvas
+      const copy = document.createElement("canvas");
+      copy.width = canvas.width; copy.height = canvas.height;
+      copy.getContext("2d").drawImage(canvas, 0, 0);
+      captureWaiters.forEach((resolve) => resolve(copy));
+      captureWaiters = [];
+    }
     requestAnimationFrame(frame);
   }
 
@@ -534,6 +550,8 @@ function startSpace(releases, ui) {
     tiltStart() { tilting = true; },
     tiltBy,
     tiltEnd() { tilting = false; },
+    capture: () => new Promise((resolve) => captureWaiters.push(resolve)),
+    setPaused(p) { paused = p; if (p) setHovered(-1); },
     nudge(dir) { focusOn(focusIndex + dir); },
     openFocused() { if (order.length) select(order[focusIndex]); },
     // show only these records (item indexes, in order); the rest leave the tunnel
@@ -749,6 +767,7 @@ function buildUI(releases) {
   // clicking the empty space beside the text closes it
   scroller.addEventListener("click", (e) => { if (e.target === scroller) close(); });
   document.addEventListener("keydown", (e) => {
+    if (document.body.classList.contains("access-open")) return;
     if (e.key === "Escape") { if (!indexEl.hidden) setIndex(false); else close(); return; }
     if (current !== -1) {
       if (e.key === "ArrowRight") stepDetail(1);
@@ -798,9 +817,10 @@ async function main() {
   const ui = buildUI(releases);
 
   let has3D = false;
+  let space = null;
   if (webglAvailable() && releases.length) {
     try {
-      const space = startSpace(releases, ui);
+      space = startSpace(releases, ui);
       loader.progress(0.8);
       await space.firstFrame();
       ui.attach(space);
@@ -815,6 +835,7 @@ async function main() {
   }
 
   await loader.finish();
+  initAccess({ space });
   const slug = decodeURIComponent(location.hash.slice(1));
   if (slug) ui.openBySlug(slug);
 }
