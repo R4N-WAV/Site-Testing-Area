@@ -1,6 +1,6 @@
 // Everything that makes a record look like a real object:
 // studio lighting for reflections, a cardboard sleeve with paper grain and ring wear,
-// and milky, creased shrink-wrap sealing it.
+// and clear, holo-tinted shrink-wrap sealing it.
 // All textures are generated here, so a new release only needs its cover art.
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -167,79 +167,6 @@ function paperBump(S = 1024) {
 }
 
 // ============================================================
-//  Shrink-wrap: creases fanning from the corners, little wrinkles along
-//  the edges, and a soft pillowing across the face.
-// ============================================================
-function wrapNormal(S = 1024, seed = 3) {
-  const rnd = mulberry32(seed);
-  const h = new Float32Array(S * S);
-  const stamp = (x0, y0, ang, len, width, amp) => {
-    const steps = Math.ceil(len * 1.5);
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      const cx = x0 + Math.cos(ang) * len * t;
-      const cy = y0 + Math.sin(ang) * len * t;
-      const a = amp * Math.sin(Math.PI * Math.min(1, t * 1.15)); // fades at the ends
-      const w = Math.ceil(width);
-      for (let oy = -w; oy <= w; oy++) {
-        for (let ox = -w; ox <= w; ox++) {
-          const xi = (cx + ox) | 0, yi = (cy + oy) | 0;
-          if (xi < 0 || yi < 0 || xi >= S || yi >= S) continue;
-          const d = Math.hypot(ox, oy) / width;
-          if (d < 1) h[yi * S + xi] += a * (1 - d * d) * (1 - d * d) / steps * 6;
-        }
-      }
-    }
-  };
-  // corner fans
-  const corners = [[0, 0, 0], [S, 0, Math.PI / 2], [S, S, Math.PI], [0, S, -Math.PI / 2]];
-  for (const [cx, cy, base] of corners) {
-    for (let k = 0; k < 5; k++) {
-      const ang = base + 0.12 + rnd() * (Math.PI / 2 - 0.24);
-      stamp(cx, cy, ang, S * (0.03 + rnd() * 0.12), 3 + rnd() * 5, (rnd() < 0.5 ? -1 : 1) * (0.3 + rnd() * 0.5));
-    }
-  }
-  // edge wrinkles
-  for (let k = 0; k < 40; k++) {
-    const side = (rnd() * 4) | 0, p = rnd() * S;
-    const [x0, y0, inward] = [[p, 0, Math.PI / 2], [S, p, Math.PI], [p, S, -Math.PI / 2], [0, p, 0]][side];
-    stamp(x0, y0, inward + (rnd() - 0.5) * 0.9, S * (0.01 + rnd() * 0.05), 2.5 + rnd() * 3, (rnd() - 0.5) * 0.7);
-  }
-  // a few long soft folds across the face
-  for (let k = 0; k < 5; k++) {
-    stamp(rnd() * S, rnd() * S, rnd() * Math.PI * 2, S * (0.15 + rnd() * 0.3), 10 + rnd() * 10, (rnd() - 0.5) * 0.5);
-  }
-  // pillowing
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const u = x / S, v = y / S;
-      h[y * S + x] += 0.6 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)
-        + 0.06 * Math.sin(u * 13 + v * 5) + 0.05 * Math.sin(v * 17 - u * 7);
-    }
-  }
-  blur(h, S, 3);
-
-  // Haze: the plastic is milky everywhere, and goes whiter where it creases or
-  // bunches up at the edges (stretched and folded film scatters more light).
-  const haze = new Uint8Array(S * S * 4);
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const i = y * S + x;
-      const lap = Math.abs(
-        h[y * S + Math.min(S - 1, x + 2)] + h[y * S + Math.max(0, x - 2)] +
-        h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i]
-      );
-      const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
-      // almost perfectly clear: just a whisper of white on the sharpest creases and the very edge
-      const v = Math.min(0.1, lap * 4) + Math.max(0, 0.02 - edge) * 4;
-      haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
-      haze[i * 4 + 3] = 255;
-    }
-  }
-  return { normal: dataTexture(heightToNormal(h, S, 7), S), haze: dataTexture(haze, S) };
-}
-
-// ============================================================
 //  Printed surfaces
 // ============================================================
 function frontCanvas(image) {
@@ -313,13 +240,35 @@ function spineCanvas(rel, tint) {
 }
 
 // ============================================================
+//  Clean wrap: no creases, just a gentle curve (plastic pulled taut over the
+//  sleeve bulges slightly), plus a smooth thickness map for the holo shimmer.
+// ============================================================
+function cleanWrapMaps(S = 512, seed = 5) {
+  const rnd = mulberry32(seed);
+  const h = new Float32Array(S * S);
+  const film = new Uint8Array(S * S * 4);
+  const waves = Array.from({ length: 4 }, () => [rnd() * 6 + 2, rnd() * 6 + 2, rnd() * 6.28]);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const u = x / (S - 1), v = y / (S - 1), i = y * S + x;
+      h[i] = 0.5 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v);
+      let f = 0.5;
+      for (const [a, b, p] of waves) f += 0.12 * Math.sin(u * a + v * b + p);
+      film[i * 4] = film[i * 4 + 1] = film[i * 4 + 2] = Math.max(0, Math.min(1, f)) * 255;
+      film[i * 4 + 3] = 255;
+    }
+  }
+  return { normal: dataTexture(heightToNormal(h, S, 2.2), S), film: dataTexture(film, S) };
+}
+
+// ============================================================
 //  Public API
 // ============================================================
 export function createShared(renderer) {
   return {
     env: makeEnvironment(renderer),
     paper: paperBump(),
-    wraps: [wrapNormal(1024, 3), wrapNormal(1024, 11)],
+    wraps: [cleanWrapMaps(512, 5), cleanWrapMaps(512, 9)],
     // softly rounded edges catch a line of light, which is most of what makes it read as an object
     sleeveGeo: new RoundedBoxGeometry(SLEEVE, SLEEVE, SLEEVE_DEPTH, 3, 0.0045),
     // the wrap is a little bigger and rounder: plastic pulled over the edges
@@ -359,45 +308,31 @@ export function buildRecord(rel, shared, index) {
     t.rotation = (index % 4) * (Math.PI / 2);
     return t;
   };
-  // Layer 1: the milky film itself. Lit like any surface, so it's invisible in the dark
-  // and turns hazy-white in the light, strongest along creases and edges.
-  const hazeMat = new THREE.MeshStandardMaterial({
-    color: 0xf4eef2,
-    roughness: 0.55,
-    metalness: 0,
-    alphaMap: variant(maps.haze),
-    normalMap: variant(maps.normal),
-    normalScale: new THREE.Vector2(0.3, 0.3),
-    envMapIntensity: 0.25,
-    transparent: true,
-    depthWrite: false,
-  });
-  // Layer 2: reflections only, added on top so highlights stay crisp. A thin-film
-  // (iridescent) coating gives the streaks a faint holo-foil colour shift as it turns.
+  // The wrap: fully clear, no colour of its own, only reflections added on top so the
+  // artwork shows through untouched. A thin-film (iridescent) coating gives the
+  // reflections a holo-foil colour shift as the record turns.
   const shineMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000,
     metalness: 0,
-    roughness: 0.035,
+    roughness: 0.03,
     ior: 1.5,
     specularIntensity: 1,
     iridescence: 1,
     iridescenceIOR: 1.35,
     iridescenceThicknessRange: [180, 620],
-    iridescenceThicknessMap: variant(maps.haze),
+    iridescenceThicknessMap: variant(maps.film),
     normalMap: variant(maps.normal),
-    normalScale: new THREE.Vector2(0.55, 0.55),
+    normalScale: new THREE.Vector2(0.4, 0.4),
     envMapIntensity: 1.0,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  const haze = new THREE.Mesh(shared.wrapGeo, hazeMat);
   const shine = new THREE.Mesh(shared.wrapGeo, shineMat);
-  haze.renderOrder = 1;
   shine.renderOrder = 2;
 
   const group = new THREE.Group();
-  group.add(sleeve, haze, shine);
-  for (const m of [sleeve, haze, shine]) m.userData.index = index;
-  return { group, pickables: [sleeve], materials: { front, hazeMat, shineMat } };
+  group.add(sleeve, shine);
+  for (const m of [sleeve, shine]) m.userData.index = index;
+  return { group, pickables: [sleeve], materials: { front, shineMat } };
 }

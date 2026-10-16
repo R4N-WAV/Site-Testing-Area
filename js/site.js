@@ -77,7 +77,7 @@ function startSpace(releases, ui) {
   const key = new THREE.DirectionalLight(0xffffff, 1.1);
   key.position.set(-1.5, 2, 5);
   scene.add(key);
-  scene.fog = new THREE.Fog(BG, 7, 17);
+  scene.fog = new THREE.Fog(BG, 7, 19);
   const rim = new THREE.DirectionalLight(MAGENTA, 0.3);
   rim.position.set(-4, 3, -5);
   scene.add(rim);
@@ -144,25 +144,25 @@ function startSpace(releases, ui) {
   heroSpot.target = heroTarget;
 
   // ---------- the push layout (after the sketch) ----------
-  // The record in focus sits big in the middle. The others step straight back into
-  // the distance, alternating right and left and getting clearly smaller, without
-  // climbing up the screen. Records you've pushed past fly off below you.
+  // The record in focus sits big in the middle. The others line up behind it like a
+  // tunnel: each one slightly right, then slightly left, partly hidden by the one in
+  // front, getting smaller into the distance. Records you've pushed past fly off below.
   // x/y are where it sits on screen (in front-record units), z is how far back it is,
   // s is an extra size step-down, r is its angle (x, y, z in radians).
   const PATH = [
-    { x: 0.0,   y: 0.00, z: 0.6,  s: 1.0,  r: [0.03, 0.14, -0.06] },
-    { x: 0.86,  y: 0.04, z: -1.0, s: 0.84, r: [0.02, -0.26, 0.07] },
-    { x: -0.92, y: 0.02, z: -2.7, s: 0.72, r: [0.04, 0.24, -0.06] },
-    { x: 1.30,  y: 0.06, z: -4.4, s: 0.64, r: [0.03, -0.22, 0.08] },
-    { x: -1.38, y: 0.03, z: -6.1, s: 0.58, r: [0.05, 0.2, -0.06] },
+    { x: 0.0,   y: 0.00, z: 0.6,  s: 1.0,  r: [0.03, 0.12, -0.05] },
+    { x: 0.50,  y: 0.03, z: -1.0, s: 0.84, r: [0.02, -0.2, 0.06] },
+    { x: -0.56, y: 0.02, z: -2.6, s: 0.72, r: [0.04, 0.2, -0.05] },
+    { x: 0.70,  y: 0.04, z: -4.2, s: 0.64, r: [0.03, -0.18, 0.06] },
+    { x: -0.78, y: 0.03, z: -5.8, s: 0.58, r: [0.05, 0.18, -0.05] },
   ];
   const PASSED = [-1.0, -2.3, 1.5]; // where a pushed-away record goes, per step
   const pathKey = (k) => {
     if (k < PATH.length) return PATH[k];
     const extra = k - (PATH.length - 1), last = PATH[PATH.length - 1];
     return {
-      // keep alternating sides, a little wider each time
-      x: (extra % 2 ? 1 : -1) * (Math.abs(last.x) + extra * 0.1), y: last.y + (extra % 2 ? 0.03 : 0), z: last.z - extra * 1.7,
+      // keep alternating slightly left and right, like a tunnel
+      x: (extra % 2 ? 1 : -1) * (0.78 + extra * 0.12), y: last.y + (extra % 2 ? 0.02 : 0), z: last.z - extra * 1.6,
       s: Math.max(0.4, last.s - extra * 0.05),
       r: [0.04, extra % 2 ? -0.2 : 0.2, extra % 2 ? 0.07 : -0.06],
     };
@@ -387,7 +387,7 @@ function startSpace(releases, ui) {
 
       // place on the trail, pushed forward or away
       const d = i - focus.x;
-      it.holder.visible = d > -1.6 && d < 7;
+      it.holder.visible = d > -1.6 && d < 9;
       const rowScale = layout(d, rowPos, rowAngle) * (1 + h * 0.03);
       rowPos.y += Math.sin(t * 0.5 + it.phase[0]) * 0.02;
       rowPos.z += h * 0.1;
