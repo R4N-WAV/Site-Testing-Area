@@ -155,12 +155,13 @@ function makeEnvironment(renderer) {
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  soft(1.1, 18, 7, "#f2d4e4", [-7, 2, 12]);      // tall strip, front left (pale rose)
-  soft(0.8, 18, 6, "#d24fc8", [8, -1, 11]);      // tall strip, front right (magenta)
-  soft(20, 0.9, 4, "#fbf0f6", [0, 9, 12]);       // long strip above (almost white)
-  soft(10, 5, 2.4, "#f6e8f0", [-2, 3, 14]);      // broad soft sheen in front: the band that slides over the cover as it turns
-  panel(0.06, 10, 3, "#ffffff", [2, 4, 14]);     // one fine, crisp line for a sharp glint
-  panel(12, 0.6, 0.8, "#c03fbd", [0, 11, -7]);   // faint magenta rim from behind
+  // Every light in the studio is pink: the wrap can only ever reflect pink and magenta, never a rainbow.
+  soft(1.2, 18, 11, "#ff9fdc", [-7, 2, 12]);     // tall strip, front left (hot rose)
+  soft(0.9, 18, 10, "#ff3fc4", [8, -1, 11]);     // tall strip, front right (magenta)
+  soft(20, 0.9, 6, "#ffd6ef", [0, 9, 12]);       // long strip above (pale pink)
+  soft(10, 5, 4.2, "#ff8ad2", [-2, 3, 14]);      // broad pink sheen in front: the flare that slides over the cover as it turns
+  panel(0.06, 10, 5, "#ffe3f5", [2, 4, 14]);     // one fine, crisp line for a sharp pink glint
+  panel(12, 0.6, 1.4, "#e03fc0", [0, 11, -7]);   // magenta rim from behind
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const tex = pmrem.fromScene(env, 0.004).texture; // barely blurred: crisp, narrow highlights
@@ -358,28 +359,6 @@ function spineCanvas(rel, tint) {
   return c;
 }
 
-// ============================================================
-//  Clean wrap: no creases, just a gentle curve (plastic pulled taut over the
-//  sleeve bulges slightly), plus a smooth thickness map for the holo shimmer.
-// ============================================================
-function cleanWrapMaps(S = 512, seed = 5) {
-  const rnd = mulberry32(seed);
-  const h = new Float32Array(S * S);
-  const film = new Uint8Array(S * S * 4);
-  const waves = Array.from({ length: 4 }, () => [rnd() * 6 + 2, rnd() * 6 + 2, rnd() * 6.28]);
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const u = x / (S - 1), v = y / (S - 1), i = y * S + x;
-      h[i] = 0.5 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v);
-      let f = 0.5;
-      for (const [a, b, p] of waves) f += 0.12 * Math.sin(u * a + v * b + p);
-      film[i * 4] = film[i * 4 + 1] = film[i * 4 + 2] = Math.max(0, Math.min(1, f)) * 255;
-      film[i * 4 + 3] = 255;
-    }
-  }
-  return { normal: dataTexture(heightToNormal(h, S, 2.2), S), film: dataTexture(film, S) };
-}
-
 // A sleeve with a record inside: the middle bulges out in a round dome where the disc
 // sits, then tapers thinner toward the edges, like a real 12" in its shrink-wrap.
 function pillowProfile(u, v) {
@@ -411,8 +390,8 @@ export function createShared(renderer) {
   return {
     env: makeEnvironment(renderer),
     paper: paperBump(),
-    // crease texture for the reflections + a smooth thin-film map for the holo colour
-    wraps: [3, 11].map((seed, k) => ({ ...wrapNormal(1024, seed), film: cleanWrapMaps(512, 5 + k * 4).film })),
+    // crease texture for the reflections
+    wraps: [3, 11].map((seed) => wrapNormal(1024, seed)),
     // softly rounded edges catch a line of light, which is most of what makes it read as an object
     sleeveGeo: pillowBox(SLEEVE, SLEEVE, SLEEVE_DEPTH),
     // the wrap is a little bigger and rounder: plastic pulled over the edges
@@ -478,23 +457,17 @@ export function buildRecord(rel, shared, index) {
   shadeMesh.renderOrder = 1;
 
 
-  // Layer 2: reflections only, added on top so the artwork shows through untouched. A thin-film (iridescent) coating gives the
-  // reflections a holo-foil colour shift as the record turns.
+  // Layer 2: reflections only, added on top so the artwork shows through untouched. The studio lights are all pink,
+  // so the reflections are a pink holo flare that sweeps across the cover as the record turns. No thin-film: no rainbow.
   const shineMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000,
     metalness: 0,
     roughness: 0.045,
     ior: 1.5,
     specularIntensity: 1,
-    // thin-film colour shift: the streaks run pink → magenta → a hint of cyan at steep angles,
-    // like holographic film
-    iridescence: 0.7,
-    iridescenceIOR: 1.3,
-    iridescenceThicknessRange: [300, 560],
-    iridescenceThicknessMap: variant(maps.film),
     normalMap: variant(maps.normal),
     normalScale: new THREE.Vector2(0.55, 0.55), // creases break the reflections into glints
-    envMapIntensity: 1.9,
+    envMapIntensity: 2.6,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,

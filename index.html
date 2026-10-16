@@ -9,12 +9,12 @@
   <link rel="icon" type="image/png" href="assets/icon.png" />
   <link rel="preload" as="image" href="assets/logo-white.png" />
   <!-- ?v= numbers force browsers to fetch fresh files after each update -->
-  <link rel="stylesheet" href="css/site.css?v=20261016172909" />
+  <link rel="stylesheet" href="css/site.css?v=20261016175858" />
   <script type="importmap">
     { "imports": {
         "three": "./vendor/three.module.min.js",
-        "./js/data.js": "./js/data.js?v=20261016172909",
-        "./js/materials.js": "./js/materials.js?v=20261016172909"
+        "./js/data.js": "./js/data.js?v=20261016175858",
+        "./js/materials.js": "./js/materials.js?v=20261016175858"
     } }
   </script>
 </head>
@@ -26,10 +26,9 @@
     <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
     <!-- switch between R4N's own songs and songs R4N worked on for others -->
     <div class="modeToggle" role="group" aria-label="Which songs to show">
-      <button type="button" data-mode="mine" aria-pressed="true">MY SONGS<sup data-count="mine"></sup></button>
+      <button type="button" data-mode="mine" aria-pressed="true"><span class="foil" data-text="MY SONGS">MY SONGS</span><sup data-count="mine"></sup></button>
       <span class="modeToggle__sep" aria-hidden="true">/</span>
-      <button type="button" data-mode="worked-on" aria-pressed="false">WORKED ON<sup data-count="worked-on"></sup></button>
-      <span class="modeToggle__disc" aria-hidden="true"></span>
+      <button type="button" data-mode="worked-on" aria-pressed="false"><span class="foil" data-text="WORKED ON">WORKED ON</span><sup data-count="worked-on"></sup></button>
     </div>
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
@@ -41,25 +40,26 @@
     <ol class="index__list" id="indexList"></ol>
   </section>
 
-  <!-- One release: the record enlarges in 3D at the top, the details sit right under it -->
+  <!-- One release: the enlarged 3D record and its details, always fitted to one screen -->
   <section class="detail" id="detail" aria-label="Release details" aria-hidden="true">
     <button class="textBtn detail__close" id="detailClose" type="button">CLOSE ✕</button>
     <div class="detail__scroll" id="detailScroll">
       <div class="detail__hero" id="detailHero"><img id="dCover" alt="" /></div>
-      <article class="detail__info">
-        <p class="detail__meta" id="dMeta"></p>
-        <h1 class="detail__title" id="dTitle"></h1>
-        <p class="detail__artist" id="dArtist"></p>
-        <details class="about" id="dAbout">
-          <summary>ABOUT</summary>
-          <div class="detail__desc" id="dDesc"></div>
-        </details>
-        <dl class="detail__credits" id="dCredits"></dl>
-        <div class="detail__links" id="dLinks"></div>
-        <div class="detail__nav">
-          <button class="textBtn" id="dPrev" type="button">← PREV</button>
-          <button class="textBtn" id="allBtn" type="button">ALL</button>
-          <button class="textBtn" id="dNext" type="button">NEXT →</button>
+      <article class="detail__info" id="detailInfo">
+        <div class="detail__inner" id="detailInner">
+          <p class="detail__meta" id="dMeta"></p>
+          <h1 class="detail__title" id="dTitle"></h1>
+          <p class="detail__artist" id="dArtist"></p>
+          <details class="about" id="dAbout">
+            <summary>ABOUT</summary>
+            <div class="detail__desc" id="dDesc"></div>
+          </details>
+          <dl class="detail__credits" id="dCredits"></dl>
+          <div class="detail__links" id="dLinks"></div>
+          <div class="detail__nav">
+            <button class="textBtn" id="dPrev" type="button">← PREV</button>
+            <button class="textBtn" id="allBtn" type="button">ALL</button>
+            <button class="textBtn" id="dNext" type="button">NEXT →</button>
         </div>
         <nav class="socials" aria-label="Social links">
           <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
@@ -68,6 +68,7 @@
           <span>/</span>
           <a href="mailto:r4nmusic@outlook.com">contact</a>
         </nav>
+        </div>
       </article>
     </div>
   </section>
@@ -79,6 +80,6 @@
 
   <noscript><p class="noscript">This site needs JavaScript. Find R4N on <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr">Spotify</a>.</p></noscript>
 
-  <script type="module" src="js/site.js?v=20261016172909"></script>
+  <script type="module" src="js/site.js?v=20261016175858"></script>
 </body>
 </html>

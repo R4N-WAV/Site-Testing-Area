@@ -1,5 +1,5 @@
 {
-  "title": "TITLE TBD",
+  "title": "ALT BLE INGENTING",
   "artist": [
     {
       "name": "LaMar!a",
@@ -8,7 +8,7 @@
   ],
   "category": "worked-on",
   "type": "Single",
-  "date": "",
+  "date": "04.07.2025",
   "cover": "cover.jpg",
   "description": "",
   "credits": [
@@ -28,7 +28,6 @@
   ],
   "links": {
     "spotify": "https://open.spotify.com/track/14MbKodSWqioGYTFkYsdOA",
-    "apple": ""
-  },
-  "hidden": true
+    "apple": "https://music.apple.com/us/album/alt-ble-ingenting-single/1823397004"
+  }
 }

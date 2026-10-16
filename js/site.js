@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, yearOf } from "./data.js";
+import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, formatDate } from "./data.js";
 import { createShared, buildRecord, SLEEVE } from "./materials.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
@@ -12,17 +12,25 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const isPhone = () => window.innerWidth <= 768;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Where the enlarged record sits when a song is open. The info text starts right under it.
+// Where the enlarged record sits when a song is open. Everything fits on one screen:
+// wide screens put the record on the left and the details on the right,
+// tall screens put the record on top and the details underneath.
 function heroLayout() {
   const W = window.innerWidth, H = window.innerHeight;
-  const top = isPhone() ? 72 : 88;
-  const height = isPhone() ? Math.min(W * 0.78, H * 0.42) : Math.min(H * 0.52, W * 0.5, 540);
-  return { top, height: Math.round(height) };
+  const wide = W / H > 1.12 && W >= 600;
+  if (wide) {
+    const size = Math.round(Math.min(H * 0.66, W * 0.36, 620));
+    return { wide, top: Math.round((H - size) / 2), size, cx: W * 0.27, cy: H / 2 };
+  }
+  const top = H < 600 ? 54 : isPhone() ? 64 : 80;
+  const size = Math.round(Math.min(W * 0.7, H * 0.36, 460));
+  return { wide, top, size, cx: W / 2, cy: top + size / 2 };
 }
 function applyHeroLayout() {
-  const { top, height } = heroLayout();
+  const { wide, top, size } = heroLayout();
   document.documentElement.style.setProperty("--hero-top", `${top}px`);
-  document.documentElement.style.setProperty("--hero-h", `${height}px`);
+  document.documentElement.style.setProperty("--hero-h", `${size}px`);
+  document.body.classList.toggle("detail-wide", wide);
 }
 
 function webglAvailable() {
@@ -338,15 +346,14 @@ function startSpace(releases, ui) {
   let veilShown = 0;
 
   function heroTransform(t) {
-    const { top, height } = heroLayout();
-    const H = window.innerHeight;
+    const { cx, cy, size } = heroLayout();
+    const W = window.innerWidth, H = window.innerHeight;
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const worldPerPx = (2 * HERO_DEPTH * tanV) / H;
-    const cy = top + height / 2 - ui.scrollTop();
-    heroPos.set(0, -(cy - H / 2) * worldPerPx, -HERO_DEPTH);
+    heroPos.set((cx - W / 2) * worldPerPx, -(cy - H / 2) * worldPerPx, -HERO_DEPTH);
     heroTarget.position.copy(heroPos);
     camera.localToWorld(heroPos);
-    heroScale = (height * worldPerPx) / SLEEVE;
+    heroScale = (size * worldPerPx) / SLEEVE;
     const idle = reducedMotion ? 0 : 1;
     euler.set(
       heroTilt.y.x + Math.sin(t * 0.21) * 0.03 * idle,
@@ -492,23 +499,9 @@ function buildUI(releases) {
       b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
     });
     emptyNote.hidden = shown.length > 0;
-    placeDisc();
     buildIndex();
     space?.setFilter(shown, animated);
   }
-  // the little record under the active label rolls across when you switch
-  const disc = document.querySelector(".modeToggle__disc");
-  let discX = null;
-  function placeDisc() {
-    const btn = document.querySelector(`.modeToggle button[data-mode="${mode}"]`);
-    if (!btn || !btn.offsetWidth) return;
-    const x = btn.offsetLeft + btn.offsetWidth / 2;
-    const roll = discX === null ? 0 : ((x - discX) / (Math.PI * 9)) * 360; // distance / circumference
-    discX = x;
-    disc.style.setProperty("--x", `${x}px`);
-    disc.style.setProperty("--spin", `${(parseFloat(disc.style.getPropertyValue("--spin")) || 0) + roll}deg`);
-  }
-  window.addEventListener("resize", placeDisc);
   document.querySelectorAll("[data-count]").forEach((el) => {
     const n = releases.filter((r) => r.category === el.dataset.count).length;
     el.textContent = String(n).padStart(2, "0");
@@ -526,13 +519,14 @@ function buildUI(releases) {
       const rel = releases[i];
       const li = document.createElement("li");
       li.className = "index__item";
+      li.style.setProperty("--k", k);
       li.innerHTML = `
         <button type="button">
           <span class="index__num">${String(k + 1).padStart(2, "0")}</span>
           <img src="${escapeHTML(rel.coverUrl)}" alt="" loading="lazy">
           <span><span class="index__title">${escapeHTML(rel.title)}</span>
           <span class="index__sub">${escapeHTML([rel.type, rel.artist].filter(Boolean).join(" · "))}</span></span>
-          <span class="index__year">${escapeHTML(yearOf(rel))}</span>
+          <span class="index__year">${escapeHTML(formatDate(rel))}</span>
         </button>`;
       li.querySelector("button").addEventListener("click", () => { setIndex(false); open(i); });
       list.appendChild(li);
@@ -572,7 +566,7 @@ function buildUI(releases) {
   function fill(rel) {
     $("dCover").src = rel.coverUrl;
     $("dCover").alt = `${rel.title} cover art`;
-    $("dMeta").textContent = [rel.type, yearOf(rel)].filter(Boolean).join(" · ");
+    $("dMeta").textContent = [rel.type, formatDate(rel)].filter(Boolean).join(" · ");
     $("dTitle").textContent = rel.title;
     $("dArtist").innerHTML = rel.artists.map((a) => {
       const url = safeUrl(a.url);
@@ -603,12 +597,27 @@ function buildUI(releases) {
       if (!url) continue;
       const name = PLATFORMS[key.toLowerCase()] || key;
       links.insertAdjacentHTML("beforeend",
-        `<a class="listen" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer"><span>Listen on ${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
+        `<a class="listen" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="Listen on ${escapeHTML(name)}"><span>${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
     }
     const many = shown.length > 1;
     $("dPrev").hidden = !many;
     $("dNext").hidden = !many;
   }
+
+  // The details always fit on one screen: if they're taller than the space left
+  // (a small phone, a long credits list, ABOUT open), they shrink to fit instead of scrolling.
+  const info = $("detailInfo");
+  const inner = $("detailInner");
+  function fitDetail() {
+    inner.style.transform = "";
+    const cs = getComputedStyle(info);
+    const room = info.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const need = inner.offsetHeight;
+    const k = need > room && need > 0 ? Math.max(0.55, room / need) : 1;
+    inner.style.transform = k < 1 ? `scale(${k.toFixed(4)})` : "";
+  }
+  window.addEventListener("resize", () => { if (current !== -1) fitDetail(); });
+  $("dAbout").addEventListener("toggle", fitDetail);
 
   // drag on the enlarged record to tilt it
   let tiltDrag = null;
@@ -638,13 +647,12 @@ function buildUI(releases) {
       current = i;
       fill(rel);
       setIndex(false);
-      scroller.scrollTop = 0;
       detail.classList.add("is-open");
       detail.setAttribute("aria-hidden", "false");
       document.body.classList.add("detail-open");
       history.replaceState(null, "", `#${rel.slug}`);
+      fitDetail();
     },
-    scrollTop: () => scroller.scrollTop,
     attach(s) { space = s; space.setFilter(shown); },
     applyMode,
     openBySlug(slug) {

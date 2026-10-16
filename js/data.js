@@ -83,7 +83,7 @@ async function loadRelease(folder) {
       : info.artist ? [{ name: String(info.artist) }] : [],
     get artist() { return this.artists.map((a) => a.name).join(", "); },
     type: info.type ? String(info.type) : "",
-    date: info.date ? String(info.date) : "",
+    date: normalizeDate(info.date),
     description: info.description ? String(info.description) : "",
     credits: Array.isArray(info.credits) ? info.credits : [],
     links: info.links && typeof info.links === "object" ? info.links : {},
@@ -162,6 +162,20 @@ export function richText(src) {
   });
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   return html.replace(/\n/g, "<br>");
+}
+// Dates can be written as YYYY-MM-DD or DD.MM.YYYY; kept internally as YYYY-MM-DD for sorting.
+function normalizeDate(raw) {
+  const s = String(raw || "").trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return /^\d{4}$/.test(s) ? s : "";
+}
+// Shown on the site as DD.MM.YYYY
+export function formatDate(rel) {
+  const m = String(rel.date || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : rel.date || "";
 }
 export function yearOf(rel) {
   return /^\d{4}/.test(rel.date) ? rel.date.slice(0, 4) : "";

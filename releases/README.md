@@ -56,7 +56,7 @@ GitHub rebuilds the site by itself. Open the site and the new record is there.
   "artist": "R4N",
   "category": "mine",
   "type": "Single",
-  "date": "2026-01-31",
+  "date": "31.01.2026",
   "cover": "cover.jpg",
   "description": "Write about the song here. Make a link like this: [R4N](https://www.instagram.com/r4n.wav/).",
   "credits": [
@@ -80,7 +80,7 @@ GitHub rebuilds the site by itself. Open the site and the new record is there.
 | `artist` | Who the song is by. Plain text works (`"Some Artist"`), but to make each name a clickable link to their Instagram, use a list: `[ { "name": "LaMar!a", "url": "https://www.instagram.com/_lamar1a_/" }, { "name": "R4N", "url": "https://www.instagram.com/r4n.wav/" } ]`. |
 | `category` | **Which side of the toggle it goes on.** `"mine"` = your own songs (MY SONGS). `"worked-on"` = songs you worked on for other artists (WORKED ON). If you leave it out, it counts as `"mine"`. |
 | `type` | Shown above the title: `"Single"`, `"EP"`, `"Album"`, `"Mix"`, `"Production"`... anything. |
-| `date` | **Official release date** as `YYYY-MM-DD`. This decides the order: newest at the front of the tunnel, oldest at the back (same in the index). Songs without a date go last. |
+| `date` | **Official release date**, written as `DD.MM.YYYY` (`"16.10.2026"`) or `YYYY-MM-DD` (`"2026-10-16"`), both work. The site shows it as `16.10.2026`. This decides the order: newest at the front of the tunnel, oldest at the back (same in the index). Songs without a date go last. |
 | `cover` | The exact file name of the cover image in the same folder (`.jpg`, `.png` or `.webp`). Square images work best. Around 1000×1000 pixels keeps the site fast. |
 | `description` | The text under **ABOUT** when the record is opened. Links: `[shown text](https://...)`. Bold: `**like this**`. New line: `\n`. Leave it as `""` to hide the ABOUT button. |
 | `credits` | Lines like "PROD Rumblin, R4N". Add more roles by copying the `{ "role": ... }` block. A person's `url` is optional. |
@@ -95,7 +95,7 @@ GitHub rebuilds the site by itself. Open the site and the new record is there.
   "artist": "Other Artist",
   "category": "worked-on",
   "type": "Production",
-  "date": "2026-03-14",
+  "date": "14.03.2026",
   "cover": "cover.jpg",
   "description": "Produced and mixed by [R4N](https://www.instagram.com/r4n.wav/).",
   "credits": [

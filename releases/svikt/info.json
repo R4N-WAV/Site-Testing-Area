@@ -1,5 +1,5 @@
 {
-  "title": "TITLE TBD",
+  "title": "SVIKT",
   "artist": [
     {
       "name": "R4N",
@@ -8,13 +8,12 @@
   ],
   "category": "mine",
   "type": "Single",
-  "date": "",
+  "date": "16.10.2026",
   "cover": "cover.jpg",
   "description": "",
   "credits": [],
   "links": {
     "spotify": "https://open.spotify.com/track/42Bock8fdDKJHDgJV028gR",
-    "apple": ""
-  },
-  "hidden": true
+    "apple": "https://music.apple.com/us/album/svikt-single/6822738809"
+  }
 }
