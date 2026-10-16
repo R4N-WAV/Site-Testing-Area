@@ -9,12 +9,12 @@
   <link rel="icon" type="image/png" href="assets/icon.png" />
   <link rel="preload" as="image" href="assets/logo-white.png" />
   <!-- ?v= numbers force browsers to fetch fresh files after each update -->
-  <link rel="stylesheet" href="css/site.css?v=20261016161903" />
+  <link rel="stylesheet" href="css/site.css?v=20261016172909" />
   <script type="importmap">
     { "imports": {
         "three": "./vendor/three.module.min.js",
-        "./js/data.js": "./js/data.js?v=20261016161903",
-        "./js/materials.js": "./js/materials.js?v=20261016161903"
+        "./js/data.js": "./js/data.js?v=20261016172909",
+        "./js/materials.js": "./js/materials.js?v=20261016172909"
     } }
   </script>
 </head>
@@ -26,8 +26,10 @@
     <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
     <!-- switch between R4N's own songs and songs R4N worked on for others -->
     <div class="modeToggle" role="group" aria-label="Which songs to show">
-      <button type="button" data-mode="mine" aria-pressed="true">MY SONGS</button>
-      <button type="button" data-mode="worked-on" aria-pressed="false">WORKED ON</button>
+      <button type="button" data-mode="mine" aria-pressed="true">MY SONGS<sup data-count="mine"></sup></button>
+      <span class="modeToggle__sep" aria-hidden="true">/</span>
+      <button type="button" data-mode="worked-on" aria-pressed="false">WORKED ON<sup data-count="worked-on"></sup></button>
+      <span class="modeToggle__disc" aria-hidden="true"></span>
     </div>
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
   </header>
@@ -77,6 +79,6 @@
 
   <noscript><p class="noscript">This site needs JavaScript. Find R4N on <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr">Spotify</a>.</p></noscript>
 
-  <script type="module" src="js/site.js?v=20261016161903"></script>
+  <script type="module" src="js/site.js?v=20261016172909"></script>
 </body>
 </html>

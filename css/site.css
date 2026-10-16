@@ -138,6 +138,8 @@ body.no3d .detail__hero img{display:block;height:var(--hero-h);width:var(--hero-
 .detail__meta{color:var(--muted);font-size:11px;letter-spacing:2px;text-transform:uppercase;}
 .detail__title{margin-top:10px;font-size:clamp(26px,4.4vw,40px);line-height:1.05;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;overflow-wrap:anywhere;}
 .detail__artist{margin-top:12px;color:var(--muted);letter-spacing:1.2px;}
+.detail__artist a{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--faint);transition:color .4s var(--ease),text-decoration-color .4s var(--ease);}
+.detail__artist a:hover{color:var(--fg);text-decoration-color:currentColor;}
 .detail__desc{margin-top:26px;line-height:1.7;color:rgba(17,17,18,0.86);}
 .detail__desc a,.detail__credits a{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--faint);transition:text-decoration-color .4s var(--ease);}
 .detail__desc a:hover,.detail__credits a:hover{text-decoration-color:currentColor;}
@@ -188,19 +190,32 @@ body.no3d .detail__hero img{display:block;height:var(--hero-h);width:var(--hero-
 }
 
 /* ---------- MY SONGS / WORKED ON ---------- */
+/* two quiet labels; a tiny black record rolls underneath to the active one */
 .modeToggle{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-  display:flex;gap:4px;padding:3px;border:1px solid var(--faint);border-radius:999px;
+  display:flex;align-items:baseline;gap:14px;padding:6px 2px 12px;
   opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s;
 }
 body.is-loaded .modeToggle{opacity:1;pointer-events:auto;}
 body.detail-open .modeToggle,body.index-open .modeToggle{opacity:0;pointer-events:none;transition-delay:0s;}
 .modeToggle button{
-  font-size:11px;letter-spacing:1.8px;padding:7px 14px;border-radius:999px;color:var(--muted);white-space:nowrap;
-  transition:background .5s var(--ease),color .5s var(--ease);
+  font-size:11px;letter-spacing:2.4px;padding:4px 0;color:var(--muted);white-space:nowrap;
+  transition:color .6s var(--ease),letter-spacing .6s var(--ease);
 }
-.modeToggle button[aria-pressed="true"]{background:var(--fg);color:var(--bg);}
+.modeToggle button[aria-pressed="true"]{color:var(--fg);}
 .modeToggle button:not([aria-pressed="true"]):hover{color:var(--fg);}
+.modeToggle sup{font-size:8px;letter-spacing:1px;margin-left:4px;vertical-align:6px;opacity:.6;}
+.modeToggle__sep{color:var(--faint);font-size:11px;}
+.modeToggle__disc{
+  position:absolute;left:0;bottom:0;width:9px;height:9px;border-radius:50%;
+  /* black record: grooves, a pink label, the spindle hole */
+  background:
+    radial-gradient(circle, var(--bg) 0 0.6px, #c03fbd 0.8px 1.9px, transparent 2.1px),
+    repeating-radial-gradient(circle, #111 0 0.6px, #2a2a2e 0.7px 1.1px);
+  box-shadow:0 1px 2px rgba(0,0,0,.25);
+  transform:translateX(calc(var(--x, 0px) - 50%)) rotate(var(--spin, 0deg));
+  transition:transform .75s cubic-bezier(.65,0,.35,1);
+}
 .emptyNote{position:fixed;inset:auto 0 50% 0;text-align:center;color:var(--muted);font-size:11px;letter-spacing:2px;z-index:5;}
 
 /* ---------- ABOUT dropdown ---------- */
@@ -217,6 +232,6 @@ body.detail-open .modeToggle,body.index-open .modeToggle{opacity:0;pointer-event
 .about .detail__desc{margin-top:10px;animation:rise .7s var(--ease) both;}
 
 @media (max-width:768px){
-  .modeToggle{position:fixed;top:auto;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);}
-  .modeToggle button{padding:8px 13px;}
+  .modeToggle{position:fixed;top:auto;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);}
+  .modeToggle button{padding:8px 0;}
 }

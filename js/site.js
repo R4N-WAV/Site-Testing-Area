@@ -169,10 +169,12 @@ function startSpace(releases, ui) {
     return sizeOf();
   }
 
+  let baseFov = 40;
   // ---------- camera: standing in the tunnel, looking straight down it ----------
   function placeCamera() {
     camera.aspect = window.innerWidth / window.innerHeight;
-    camera.fov = phone() ? 58 : 40;
+    baseFov = phone() ? 58 : 40;
+    camera.fov = baseFov;
     camera.updateProjectionMatrix();
     camera.position.set(0, 0.05, 4);
     camera.lookAt(0, 0.05, -10);
@@ -188,6 +190,13 @@ function startSpace(releases, ui) {
   let order = items.map((_, i) => i);
   items.forEach((it, i) => { it.slot = i; it.slotS = springState(i); });
   const count = () => Math.max(1, order.length);
+  function applyOrder(visible) {
+    order = visible.slice();
+    items.forEach((it) => { it.slot = -1; });
+    order.forEach((i, k) => { items[i].slot = k; });
+  }
+  let warp = null;
+  const WARP_OUT = 0.42, WARP_IN = 0.9;
   const clampIndex = (i) => clamp(i, 0, count() - 1);
   let travel = 0; // where you're heading along the tunnel (in records); scroll moves it smoothly
   function focusOn(i) {
@@ -353,7 +362,35 @@ function startSpace(releases, ui) {
     const t = clock.elapsedTime;
     const open = selected !== -1;
 
-    if (!drag) spring(focus, travel, reducedMotion ? 30 : 6.5, dt);
+    // switching MY SONGS / WORKED ON: rush forward through this tunnel, flash, and the new
+    // tunnel flies in from the distance and settles
+    let warpKick = 0, warpFlash = 0;
+    if (warp) {
+      warp.t += dt;
+      if (warp.phase === "out") {
+        const k = Math.min(1, warp.t / WARP_OUT);
+        focus.x = warp.from + k * k * k * 7;       // accelerate down the tunnel
+        focus.v = 0;
+        warpKick = k * k;
+        warpFlash = k * k * k;
+        if (k >= 1) {
+          applyOrder(warp.next);
+          items.forEach((it) => { if (it.slot >= 0) { it.slotS.x = it.slot; it.slotS.v = 0; } });
+          focus.x = -7; focus.v = 0;              // new tunnel starts far ahead...
+          travel = 0; focusIndex = 0;
+          warp.phase = "in"; warp.t = 0;
+        }
+      } else {
+        const k = Math.min(1, warp.t / WARP_IN);
+        warpKick = (1 - k) * (1 - k);
+        warpFlash = Math.pow(1 - k, 3);
+        if (k >= 1) warp = null;
+      }
+    }
+    camera.fov = baseFov + warpKick * 22;
+    camera.updateProjectionMatrix();
+
+    if (!drag && !(warp && warp.phase === "out")) spring(focus, travel, warp ? 4.2 : (reducedMotion ? 30 : 6.5), dt);
     if (!tilting) tiltGoal.multiplyScalar(Math.exp(-dt * 3.2));
     spring(heroTilt.x, tiltGoal.x, 9, dt);
     spring(heroTilt.y, tiltGoal.y, 9, dt);
@@ -404,7 +441,7 @@ function startSpace(releases, ui) {
     spot.intensity = 3.2 * Math.pow(1 - Math.min(1, veilShown * 2.5), 2);
     key.intensity = 1.5 * (1 - veilShown);
     heroSpot.intensity = 4 * veilShown;
-    veil.material.opacity = veilShown * 0.97;
+    veil.material.opacity = Math.max(veilShown * 0.97, warpFlash * 0.85);
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -420,11 +457,9 @@ function startSpace(releases, ui) {
     nudge(dir) { focusOn(focusIndex + dir); },
     openFocused() { if (order.length) select(order[focusIndex]); },
     // show only these records (item indexes, in order); the rest leave the tunnel
-    setFilter(visible) {
-      order = visible.slice();
-      items.forEach((it) => { it.slot = -1; });
-      order.forEach((i, k) => { items[i].slot = k; });
-      focusOn(0);
+    setFilter(visible, animate = false) {
+      if (!animate || reducedMotion) { applyOrder(visible); focusOn(0); return; }
+      warp = { phase: "out", t: 0, from: focus.x, next: visible.slice() };
     },
     // the very first frame, so the loader can wait until the scene is really on screen
     firstFrame: () => new Promise((resolve) => {
@@ -450,18 +485,36 @@ function buildUI(releases) {
   let mode = "mine";
   let shown = [];   // release indexes in the current mode
   const emptyNote = $("emptyNote");
-  function applyMode(next) {
+  function applyMode(next, animated = false) {
     mode = next;
     shown = releases.map((r, i) => (r.category === mode ? i : -1)).filter((i) => i !== -1);
     document.querySelectorAll(".modeToggle button").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
     });
     emptyNote.hidden = shown.length > 0;
+    placeDisc();
     buildIndex();
-    space?.setFilter(shown);
+    space?.setFilter(shown, animated);
   }
+  // the little record under the active label rolls across when you switch
+  const disc = document.querySelector(".modeToggle__disc");
+  let discX = null;
+  function placeDisc() {
+    const btn = document.querySelector(`.modeToggle button[data-mode="${mode}"]`);
+    if (!btn || !btn.offsetWidth) return;
+    const x = btn.offsetLeft + btn.offsetWidth / 2;
+    const roll = discX === null ? 0 : ((x - discX) / (Math.PI * 9)) * 360; // distance / circumference
+    discX = x;
+    disc.style.setProperty("--x", `${x}px`);
+    disc.style.setProperty("--spin", `${(parseFloat(disc.style.getPropertyValue("--spin")) || 0) + roll}deg`);
+  }
+  window.addEventListener("resize", placeDisc);
+  document.querySelectorAll("[data-count]").forEach((el) => {
+    const n = releases.filter((r) => r.category === el.dataset.count).length;
+    el.textContent = String(n).padStart(2, "0");
+  });
   document.querySelectorAll(".modeToggle button").forEach((b) => {
-    b.addEventListener("click", () => { if (b.dataset.mode !== mode) applyMode(b.dataset.mode); });
+    b.addEventListener("click", () => { if (b.dataset.mode !== mode) applyMode(b.dataset.mode, true); });
   });
 
   // ---------- index list (follows the toggle) ----------
@@ -521,7 +574,10 @@ function buildUI(releases) {
     $("dCover").alt = `${rel.title} cover art`;
     $("dMeta").textContent = [rel.type, yearOf(rel)].filter(Boolean).join(" · ");
     $("dTitle").textContent = rel.title;
-    $("dArtist").textContent = rel.artist;
+    $("dArtist").innerHTML = rel.artists.map((a) => {
+      const url = safeUrl(a.url);
+      return url ? `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(a.name)}</a>` : escapeHTML(a.name);
+    }).join(", ");
     $("dDesc").innerHTML = richText(rel.description);
     $("dAbout").open = false;
     $("dAbout").hidden = !rel.description;

@@ -1,0 +1,34 @@
+{
+  "title": "TITLE TBD",
+  "artist": [
+    {
+      "name": "LaMar!a",
+      "url": "https://www.instagram.com/_lamar1a_/"
+    }
+  ],
+  "category": "worked-on",
+  "type": "Single",
+  "date": "",
+  "cover": "cover.jpg",
+  "description": "",
+  "credits": [
+    {
+      "role": "Prod",
+      "people": [
+        {
+          "name": "RumblinMusic",
+          "url": "https://www.instagram.com/rumblinmusic/"
+        },
+        {
+          "name": "R4N",
+          "url": "https://www.instagram.com/r4n.wav/"
+        }
+      ]
+    }
+  ],
+  "links": {
+    "spotify": "https://open.spotify.com/track/14MbKodSWqioGYTFkYsdOA",
+    "apple": ""
+  },
+  "hidden": true
+}

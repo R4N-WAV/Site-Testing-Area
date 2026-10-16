@@ -77,7 +77,11 @@ async function loadRelease(folder) {
   return {
     slug: folder,
     title: String(info.title || folder).trim(),
-    artist: info.artist ? String(info.artist) : "",
+    // "artist" can be plain text, or a list of { name, url } so each name links to the artist
+    artists: Array.isArray(info.artist)
+      ? info.artist.map((a) => (typeof a === "string" ? { name: a } : { name: String(a.name || ""), url: a.url })).filter((a) => a.name)
+      : info.artist ? [{ name: String(info.artist) }] : [],
+    get artist() { return this.artists.map((a) => a.name).join(", "); },
     type: info.type ? String(info.type) : "",
     date: info.date ? String(info.date) : "",
     description: info.description ? String(info.description) : "",

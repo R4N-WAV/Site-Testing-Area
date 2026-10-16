@@ -96,6 +96,34 @@ function averageColor(image) {
 //  Most light sits in front of the records (behind the viewer), the way
 //  a product photographer would light them.
 // ============================================================
+function softboxTexture(aspect) {
+  const W = 128, H = 128;
+  const c = makeCanvas(W, H);
+  const g = c.getContext("2d");
+  // brightest along the middle, feathering to nothing at the edges (both directions)
+  const across = g.createLinearGradient(0, 0, W, 0);
+  across.addColorStop(0, "rgba(255,255,255,0)");
+  across.addColorStop(0.3, "rgba(255,255,255,0.75)");
+  across.addColorStop(0.5, "rgba(255,255,255,1)");
+  across.addColorStop(0.7, "rgba(255,255,255,0.75)");
+  across.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
+  g.fillStyle = across; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "destination-in";
+  const along = g.createLinearGradient(0, 0, 0, H);
+  along.addColorStop(0, "rgba(0,0,0,0)");
+  along.addColorStop(0.15, "rgba(0,0,0,1)");
+  along.addColorStop(0.85, "rgba(0,0,0,1)");
+  along.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = along; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "destination-over";
+  g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (aspect > 1) { t.center.set(0.5, 0.5); t.rotation = Math.PI / 2; } // wide panels: feather top/bottom
+  return t;
+}
+
 function makeEnvironment(renderer) {
   const env = new THREE.Scene();
   env.add(new THREE.Mesh(
@@ -111,14 +139,28 @@ function makeEnvironment(renderer) {
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  // Only thin strip lights: they reflect as fine streaks that the creases break up into
-  // glints, instead of big shapes where you can see the light itself.
-  // The strips are tinted with the palette's rose and magenta: that's the pink holo look.
-  panel(0.12, 16, 4.5, "#e6c6d8", [-7, 2, 12]);   // thin vertical strip, front left (pale rose)
-  panel(0.09, 16, 3.6, "#c03fbd", [8, -1, 11]);   // thin vertical strip, front right (magenta)
-  panel(18, 0.08, 2.5, "#f4e6ee", [0, 9, 12]);    // thin horizontal strip, above (almost white)
-  panel(0.06, 10, 2.2, "#c3a1b2", [2, 4, 14]);    // a fine rose line near the middle
-  panel(12, 0.6, 0.8, "#c03fbd", [0, 11, -7]);    // faint magenta rim from behind
+  // Softboxes with feathered edges: a real studio light reflects as a bright core that
+  // fades out, never as a hard-edged shape. Long, narrow ones give the streaks that sweep
+  // across shrink-wrap as it turns; a broad one gives the soft sheen over the bulge.
+  const soft = (w, h, intensity, color, pos) => {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({
+        map: softboxTexture(w / h),
+        color: new THREE.Color(color).multiplyScalar(intensity),
+        side: THREE.DoubleSide,
+      })
+    );
+    m.position.set(...pos);
+    m.lookAt(0, 0, 0);
+    env.add(m);
+  };
+  soft(1.1, 18, 7, "#f2d4e4", [-7, 2, 12]);      // tall strip, front left (pale rose)
+  soft(0.8, 18, 6, "#d24fc8", [8, -1, 11]);      // tall strip, front right (magenta)
+  soft(20, 0.9, 4, "#fbf0f6", [0, 9, 12]);       // long strip above (almost white)
+  soft(10, 5, 2.4, "#f6e8f0", [-2, 3, 14]);      // broad soft sheen in front: the band that slides over the cover as it turns
+  panel(0.06, 10, 3, "#ffffff", [2, 4, 14]);     // one fine, crisp line for a sharp glint
+  panel(12, 0.6, 0.8, "#c03fbd", [0, 11, -7]);   // faint magenta rim from behind
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const tex = pmrem.fromScene(env, 0.004).texture; // barely blurred: crisp, narrow highlights
@@ -441,16 +483,18 @@ export function buildRecord(rel, shared, index) {
   const shineMat = new THREE.MeshPhysicalMaterial({
     color: 0x000000,
     metalness: 0,
-    roughness: 0.03,
+    roughness: 0.045,
     ior: 1.5,
     specularIntensity: 1,
-    iridescence: 0.25, // just a hint of colour shift; the pink comes from the rose/magenta strips
+    // thin-film colour shift: the streaks run pink → magenta → a hint of cyan at steep angles,
+    // like holographic film
+    iridescence: 0.7,
     iridescenceIOR: 1.3,
-    iridescenceThicknessRange: [380, 460],
+    iridescenceThicknessRange: [300, 560],
     iridescenceThicknessMap: variant(maps.film),
     normalMap: variant(maps.normal),
     normalScale: new THREE.Vector2(0.55, 0.55), // creases break the reflections into glints
-    envMapIntensity: 0.8,
+    envMapIntensity: 1.9,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,

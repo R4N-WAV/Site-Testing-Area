@@ -1,16 +1,34 @@
 {
   "title": "TI KNIVER I HJERTET",
-  "artist": "R4N, Bhaai",
+  "artist": [
+    {
+      "name": "R4N",
+      "url": "https://www.instagram.com/r4n.wav/"
+    },
+    {
+      "name": "Bhaai",
+      "url": "https://www.instagram.com/bhaai________/"
+    }
+  ],
   "category": "mine",
   "type": "Single",
   "date": "",
   "cover": "cover.png",
   "description": "[R4N](https://www.instagram.com/r4n.wav/) debuterer sammen med [Bhaai](https://www.instagram.com/bhaai________/) med en låt om tillit som sprekker og sårbarhet som blir gjemt bort. Den treffer akkurat der folk vanligvis later som ingenting.",
   "credits": [
-    { "role": "Prod", "people": [
-      { "name": "Rumblin", "url": "https://www.instagram.com/rumblinmusic/" },
-      { "name": "R4N", "url": "https://www.instagram.com/r4n.wav/" }
-    ] }
+    {
+      "role": "Prod",
+      "people": [
+        {
+          "name": "Rumblin",
+          "url": "https://www.instagram.com/rumblinmusic/"
+        },
+        {
+          "name": "R4N",
+          "url": "https://www.instagram.com/r4n.wav/"
+        }
+      ]
+    }
   ],
   "links": {
     "spotify": "https://open.spotify.com/album/2pHA2yqsAC9uum0lE1kyV5",
