@@ -1,13 +1,12 @@
 // Everything that makes a record look like a real object:
 // studio lighting for reflections, a cardboard sleeve with paper grain and ring wear,
 // and clear, creased shrink-wrap with a pink holo sheen sealing it.
-// All textures are generated here, so a new release only needs its cover art.
+// The shared textures are baked once (scripts/bake-textures.mjs); a new release only needs its cover art.
 import * as THREE from "three";
 
 // Real proportions: a 12" sleeve is 31.4 cm square, the disc inside 30 cm.
 export const SLEEVE = 1;
 export const SLEEVE_DEPTH = 0.04; // thickness at the middle, where the disc is; the board is about a third of that
-const DISC_R = 0.477; // only used for the ring wear it leaves on the sleeve
 
 // ---------- small helpers ----------
 function mulberry32(seed) {
@@ -17,54 +16,6 @@ function mulberry32(seed) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function blur(h, S, passes = 1) {
-  const tmp = new Float32Array(h.length);
-  for (let p = 0; p < passes; p++) {
-    for (let y = 0; y < S; y++) {
-      for (let x = 0; x < S; x++) {
-        const i = y * S + x;
-        tmp[i] = (h[y * S + Math.max(0, x - 1)] + h[i] + h[y * S + Math.min(S - 1, x + 1)]) / 3;
-      }
-    }
-    for (let y = 0; y < S; y++) {
-      for (let x = 0; x < S; x++) {
-        const i = y * S + x;
-        h[i] = (tmp[Math.max(0, y - 1) * S + x] + tmp[i] + tmp[Math.min(S - 1, y + 1) * S + x]) / 3;
-      }
-    }
-  }
-  return h;
-}
-
-function heightToNormal(h, S, strength) {
-  const out = new Uint8Array(S * S * 4);
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const dx = (h[y * S + Math.min(S - 1, x + 1)] - h[y * S + Math.max(0, x - 1)]) * strength;
-      const dy = (h[Math.min(S - 1, y + 1) * S + x] - h[Math.max(0, y - 1) * S + x]) * strength;
-      const len = Math.hypot(dx, dy, 1);
-      const o = (y * S + x) * 4;
-      out[o] = (-dx / len * 0.5 + 0.5) * 255;
-      out[o + 1] = (-dy / len * 0.5 + 0.5) * 255;
-      out[o + 2] = (1 / len * 0.5 + 0.5) * 255;
-      out[o + 3] = 255;
-    }
-  }
-  return out;
-}
-
-function dataTexture(bytes, S, { srgb = false } = {}) {
-  const t = new THREE.DataTexture(bytes, S, S, THREE.RGBAFormat);
-  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-  t.magFilter = THREE.LinearFilter;
-  t.minFilter = THREE.LinearMipmapLinearFilter;
-  t.generateMipmaps = true;
-  t.anisotropy = 8;
-  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.needsUpdate = true;
-  return t;
 }
 
 function canvasTexture(canvas, { srgb = true } = {}) {
@@ -78,17 +29,6 @@ function makeCanvas(w, h = w) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   return c;
-}
-
-function averageColor(image) {
-  const c = makeCanvas(8);
-  const g = c.getContext("2d");
-  g.drawImage(image, 0, 0, 8, 8);
-  const d = g.getImageData(0, 0, 8, 8).data;
-  let r = 0, gg = 0, b = 0;
-  for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; }
-  const n = d.length / 4;
-  return new THREE.Color().setRGB(r / n / 255, gg / n / 255, b / n / 255, THREE.SRGBColorSpace);
 }
 
 // ============================================================
@@ -172,131 +112,11 @@ function makeEnvironment(renderer) {
 }
 
 // ============================================================
-//  Paper: fine grain + fibres + ring wear (the circle a disc presses into
-//  a sleeve over the years). Used as a bump map on both sides of the sleeve.
-// ============================================================
-function paperBump(S = 1024) {
-  const rnd = mulberry32(21);
-  const h = new Float32Array(S * S);
-  for (let i = 0; i < h.length; i++) h[i] = rnd();
-  blur(h, S, 1);
-  for (let f = 0; f < 2600; f++) { // fibres
-    let x = rnd() * S, y = rnd() * S;
-    const a = rnd() * Math.PI, len = 4 + rnd() * 14, amp = (rnd() - 0.5) * 0.5;
-    for (let s = 0; s < len; s++) {
-      const xi = x | 0, yi = y | 0;
-      if (xi >= 0 && yi >= 0 && xi < S && yi < S) h[yi * S + xi] += amp;
-      x += Math.cos(a); y += Math.sin(a);
-    }
-  }
-  const R = S / 2;
-  const wearR = (DISC_R / SLEEVE) * S * 0.985;
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const d = Math.hypot(x + 0.5 - R, y + 0.5 - R);
-      const ring = Math.exp(-(((d - wearR) / 3) ** 2)) * 0.35 + Math.exp(-(((d - S * 0.165) / 3) ** 2)) * 0.12;
-      // sleeve slightly bulges where the disc sits
-      const bulge = d < wearR ? 0.12 * (1 - (d / wearR) ** 2) : 0;
-      h[y * S + x] = h[y * S + x] * 0.55 + ring + bulge;
-    }
-  }
-  const bytes = new Uint8Array(S * S * 4);
-  let min = Infinity, max = -Infinity;
-  for (const v of h) { if (v < min) min = v; if (v > max) max = v; }
-  for (let i = 0; i < h.length; i++) {
-    const v = ((h[i] - min) / (max - min)) * 255;
-    bytes[i * 4] = bytes[i * 4 + 1] = bytes[i * 4 + 2] = v;
-    bytes[i * 4 + 3] = 255;
-  }
-  return dataTexture(bytes, S);
-}
-
-// ============================================================
-//  Shrink-wrap: creases fanning from the corners, little wrinkles along
-//  the edges, and a soft pillowing across the face.
-// ============================================================
-function wrapNormal(S = 1024, seed = 3) {
-  const rnd = mulberry32(seed);
-  const h = new Float32Array(S * S);
-  const stamp = (x0, y0, ang, len, width, amp) => {
-    const steps = Math.ceil(len * 1.5);
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      const cx = x0 + Math.cos(ang) * len * t;
-      const cy = y0 + Math.sin(ang) * len * t;
-      const a = amp * Math.sin(Math.PI * Math.min(1, t * 1.15)); // fades at the ends
-      const w = Math.ceil(width);
-      for (let oy = -w; oy <= w; oy++) {
-        for (let ox = -w; ox <= w; ox++) {
-          const xi = (cx + ox) | 0, yi = (cy + oy) | 0;
-          if (xi < 0 || yi < 0 || xi >= S || yi >= S) continue;
-          const d = Math.hypot(ox, oy) / width;
-          if (d < 1) h[yi * S + xi] += a * (1 - d * d) * (1 - d * d) / steps * 6;
-        }
-      }
-    }
-  };
-  // corner fans
-  const corners = [[0, 0, 0], [S, 0, Math.PI / 2], [S, S, Math.PI], [0, S, -Math.PI / 2]];
-  for (const [cx, cy, base] of corners) {
-    for (let k = 0; k < 5; k++) {
-      const ang = base + 0.12 + rnd() * (Math.PI / 2 - 0.24);
-      // soft, wide folds where the plastic bunches at the corner (never thin spikes)
-      stamp(cx, cy, ang, S * (0.03 + rnd() * 0.1), 7 + rnd() * 7, (rnd() < 0.5 ? -1 : 1) * (0.18 + rnd() * 0.3));
-    }
-  }
-  // edge wrinkles
-  for (let k = 0; k < 24; k++) {
-    const side = (rnd() * 4) | 0, p = rnd() * S;
-    const [x0, y0, inward] = [[p, 0, Math.PI / 2], [S, p, Math.PI], [p, S, -Math.PI / 2], [0, p, 0]][side];
-    stamp(x0, y0, inward + (rnd() - 0.5) * 0.6, S * (0.01 + rnd() * 0.035), 6 + rnd() * 5, (rnd() - 0.5) * 0.4);
-  }
-  // a few long soft folds across the face
-  for (let k = 0; k < 5; k++) {
-    stamp(rnd() * S, rnd() * S, rnd() * Math.PI * 2, S * (0.15 + rnd() * 0.3), 10 + rnd() * 10, (rnd() - 0.5) * 0.5);
-  }
-  // pillowing
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const u = x / S, v = y / S;
-      h[y * S + x] += 0.6 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)
-        + 0.06 * Math.sin(u * 13 + v * 5) + 0.05 * Math.sin(v * 17 - u * 7);
-    }
-  }
-  blur(h, S, 5); // a little softer, so creases never read as flat facets
-
-  // Haze: the plastic is milky everywhere, and goes whiter where it creases or
-  // bunches up at the edges (stretched and folded film scatters more light).
-  // Two maps from the same creases: ridges whiten (haze), valleys darken (shade).
-  // Clear on flat plastic, so the artwork still shows through untouched.
-  const haze = new Uint8Array(S * S * 4);
-  const shade = new Uint8Array(S * S * 4);
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const i = y * S + x;
-      const lap =
-        h[y * S + Math.min(S - 1, x + 2)] + h[y * S + Math.max(0, x - 2)] +
-        h[Math.min(S - 1, y + 2) * S + x] + h[Math.max(0, y - 2) * S + x] - 4 * h[i];
-      const edge = Math.min(x, y, S - 1 - x, S - 1 - y) / S;
-      const ridge = Math.max(0, -lap), valley = Math.max(0, lap);
-      // the very border of the map is left clean: sampling past the edge reads as a fake
-      // fold there and draws a dark outline round the whole record
-      const inside = smoothstep(0.004, 0.03, edge);
-      const v = (Math.min(0.35, ridge * 12) + Math.max(0, 0.02 - edge) * 4) * Math.max(inside, 0.3);
-      const d = Math.min(0.3, valley * 10) * inside;
-      haze[i * 4] = haze[i * 4 + 1] = haze[i * 4 + 2] = Math.min(1, v) * 255;
-      shade[i * 4] = shade[i * 4 + 1] = shade[i * 4 + 2] = d * 255;
-      haze[i * 4 + 3] = shade[i * 4 + 3] = 255;
-    }
-  }
-  return { normal: dataTexture(heightToNormal(h, S, 7), S), haze: dataTexture(haze, S), shade: dataTexture(shade, S) };
-}
-
-// ============================================================
 //  Printed surfaces
 // ============================================================
 function frontCanvas(image) {
-  const S = 1024;
+  const iw0 = image.naturalWidth || image.width;
+  const S = iw0 >= 700 ? 1024 : 512; // small covers don't gain anything from a bigger texture
   const c = makeCanvas(S);
   const g = c.getContext("2d");
   const iw = image.naturalWidth || image.width, ih = image.naturalHeight || image.height;
@@ -317,34 +137,6 @@ function frontCanvas(image) {
     g.fillStyle = grd;
     g.fillRect(x - 22, y - 22, 44, 44);
   }
-  return c;
-}
-
-function backCanvas(rel, tint) {
-  const S = 1024;
-  const c = makeCanvas(S);
-  const g = c.getContext("2d");
-  const base = tint.clone().lerp(new THREE.Color(0x111112), 0.78);
-  g.fillStyle = `#${base.getHexString(THREE.SRGBColorSpace)}`;
-  g.fillRect(0, 0, S, S);
-  g.fillStyle = "rgba(235,235,230,0.85)";
-  g.font = "500 34px ui-monospace, Menlo, monospace";
-  g.fillText((rel.artist || "R4N").toUpperCase(), 70, 110);
-  g.font = "500 46px ui-monospace, Menlo, monospace";
-  g.fillText(rel.title.toUpperCase().slice(0, 30), 70, 170);
-  g.font = "24px ui-monospace, Menlo, monospace";
-  g.fillStyle = "rgba(235,235,230,0.6)";
-  g.fillText("SIDE A", 70, 270);
-  g.fillText(`A1  ${rel.title.toUpperCase().slice(0, 34)}`, 70, 310);
-  let y = 400;
-  for (const c2 of rel.credits || []) {
-    const names = c2.people.map((p) => p.name).join(", ");
-    if (!c2.role || !names) continue;
-    g.fillText(`${String(c2.role).toUpperCase()}: ${names}`.slice(0, 60), 70, y);
-    y += 40;
-  }
-  g.fillText(`℗ ${rel.date ? rel.date.slice(0, 4) + " " : ""}R4N`, 70, S - 80);
-  g.fillText("33⅓ RPM", S - 230, S - 80);
   return c;
 }
 
@@ -418,12 +210,38 @@ function flattenNormals(g, k) {
 // ============================================================
 //  Public API
 // ============================================================
-export function createShared(renderer) {
+// The textures every record shares (paper grain, shrink-wrap creases) are baked into assets/tex/
+// by scripts/bake-textures.mjs. Loaded once, in parallel with everything else.
+const TEX = "assets/tex/";
+function loadTexture(file) {
+  return new Promise((resolve, reject) => {
+    new THREE.TextureLoader().load(TEX + file, (t) => {
+      t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+      t.flipY = false; // the files are stored bottom row first, as the generators lay them out
+      t.anisotropy = 8;
+      resolve(t);
+    }, undefined, reject);
+  });
+}
+export const TEXTURE_COUNT = 7;
+export async function loadSharedTextures(onEach = () => {}) {
+  const one = (f) => loadTexture(f).then((t) => { onEach(); return t; });
+  const [paper, ...rest] = await Promise.all([
+    "paper.webp",
+    "wrap3-normal.webp", "wrap3-haze.webp", "wrap3-shade.webp",
+    "wrap11-normal.webp", "wrap11-haze.webp", "wrap11-shade.webp",
+  ].map(one));
+  return { paper, wraps: [0, 3].map((k) => ({ normal: rest[k], haze: rest[k + 1], shade: rest[k + 2] })) };
+}
+
+export function createShared(renderer, textures) {
   return {
     env: makeEnvironment(renderer),
-    paper: paperBump(),
+    paper: textures.paper,
     // crease texture for the reflections
-    wraps: [3, 11].map((seed) => wrapNormal(1024, seed)),
+    wraps: textures.wraps,
+    // the back of a sleeve can never come into view (the tilt is capped), so all records share a plain one
+    back: new THREE.MeshBasicMaterial({ color: 0x1a1a1c }),
     // rounded edges catch a soft line of light, which is most of what makes it read as an object
     sleeveGeo: pillowBox(SLEEVE, SLEEVE, SLEEVE_DEPTH),
     // the wrap hugs the same shape, a hair bigger: plastic pulled tight over the edges
@@ -438,8 +256,6 @@ export function createShared(renderer) {
 // The sleeve takes almost no light from the studio map, so in the dark it stays dark
 // and only the spotlight brings it out; the wrap keeps the reflections.
 export function buildRecord(rel, shared, index) {
-  const tint = averageColor(rel.image);
-
   const paper = {
     roughness: 0.6,
     bumpMap: shared.paper,
@@ -448,12 +264,11 @@ export function buildRecord(rel, shared, index) {
     envMapIntensity: 0,      // the print takes no colour from the studio lights: blacks stay black, whites stay white
   };
   const front = new THREE.MeshPhysicalMaterial({ map: canvasTexture(frontCanvas(rel.image)), ...paper });
-  const back = new THREE.MeshPhysicalMaterial({ map: canvasTexture(backCanvas(rel, tint)), ...paper, roughness: 0.7 });
   // box faces: +x, -x, +y, -y (the rounded edges, cover print wrapped round), +z (front), -z (back)
   // the edges: the same print, without the paper bump (stretched across the thin edge it would shade dark)
   const edge = front.clone();
-  edge.bumpMap = null;
-  const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, edge, edge, edge, front, back]);
+  edge.bumpScale = 0; // (bump switched off, not removed: same shader as the front, one less to prepare)
+  const sleeve = new THREE.Mesh(shared.sleeveGeo, [edge, edge, edge, edge, front, shared.back]);
   sleeve.castShadow = true;
   sleeve.receiveShadow = true;
 

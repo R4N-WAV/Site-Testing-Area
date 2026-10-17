@@ -15,15 +15,28 @@
   <link rel="icon" type="image/png" href="assets/icon.png" />
   <link rel="preload" as="image" href="assets/logo-white.png" />
   <!-- ?v= numbers force browsers to fetch fresh files after each update -->
-  <link rel="stylesheet" href="css/site.css?v=20261016223934" />
+  <link rel="stylesheet" href="css/site.css?v=20261017073339" />
   <script type="importmap">
     { "imports": {
         "three": "./vendor/three.module.min.js",
-        "./js/data.js": "./js/data.js?v=20261016223934",
-        "./js/materials.js": "./js/materials.js?v=20261016223934",
-        "./js/access.js": "./js/access.js?v=20261016223934"
+        "./js/data.js": "./js/data.js?v=20261017073339",
+        "./js/materials.js": "./js/materials.js?v=20261017073339",
+        "./js/access.js": "./js/access.js?v=20261017073339"
     } }
   </script>
+  <!-- fetch everything the site needs at once, instead of one after another -->
+  <link rel="modulepreload" href="./vendor/three.module.min.js" />
+  <link rel="modulepreload" href="./js/site.js?v=20261017073339" />
+  <link rel="modulepreload" href="./js/data.js?v=20261017073339" />
+  <link rel="modulepreload" href="./js/materials.js?v=20261017073339" />
+  <link rel="modulepreload" href="./js/access.js?v=20261017073339" />
+  <link rel="preload" href="assets/tex/paper.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap3-normal.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap3-haze.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap3-shade.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap11-normal.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap11-haze.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap11-shade.webp" as="image" crossorigin />
 </head>
 <body>
   <canvas id="space" aria-hidden="true"></canvas>
@@ -96,13 +109,17 @@
     </div>
   </section>
 
-  <div class="loader" id="loader" role="status" aria-label="Loading">
+  <div class="loader" id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
     <img class="loader__logo" id="loaderLogo" src="assets/logo-white.png" alt="R4N" />
+    <div class="loader__progress" aria-hidden="true">
+      <div class="loader__track"><div class="loader__fill" id="loaderFill"></div></div>
+      <span class="loader__pct" id="loaderPct">0%</span>
+    </div>
     <p class="loader__note" id="loaderNote"></p>
   </div>
 
   <noscript><p class="noscript">This site needs JavaScript. Find R4N on <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr">Spotify</a>.</p></noscript>
 
-  <script type="module" src="js/site.js?v=20261016223934"></script>
+  <script type="module" src="js/site.js?v=20261017073339"></script>
 </body>
 </html>

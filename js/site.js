@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, formatDate } from "./data.js";
-import { createShared, buildRecord, SLEEVE } from "./materials.js";
+import { createShared, buildRecord, loadSharedTextures, TEXTURE_COUNT, SLEEVE } from "./materials.js";
 import { initAccess } from "./access.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
@@ -54,11 +54,16 @@ const springState = (x = 0) => ({ x, v: 0 });
 // ============================================================
 //  THE SPACE
 // ============================================================
-function startSpace(releases, ui) {
+// Phones and tablets: no cast shadows (two extra renders of the scene every frame), and a lower
+// pixel budget. Everything else looks the same.
+const lowPower = window.matchMedia("(pointer: coarse)").matches || isPhone();
+
+function startSpace(releases, ui, textures) {
   const canvas = $("space");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   // sharp on retina screens, but capped so big displays stay smooth
-  const pixelRatio = () => Math.min(window.devicePixelRatio, 2, Math.sqrt(3.6e6 / (window.innerWidth * window.innerHeight)));
+  let pixelCap = lowPower ? 1.75 : 2; // lowered further if this device can't keep up (see "keeping it smooth")
+  const pixelRatio = () => Math.min(window.devicePixelRatio, pixelCap, Math.sqrt(3.6e6 / (window.innerWidth * window.innerHeight)));
   renderer.setPixelRatio(pixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.autoClear = false; // two passes per frame: the tunnel, then the opened record on top
@@ -71,7 +76,7 @@ function startSpace(releases, ui) {
   const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.05, 100);
   scene.add(camera);
 
-  const shared = createShared(renderer);
+  const shared = createShared(renderer, textures);
   scene.environment = shared.env;
 
   // ---------- light: a bright white room, light from everywhere ----------
@@ -91,17 +96,17 @@ function startSpace(releases, ui) {
     const lamp = new THREE.SpotLight(0xffffff, 1.75, 0, THREE.MathUtils.degToRad(50), 0.7, 0);
     lamp.position.set(side * 0.2, 0.05, 4);
     lamp.target.position.set(side * 0.2, 0.05, -10);
-    lamp.castShadow = true;
+    lamp.castShadow = !lowPower;
     lamp.shadow.mapSize.set(1024, 1024);
     lamp.shadow.camera.near = 0.5;
     lamp.shadow.camera.far = 22;
-    lamp.shadow.bias = -0.0005;
-    lamp.shadow.normalBias = 0.02;
+    lamp.shadow.bias = -0.0015;
+    lamp.shadow.normalBias = 0.045; // keeps a sleeve from shadowing itself in fine stripes
     lamp.shadow.radius = 9;
     scene.add(lamp, lamp.target);
     return lamp;
   });
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = !lowPower;
   renderer.shadowMap.type = THREE.PCFShadowMap; // with a radius: soft-edged
   renderer.shadowMap.autoUpdate = false; // drawn once per frame, before the first pass (not again for the second)
   scene.fog = new THREE.Fog(BG, 4.5, 13);
@@ -180,24 +185,30 @@ function startSpace(releases, ui) {
   const sizeOf = () => (phone() ? 0.62 : 1);
   // On tall, narrow screens the tunnel is centred on what you see: the gap between the front record
   // and its edge of the screen matches the gap between the next record and the other edge. The front
-  // record swaps sides as you scroll, so the shift follows, like a gentle camera sway.
-  function phoneShift() {
+  // record swaps sides from one record to the next, so the centring glides across after it (see
+  // "centring" in the frame loop): smoothly, at its own unhurried pace, and never during the dive.
+  function centringFor(index) {
     const tanA = Math.tan(THREE.MathUtils.degToRad(baseFov / 2)) * camera.aspect;
     const half = sizeOf() * 0.5 * Math.cos(0.38);
     const w = wall();
     const hwNear = near() * tanA, hwFar = (near() + SPACING) * tanA;
     const xNear = -(w + half), xFar = w - 0.015 + half; // outer edges: the front record, and the next one across
     const ox = -(xNear / hwNear + xFar / hwFar) / (1 / hwNear + 1 / hwFar);
-    return ox * Math.cos(Math.PI * clamp(focus.x, 0, count() - 1));
+    return Math.round(index) % 2 === 0 ? ox : -ox; // front record on the left: shift right, and back
   }
+  const centring = springState(0);
+  // While diving between MY SONGS and WORKED ON, the walls open outward, so you fly straight down a
+  // clear corridor instead of weaving between records passing close to the middle (0 = closed).
+  let diveOpen = 0;
   function layout(d, i, outP, outR) {
     const side = i % 2 === 0 ? -1 : 1;           // first record on the left, then right, ...
     const dist = near() + d * SPACING;
     const passing = Math.max(0, -d);             // records behind you slide out to the side
     // records further down creep a little toward the middle, so they peek out from behind the one in front
-    const creep = clamp(d, 0, 6) * (phone() ? 0.015 : 0.045);
+    const creep = clamp(d, 0, 6) * (phone() ? 0.015 : 0.045) * (1 - diveOpen);
+    const opened = diveOpen * (phone() ? 0.9 : 0.5) * (1 + 0.15 * clamp(d, 0, 6));
     outP.set(
-      camera.position.x + (phone() ? phoneShift() : 0.24) + side * (wall() - creep + passing * 0.9),
+      camera.position.x + (phone() ? centring.x : 0.24) + side * (wall() - creep + opened + passing * 0.9),
       camera.position.y - 0.05 + (i % 2 ? 0.04 : 0),
       camera.position.z - dist
     );
@@ -218,6 +229,7 @@ function startSpace(releases, ui) {
     camera.updateMatrixWorld();
   }
   placeCamera();
+  centring.x = phone() ? centringFor(0) : 0; // starts in place, no drift on arrival
 
   let focusIndex = 0;
   const focus = springState(0);
@@ -270,14 +282,14 @@ function startSpace(releases, ui) {
       const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
       drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
       if (drag.moved > 6) {
-        // sideways drags and up/down swipes both move along the row, following the finger
-        const d = Math.abs(dx) >= Math.abs(dy) ? -dx : dy;
+        // Sideways drags and up/down swipes both move along the tunnel, following the finger, the way
+        // phones scroll: swipe up (or left) to go further in, down (or right) to come back.
+        const d = Math.abs(dx) >= Math.abs(dy) ? -dx : -dy;
         const now = performance.now();
-        const stepD = (Math.abs(dx) >= Math.abs(dy) ? -(e.clientX - drag.last) : e.clientY - drag.lastY) / pxPerRecord();
+        const stepD = -(Math.abs(dx) >= Math.abs(dy) ? e.clientX - drag.last : e.clientY - drag.lastY) / pxPerRecord();
         drag.v = drag.v * 0.6 + (stepD / Math.max(0.008, (now - drag.t) / 1000)) * 0.4;
         drag.last = e.clientX; drag.lastY = e.clientY; drag.t = now;
-        focus.x = clamp(drag.start + d / pxPerRecord(), -0.35, count() - 0.65);
-        focus.v = 0;
+        drag.goal = clamp(drag.start + d / pxPerRecord(), -0.35, count() - 0.65);
         setHovered(-1);
       }
       return;
@@ -292,12 +304,13 @@ function startSpace(releases, ui) {
     const wasDrag = drag.moved > 6;
     const v = drag.v;
     const drag0 = drag.start;
+    const goal = drag.goal ?? focus.x;
     drag = null;
     if (wasDrag) {
       // land on the record the flick was heading for
       // a flick moves at most one record from where the drag started
       const start = Math.round(drag0);
-      const target = Math.round(focus.x + clamp(v * 0.12, -0.6, 0.6));
+      const target = Math.round(goal + clamp(v * 0.12, -0.6, 0.6));
       focusOn(clamp(target, start - 1, start + 1));
       return;
     }
@@ -452,11 +465,30 @@ function startSpace(releases, ui) {
   let paused = false;
   let captureWaiters = [];
 
+  // Keeping it smooth: if this device can't hold a steady frame rate, the picture is drawn at a
+  // slightly lower resolution (a step at a time, never below 1x). Slow frames are what make motion
+  // look jittery, much more than a little softness does.
+  let frameAvg = 1 / 60, slowFor = 0, settleFor = 2;
+  function keepSmooth(raw) {
+    if (raw > 0.25) return; // the tab was hidden, or a one-off hitch: not a measurement
+    frameAvg += (raw - frameAvg) * 0.05;
+    if (settleFor > 0) { settleFor -= raw; return; }
+    slowFor = frameAvg > 1 / 42 ? slowFor + raw : 0;
+    if (slowFor > 1.5 && pixelCap > 1) {
+      pixelCap = Math.max(1, pixelCap - 0.25);
+      renderer.setPixelRatio(pixelRatio());
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      slowFor = 0; settleFor = 2.5; frameAvg = 1 / 60;
+    }
+  }
+
   // the scene's own time: it stands still while paused, so the page comes back exactly as it was left
   let sceneTime = 0;
   function frame() {
     if (paused) { clock.getDelta(); requestAnimationFrame(frame); return; }
-    const dt = Math.min(clock.getDelta(), window.__maxDt || 1 / 30); // __maxDt: only set by automated tests on slow machines
+    const raw = clock.getDelta();
+    const dt = Math.min(raw, window.__maxDt || 1 / 30); // __maxDt: only set by automated tests on slow machines
+    keepSmooth(raw);
     sceneTime += dt;
     const t = sceneTime;
     const open = selected !== -1;
@@ -486,10 +518,21 @@ function startSpace(releases, ui) {
         if (k >= 1) warp = null;
       }
     }
-    camera.fov = baseFov + warpKick * 22;
+    camera.fov = baseFov + warpKick * (phone() ? 12 : 22); // a smaller kick on phones: less sideways whip
+    diveOpen = warpKick;
     camera.updateProjectionMatrix();
 
-    if (!drag && !(warp && warp.phase === "out")) spring(focus, travel, warp ? 4.2 : (reducedMotion ? 30 : 6.5), dt);
+    if (drag && drag.goal !== undefined) spring(focus, drag.goal, 24, dt); // follows the finger, minus its jitter
+    else if (!drag && !(warp && warp.phase === "out")) spring(focus, travel, warp ? 4.2 : (reducedMotion ? 30 : 6.5), dt);
+
+    // centring (phones): glides after the record you're at; holds still through the dive, then
+    // eases once to where the new tunnel needs it
+    if (phone()) {
+      const goal = warp
+        ? (warp.phase === "out" ? centring.x : centringFor(0))
+        : centringFor(drag && drag.goal !== undefined ? clamp(drag.goal, 0, count() - 1) : travel);
+      spring(centring, goal, reducedMotion ? 30 : 3.2, dt);
+    }
     if (!tilting) tiltGoal.multiplyScalar(Math.exp(-dt * 3.2));
     spring(heroTilt.x, tiltGoal.x, 9, dt);
     spring(heroTilt.y, tiltGoal.y, 9, dt);
@@ -607,13 +650,56 @@ function startSpace(releases, ui) {
       if (!animate || reducedMotion) { applyOrder(visible); focusOn(0); return; }
       warp = { phase: "out", t: 0, from: focus.x, next: visible.slice() };
     },
-    // the very first frame, so the loader can wait until the scene is really on screen
-    firstFrame: () => new Promise((resolve) => {
+    // Prepares every shader before the first frame (in the background, where the browser can),
+    // so the loader keeps moving and the tunnel doesn't stutter when it first appears.
+    async firstFrame(onProgress = () => {}) {
+      // One step at a time, with a frame in between, so the loader keeps moving even in browsers
+      // that prepare shaders on the main thread: textures first, then each kind of surface.
+      const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+      const textures = new Set(), meshes = [];
+      scene.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of [].concat(o.material)) for (const key of ["map", "bumpMap", "normalMap", "alphaMap"]) if (m[key]) textures.add(m[key]);
+      });
+      items[0].holder.traverse((o) => { if (o.isMesh) meshes.push(o); });
+      meshes.push(veil);
+      const steps = textures.size + meshes.length + 1;
+      // in the background where the browser supports it; otherwise the plain way (same result)
+      const parallel = renderer.extensions.has("KHR_parallel_shader_compile");
+      const prepare = (obj, target) => (parallel ? renderer.compileAsync(obj, camera, target) : Promise.resolve(renderer.compile(obj, camera, target)));
+      let k = 0;
+      for (const t of textures) {
+        renderer.initTexture(t);
+        if (++k % 3 === 0) { onProgress(k / steps); await nextFrame(); }
+      }
+      // Drawing each kind of surface once is what really finishes its shader (browsers only complete
+      // the work when a shader is first used), so each step takes its share of the time, instead of
+      // all of it landing on the first frame. Drawn to the screen (an off-screen target would use
+      // different shaders), clipped to one pixel, behind the loader.
+      const WARM = 3;
+      renderer.setScissorTest(true);
+      renderer.setScissor(0, 0, 1, 1);
+      for (const m of meshes) {
+        try { await prepare(m, scene); } catch { /* finished by the draw below */ }
+        const mask = m.layers.mask;
+        m.layers.set(WARM);
+        camera.layers.set(WARM);
+        renderer.shadowMap.needsUpdate = false;
+        renderer.render(scene, camera);
+        m.layers.mask = mask;
+        camera.layers.set(0);
+        onProgress(++k / steps);
+        await nextFrame();
+      }
+      renderer.setScissorTest(false);
+      try { await prepare(scene); } catch { /* the rest share what's ready */ }
+      onProgress(1);
       renderer.clear();
       renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera);
-      requestAnimationFrame(() => { requestAnimationFrame(frame); resolve(); });
-    }),
+      await new Promise((r) => requestAnimationFrame(r));
+      requestAnimationFrame(frame);
+    },
   };
 }
 
@@ -855,17 +941,46 @@ function buildUI(releases) {
 //  LOADER: the white logo pulses softly while the page loads,
 //  then fades away.
 // ============================================================
+// The loader shows how far along it is: a hairline under the logo and a percentage. Each step
+// sets where it has got to and how far that step can take it; in between, it creeps on slowly so
+// it never sits still, and it only reaches 100 % when the tunnel is really on screen.
 function makeLoader() {
   const startedAt = performance.now();
+  const root = $("loader"), fill = $("loaderFill"), pct = $("loaderPct");
+  let shown = 0, target = 0, ceiling = 0, running = true, rate = 0.12;
+  fill.style.animation = "none"; // the CSS boot creep hands over to the real progress
+  const tick = () => {
+    if (target < ceiling) target += (ceiling - target) * 0.01;
+    shown += (target - shown) * rate;
+    fill.style.transform = `scaleX(${(shown / 100).toFixed(4)})`;
+    const n = Math.min(100, Math.round(shown));
+    pct.textContent = `${n}%`;
+    root.setAttribute("aria-valuenow", String(n));
+    if (running) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  const reachedFull = () => new Promise((resolve) => {
+    const check = () => (shown > 99.4 ? resolve() : requestAnimationFrame(check));
+    check();
+  });
   return {
+    // "we're at p %, and this step can take us up to ceil %"
+    at(p, ceil = p) {
+      target = Math.max(target, p);
+      ceiling = Math.max(ceiling, ceil, target);
+    },
     async finish() {
-      // let it pulse at least a couple of times, so it never just blinks past
-      const left = (reducedMotion ? 0 : 2400) - (performance.now() - startedAt);
+      target = ceiling = 100;
+      rate = 0.3; // fills the rest briskly, then fades
+      await Promise.race([reachedFull(), wait(600)]);
+      // never just blinks past
+      const left = (reducedMotion ? 0 : 900) - (performance.now() - startedAt);
       if (left > 0) await wait(left);
-      $("loader").classList.add("is-leaving");
+      running = false;
+      root.classList.add("is-leaving");
       document.body.classList.add("is-loaded");
-      await wait(reducedMotion ? 0 : 1300);
-      $("loader").classList.add("is-done");
+      await wait(reducedMotion ? 0 : 800);
+      root.classList.add("is-done");
     },
   };
 }
@@ -878,15 +993,30 @@ async function main() {
   window.addEventListener("resize", applyHeroLayout);
   const loader = makeLoader();
 
-  const releases = await loadAllReleases();
+  // 1. downloads, side by side: the songs (list, info, covers) and the textures for the records
+  const can3D = webglAvailable();
+  let songs = 0, tex = 0;
+  const net = () => loader.at(6 + 49 * (can3D ? songs * 0.6 + tex * 0.4 : songs), 58);
+  loader.at(6, 30);
+  const texturesP = can3D
+    ? loadSharedTextures(() => { tex += 1 / TEXTURE_COUNT; net(); }).catch((err) => { console.error(err); return null; })
+    : Promise.resolve(null);
+  const releases = await loadAllReleases((done, total) => { songs = done / total; net(); });
+  const textures = await texturesP;
   const ui = buildUI(releases);
 
   let has3D = false;
   let space = null;
-  if (webglAvailable() && releases.length) {
+  if (can3D && textures && releases.length) {
     try {
-      space = startSpace(releases, ui);
-      await space.firstFrame();
+      // 2. building the records, then 3. preparing the graphics
+      loader.at(60, 66);
+      // two frames, so the loader has painted its new position before the building starts
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      space = startSpace(releases, ui, textures);
+      loader.at(68, 72);
+      await space.firstFrame((f) => loader.at(68 + 28 * f, 68 + 28 * Math.min(1, f + 0.12)));
+      loader.at(98);
       ui.attach(space);
       has3D = true;
     } catch (err) {

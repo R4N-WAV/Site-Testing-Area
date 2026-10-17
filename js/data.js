@@ -1,11 +1,8 @@
 // Finds the release folders and reads their info.json + cover art.
 
-// githubRepo lets the site see new folders in releases/ the moment they're on
-// GitHub, even before releases/index.json is rebuilt. If the site moves to
-// another repo, change this line.
+// releases/index.json lists the release folders. GitHub rebuilds it by itself within a minute of
+// any change to releases/ (.github/workflows/releases.yml), so it's the only list the site needs.
 export const CONFIG = {
-  githubRepo: "R4N-WAV/Site-Testing-Area",
-  branch: "main",
   releasesDir: "releases",
 };
 
@@ -35,36 +32,9 @@ async function fetchJSON(url, timeoutMs = 6000) {
   }
 }
 
-function storageGet(key) {
-  try { return JSON.parse(sessionStorage.getItem(key) || "null"); } catch { return null; }
-}
-function storageSet(key, val) {
-  try { sessionStorage.setItem(key, JSON.stringify(val)); } catch { /* private mode etc. */ }
-}
-
-// Folder names straight from GitHub, so a newly added folder shows up without a rebuild.
-// Cached for 10 minutes per visitor to stay well inside GitHub's rate limit.
-async function listFoldersOnGitHub() {
-  if (!CONFIG.githubRepo || location.protocol === "file:") return [];
-  const cacheKey = `r4n:folders:${CONFIG.githubRepo}`;
-  const cached = storageGet(cacheKey);
-  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.names;
-  const url = `https://api.github.com/repos/${CONFIG.githubRepo}/contents/${CONFIG.releasesDir}?ref=${CONFIG.branch}`;
-  const entries = await fetchJSON(url, 2500); // only an extra: index.json already lists every folder
-  const names = entries.filter((e) => e.type === "dir").map((e) => e.name);
-  storageSet(cacheKey, { at: Date.now(), names });
-  return names;
-}
-
 async function discoverFolders() {
-  const found = new Set();
-  const [manifest, live] = await Promise.allSettled([
-    fetchJSON(`${CONFIG.releasesDir}/index.json`),
-    listFoldersOnGitHub(),
-  ]);
-  if (manifest.status === "fulfilled") (manifest.value.releases || []).forEach((n) => found.add(n));
-  if (live.status === "fulfilled") live.value.forEach((n) => found.add(n));
-  return [...found].filter((n) => n && !n.startsWith("_") && !n.startsWith("."));
+  const manifest = await fetchJSON(`${CONFIG.releasesDir}/index.json`);
+  return [...new Set(manifest.releases || [])].filter((n) => n && !n.startsWith("_") && !n.startsWith("."));
 }
 
 // A person (or a list of them), as written in info.json, made safe to use: always a list of
@@ -148,15 +118,23 @@ function sortReleases(list) {
   return list.sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title));
 }
 
-export async function loadAllReleases() {
+// onProgress(done, total) is called as each piece arrives (the list, then each song's info and cover).
+export async function loadAllReleases(onProgress = () => {}) {
   const folders = await discoverFolders();
-  const loaded = await Promise.all(folders.map((f) => loadRelease(f).catch((err) => {
-    console.warn(`Skipping releases/${f}:`, err.message);
-    return null;
-  })));
-  const releases = sortReleases(loaded.filter(Boolean));
-  await Promise.all(releases.map(loadCover));
-  return releases;
+  const total = 1 + folders.length * 2;
+  let done = 1;
+  onProgress(done, total);
+  const tick = () => onProgress(++done, total);
+  // each song's cover starts loading the moment its info arrives
+  const loaded = await Promise.all(folders.map(async (f) => {
+    let rel = null;
+    try { rel = await loadRelease(f); } catch (err) { console.warn(`Skipping releases/${f}:`, err.message); }
+    tick();
+    if (rel) await loadCover(rel);
+    tick();
+    return rel;
+  }));
+  return sortReleases(loaded.filter(Boolean));
 }
 
 // ---------- text helpers (description supports [text](url), **bold** and new lines) ----------
