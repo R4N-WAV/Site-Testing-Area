@@ -10,7 +10,8 @@ Step-by-step guide (works from the GitHub website on a phone): [releases/README.
 
 ## ACCESS
 
-The faint ACCESS text in the bottom-right corner (desktop only) opens a password-protected page.
+The faint ACCESS text in the bottom-right corner (on phones: in the top bar, next to INDEX) opens a
+password-protected page.
 Its contents only ever exist in this repository encrypted (`vault/`); without the password there
 is nothing readable to find, in the files or in the code. To change what's inside or the password,
 use `scripts/vault.mjs` (instructions at the top of that file; needs Node 18+ and the password).

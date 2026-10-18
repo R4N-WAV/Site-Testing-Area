@@ -1,4 +1,4 @@
-// ACCESS: a private page behind a password (desktop only).
+// ACCESS: a private page behind a password.
 //
 // Nothing about the private page is in this file or anywhere else in the site's code. The page
 // itself (its layout, text, images and downloads) is stored in vault/ as AES-256-GCM ciphertext.
@@ -19,6 +19,8 @@ const TAU = Math.PI * 2;
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// phones and tablets: an on-screen keyboard comes and goes, changing the window's height
+const touchScreen = () => window.matchMedia("(hover: none), (pointer: coarse)").matches;
 const wait = (ms) => new Promise((r) => setTimeout(r, reducedMotion ? 0 : ms));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const ease = {
@@ -47,7 +49,7 @@ export function initAccess({ space }) {
 
   // idle → opening → locked ⇄ checking → unlocked → entering → hub → leaving → idle
   let phase = "idle";
-  let W = 0, H = 0, S = 1;
+  let W = 0, H = 0, S = 1, touch = false;
   let snap = null, dots = [], slots = [], bar = null, spacing = 10;
   let raf = 0;
   let snapAlpha = 0, bgAlpha = 1;
@@ -182,12 +184,15 @@ export function initAccess({ space }) {
     for (const d of dots) d.base = d.col;
   }
 
-  // the bar: a halftone, large dots round its edge, fine ones in the middle where the text goes
+  // the bar: a halftone, large dots round its edge, fine ones in the middle where the text goes.
+  // On touch screens it sits higher, clear of the keyboard that comes up when you type.
   function buildBar() {
-    const bw = clamp(W * 0.38, 340, 560), bh = 76;
-    bar = { x: (W - bw) / 2, y: (H - bh) / 2, w: bw, h: bh };
+    const bw = Math.min(W - 48, clamp(W * 0.38, 340, 560)), bh = 76;
+    const cy = Math.round(touch ? H * 0.36 : H / 2);
+    bar = { x: (W - bw) / 2, y: cy - bh / 2, w: bw, h: bh };
     root.style.setProperty("--bar-w", `${bw}px`);
     root.style.setProperty("--bar-h", `${bh}px`);
+    root.style.setProperty("--bar-cy", `${cy}px`);
     const ss = 5.4, rowH = ss * 0.866;
     const nRows = Math.floor(bh / rowH), nCols = Math.floor(bw / ss);
     const oy = bar.y + (bh - (nRows - 1) * rowH) / 2, ox = bar.x + (bw - (nCols - 0.5) * ss) / 2;
@@ -320,7 +325,9 @@ export function initAccess({ space }) {
     phase = "opening";
     loadHubBytes().catch(() => {});
     W = window.innerWidth; H = window.innerHeight; S = Math.min(window.devicePixelRatio || 1, 2);
+    touch = touchScreen();
     canvas.width = Math.round(W * S); canvas.height = Math.round(H * S);
+    canvas.style.width = `${W}px`; canvas.style.height = `${H}px`;
     snap = await makeSnapshot();
     space?.setPaused(true);
     buildDots();
@@ -352,7 +359,10 @@ export function initAccess({ space }) {
     input.hidden = false;
     goBtn.hidden = true;
     input.value = "";
-    input.focus();
+    // phones only bring up the keyboard for a tap, not for focus() after an animation: ask for one
+    // (and leave the field unfocused, so the hint shows)
+    input.placeholder = touch ? "TAP TO TYPE" : "";
+    if (!touch) input.focus();
   }
 
   async function close() {
@@ -627,7 +637,7 @@ export function initAccess({ space }) {
     if (phase !== "hub") return;
     phase = "leaving";
     const logo = hubInstance?.logo?.getBoundingClientRect();
-    const sameSize = W === window.innerWidth && H === window.innerHeight;
+    const sameSize = W === window.innerWidth && (touch || H === window.innerHeight);
     root.hidden = false;
     root.classList.remove("is-ready");
     snapAlpha = 0;
@@ -677,8 +687,11 @@ export function initAccess({ space }) {
     else if (e.key === "ArrowRight" && phase === "unlocked") { e.preventDefault(); enter(); }
   });
   window.addEventListener("resize", () => {
-    // the dots are laid out for one window size: a resize while the field is up just closes it
+    // the dots are laid out for one window size: a resize while the field is up just closes it.
+    // On touch screens only a new width counts (turning the phone): the keyboard and the browser's
+    // bars change the height all the time, and the canvas keeps its size in pixels through that.
     if (phase === "locked" || phase === "unlocked") {
+      if (touch && window.innerWidth === W) return;
       forget();
       for (const d of dots) d.anim = null;
       tweens.length = 0;

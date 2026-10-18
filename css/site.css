@@ -284,7 +284,7 @@ body.detail-open .modeToggle{opacity:0;pointer-events:none;transition-delay:0s;}
 #hoverTitle{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;}
 #hoverArtist{font-size:10px;letter-spacing:1px;color:var(--muted);}
 
-/* ---------- ACCESS (desktop only): barely there, bottom right ---------- */
+/* ---------- ACCESS: barely there, bottom right (on phones: in the top bar, beside INDEX) ---------- */
 .accessBtn{
   position:fixed;right:var(--pad);bottom:18px;z-index:40;
   font-size:10px;letter-spacing:3.2px;padding:8px 0;
@@ -294,13 +294,19 @@ body.detail-open .modeToggle{opacity:0;pointer-events:none;transition-delay:0s;}
 body.is-loaded .accessBtn{opacity:1;pointer-events:auto;}
 .accessBtn:hover{color:rgba(17,17,18,0.55);}
 body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessBtn{opacity:0;pointer-events:none;transition-delay:0s;}
-@media (max-width:900px),(hover:none){.accessBtn{display:none;}}
+/* touch screens have no hover to bring it up, so it starts a touch darker */
+@media (hover:none){.accessBtn{color:rgba(17,17,18,0.32);}}
+@media (max-width:768px){
+  .accessBtn{position:static;order:1;margin-left:auto;margin-right:22px;padding:8px 4px;font-size:11px;letter-spacing:2.8px;}
+  #indexBtn{order:2;}
+}
 
 /* the page in pieces, then the single field it collapses into */
-.access{position:fixed;inset:0;z-index:900;background:var(--bg);}
-.access__canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.access{position:fixed;inset:0;z-index:900;background:var(--bg);overflow:hidden;}
+/* sized in pixels when it opens (js/access.js), so a phone keyboard resizing the window can't squash it */
+.access__canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block;}
 .access__field{
-  position:absolute;left:50%;top:50%;
+  position:absolute;left:50%;top:var(--bar-cy,50%);
   width:var(--bar-w,480px);height:var(--bar-h,72px);
   transform:translate(-50%,-50%) translateX(var(--shake,0px));
   display:flex;align-items:center;
@@ -315,6 +321,10 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
   /* a soft halo keeps what's typed readable over dark pieces */
   text-shadow:0 0 2px var(--bg),0 0 6px var(--bg),0 0 12px var(--bg);
 }
+/* phones: a hint to tap (they don't open the keyboard by themselves), and 16px so iOS doesn't zoom in */
+.access__input::placeholder{color:var(--muted);font-size:10px;letter-spacing:3px;opacity:1;}
+.access__input:focus::placeholder{color:transparent;}
+@media (pointer:coarse){.access__input{font-size:16px;letter-spacing:4px;}}
 .access__go{
   position:absolute;inset:0;width:100%;
   font-size:22px;color:var(--fg);letter-spacing:0;
@@ -323,7 +333,7 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
 }
 @keyframes goPulse{0%,100%{opacity:.45;}50%{opacity:1;}}
 .access__note{
-  position:absolute;left:0;right:0;top:calc(50% + var(--bar-h,72px) / 2 + 22px);
+  position:absolute;left:0;right:0;top:calc(var(--bar-cy,50%) + var(--bar-h,72px) / 2 + 22px);
   text-align:center;font-size:10px;letter-spacing:3px;color:var(--muted);
   min-height:1em;
 }
@@ -336,7 +346,7 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
    (its words arrive with the sealed page; same proportions as that logo, so it lands exactly) */
 .flyTitle{
   position:fixed;left:0;top:0;z-index:910;pointer-events:none;transform-origin:0 0;
-  font-size:clamp(44px,7.4vw,124px);line-height:1;white-space:nowrap;
+  font-size:clamp(24px,7.4vw,124px);line-height:1;white-space:nowrap;
   opacity:0;transition:opacity .45s var(--ease);
 }
 .flyTitle.is-on{opacity:1;}
