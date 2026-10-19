@@ -29,3 +29,8 @@ Plain HTML, CSS and JavaScript, no build step. Served by GitHub Pages from the `
 - `scripts/build-releases.mjs` + `.github/workflows/releases.yml`: keep `releases/index.json` up to date
 
 After changing CSS or JavaScript, bump the `?v=` numbers in `index.html` so browsers fetch the new files.
+
+The tunnel adjusts itself to the device: if frames come too slowly it draws at a lower resolution
+and, if needed, without the soft shadows (`js/site.js`, "keeping it smooth"). To see how it's running
+in a browser, add `?perf` to the address (for example `https://www.r4n.no/?perf`): a small readout
+shows the frame rate, the resolution, whether shadows are on, and which graphics chip the browser uses.

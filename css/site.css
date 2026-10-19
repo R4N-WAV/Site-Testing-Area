@@ -372,3 +372,9 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
 .flyTitle__layer--plain .flyTitle__words{color:rgba(17,17,18,.42);}
 .flyTitle__layer--plain .flyTitle__mark{background:rgba(17,17,18,.32);}
 body.no3d .index__close{display:none;}
+
+/* ?perf: how the tunnel is running (frame rate, resolution, shadows, graphics chip) */
+.perfReadout{
+  position:fixed;left:var(--pad);bottom:56px;z-index:1001;max-width:min(560px,calc(100vw - 2 * var(--pad)));
+  padding:8px 10px;background:rgba(17,17,18,.82);color:#f6f6f4;font:10px/1.5 var(--mono);white-space:pre-wrap;pointer-events:none;
+}

@@ -465,21 +465,91 @@ function startSpace(releases, ui, textures) {
   let paused = false;
   let captureWaiters = [];
 
-  // Keeping it smooth: if this device can't hold a steady frame rate, the picture is drawn at a
-  // slightly lower resolution (a step at a time, never below 1x). Slow frames are what make motion
-  // look jittery, much more than a little softness does.
-  let frameAvg = 1 / 60, slowFor = 0, settleFor = 2;
-  function keepSmooth(raw) {
-    if (raw > 0.25) return; // the tab was hidden, or a one-off hitch: not a measurement
-    frameAvg += (raw - frameAvg) * 0.05;
-    if (settleFor > 0) { settleFor -= raw; return; }
-    slowFor = frameAvg > 1 / 42 ? slowFor + raw : 0;
-    if (slowFor > 1.5 && pixelCap > 1) {
-      pixelCap = Math.max(1, pixelCap - 0.25);
-      renderer.setPixelRatio(pixelRatio());
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      slowFor = 0; settleFor = 2.5; frameAvg = 1 / 60;
+  // Keeping it smooth. Frames are timed in spells of about a second. If this device can't hold a
+  // steady frame rate, the picture gets cheaper to draw, in steps: on sharp (retina) screens less
+  // resolution first, down to 1x; then no cast shadows; then softer than 1x (never below 0.5x).
+  // It takes as many steps at once as the gap asks for, so a slow machine is smooth within seconds.
+  // Slow frames are what make motion look jittery, much more than a little softness does.
+  // A step that doesn't make frames faster is undone and the adjusting stops: then something else
+  // limits the frame rate (a battery or energy saver, a busy computer) and a softer picture
+  // wouldn't help.
+  const SLOW = 1 / 42, TARGET = 1 / 50;
+  const tune = { sum: 0, n: 0, settle: 2, last: null, state: "watching", avg: 0 };
+  function setShadows(on) {
+    if (renderer.shadowMap.enabled === on) return;
+    renderer.shadowMap.enabled = on;
+    for (const lamp of lamps) {
+      lamp.castShadow = on;
+      if (!on) { lamp.shadow.map?.dispose(); lamp.shadow.map = null; }
     }
+    scene.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) m.needsUpdate = true; });
+  }
+  function applyQuality() {
+    renderer.setPixelRatio(pixelRatio());
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+  function cheaper(steps) {
+    let took = 0;
+    for (; took < steps; took++) {
+      const r = pixelRatio();
+      if (r > 1.01) pixelCap = r * 0.85 < 1.1 ? 1 : r * 0.85; // each step: about 30% fewer pixels
+      else if (renderer.shadowMap.enabled) setShadows(false);
+      else if (r > 0.51) pixelCap = Math.max(0.5, r * 0.85);
+      else break;
+    }
+    return took > 0;
+  }
+  function keepSmooth(raw) {
+    if (tune.state === "done" || raw > 1) return; // over a second: the tab was hidden, not a frame
+    if (tune.settle > 0) { tune.settle -= raw; return; }
+    tune.sum += raw; tune.n++;
+    if (tune.sum < 1 || tune.n < 4) return;
+    const avg = (tune.avg = tune.sum / tune.n);
+    tune.sum = 0; tune.n = 0;
+    if (tune.last) {
+      const { before, cap, shadows } = tune.last;
+      tune.last = null;
+      if (avg > SLOW && avg > before * 0.9) {
+        pixelCap = cap; setShadows(shadows); applyQuality();
+        tune.state = "done"; tune.limited = true;
+        return;
+      }
+    }
+    if (avg <= SLOW) { tune.state = "smooth"; return; }
+    const steps = Math.min(4, Math.max(1, Math.ceil(Math.log(avg / TARGET) / Math.log(1 / 0.72))));
+    const was = { before: avg, cap: pixelCap, shadows: renderer.shadowMap.enabled };
+    if (!cheaper(steps)) { tune.state = "done"; return; } // nothing left to give
+    applyQuality();
+    tune.last = was;
+    tune.state = "adjusting";
+    tune.settle = 0.6; // let the new size (and new shaders, when shadows go) settle in first
+  }
+  // A software renderer (no graphics chip in use) can't draw the full picture at any size: start
+  // at the cheapest setting rather than finding out the slow way.
+  const gl = renderer.getContext();
+  const gpuInfo = gl.getExtension("WEBGL_debug_renderer_info");
+  const gpu = window.__gpu ?? String(gl.getParameter(gpuInfo ? gpuInfo.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || ""); // __gpu: tests only
+  if (/swiftshader|llvmpipe|softpipe|software|basic render/i.test(gpu)) {
+    setShadows(false);
+    pixelCap = 0.6;
+    applyQuality();
+  }
+
+  // ?perf in the address: a small readout of how the tunnel is running, to compare browsers
+  const perf = new URLSearchParams(location.search).has("perf") ? { el: document.createElement("pre"), n: 0, t: 0, worst: 0 } : null;
+  if (perf) {
+    perf.el.className = "perfReadout";
+    document.body.appendChild(perf.el);
+  }
+  function showPerf(raw) {
+    perf.n++; perf.t += raw; perf.worst = Math.max(perf.worst, raw);
+    if (perf.t < 0.5) return;
+    const state = tune.limited ? "limited by something else (energy saver? 30 Hz screen? busy computer?)" : tune.state;
+    perf.el.textContent = `${(perf.n / perf.t).toFixed(0)} fps   worst frame ${(perf.worst * 1000).toFixed(0)} ms
+${renderer.getPixelRatio().toFixed(2)}x (${canvas.width}x${canvas.height})   shadows ${renderer.shadowMap.enabled ? "on" : "off"}
+quality: ${state}
+${gpu}`;
+    perf.n = 0; perf.t = 0; perf.worst = 0;
   }
 
   // the scene's own time: it stands still while paused, so the page comes back exactly as it was left
@@ -487,8 +557,10 @@ function startSpace(releases, ui, textures) {
   function frame() {
     if (paused) { clock.getDelta(); requestAnimationFrame(frame); return; }
     const raw = clock.getDelta();
-    const dt = Math.min(raw, window.__maxDt || 1 / 30); // __maxDt: only set by automated tests on slow machines
+    // motion keeps real time down to 20 fps; below that it slows rather than jumping
+    const dt = Math.min(raw, window.__maxDt || 1 / 20); // __maxDt: only set by automated tests on slow machines
     keepSmooth(raw);
+    if (perf) showPerf(raw);
     sceneTime += dt;
     const t = sceneTime;
     const open = selected !== -1;
@@ -693,6 +765,25 @@ function startSpace(releases, ui, textures) {
       }
       renderer.setScissorTest(false);
       try { await prepare(scene); } catch { /* the rest share what's ready */ }
+      // A quick measure of this device, still behind the loader: how long the full picture takes to
+      // draw. If that's already too long, start at a cheaper setting (see "keeping it smooth")
+      // instead of being slow on screen first.
+      const px = new Uint8Array(4);
+      const drawTime = () => {
+        const t0 = performance.now();
+        renderer.clear();
+        renderer.shadowMap.needsUpdate = true;
+        renderer.render(scene, camera);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); // waits until the drawing is done
+        return (performance.now() - t0) / 1000;
+      };
+      drawTime();
+      const took = [drawTime(), drawTime(), drawTime()].sort((a, b) => a - b)[1];
+      const GPU_BUDGET = 1 / 70; // leaves room for the rest of each frame
+      if (took > GPU_BUDGET && cheaper(Math.min(6, Math.ceil(Math.log(took / GPU_BUDGET) / Math.log(1 / 0.72))))) {
+        applyQuality();
+        drawTime(); // any new shaders (no shadows) are prepared here, not on screen
+      }
       onProgress(1);
       renderer.clear();
       renderer.shadowMap.needsUpdate = true;
