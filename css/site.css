@@ -66,6 +66,10 @@ body.is-hovering #space{cursor:pointer;}
 /* the R4N in the corner: same tone as the background, just a little darker */
 .top .logo img{filter:invert(1);opacity:0.1;transition:opacity .6s var(--ease);}
 body.is-loaded .top .logo{opacity:1;}
+/* BOOKING: a plain link to booking/, beside INDEX, in the same quiet style */
+.bookBtn{margin-left:auto;margin-right:28px;text-decoration:none;opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s,color .4s var(--ease);}
+body.is-loaded .bookBtn{opacity:1;pointer-events:auto;}
+body.detail-open .bookBtn,body.index-open .bookBtn,body.access-open .bookBtn{opacity:0;pointer-events:none;transition-delay:0s;}
 #indexBtn{opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s,color .4s var(--ease);}
 body.is-loaded #indexBtn{opacity:1;pointer-events:auto;}
 body.detail-open #indexBtn,body.index-open #indexBtn{opacity:0;pointer-events:none;transition-delay:0s;}
@@ -297,8 +301,9 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
 /* touch screens have no hover to bring it up, so it starts a touch darker */
 @media (hover:none){.accessBtn{color:rgba(17,17,18,0.32);}}
 @media (max-width:768px){
-  .accessBtn{position:static;order:1;margin-left:auto;margin-right:22px;padding:8px 4px;font-size:11px;letter-spacing:2.8px;}
-  #indexBtn{order:2;}
+  .accessBtn{position:static;order:1;margin-left:auto;margin-right:18px;padding:8px 4px;font-size:11px;letter-spacing:2.8px;}
+  .bookBtn{order:2;margin-left:0;margin-right:18px;}
+  #indexBtn{order:3;}
 }
 
 /* the page in pieces, then the single field it collapses into */

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Booking — R4N</title>
+  <meta name="description" content="Book R4N." />
+  <meta name="theme-color" content="#f6f6f4" />
+  <link rel="icon" type="image/png" href="../assets/icon.png" />
+  <style>
+    :root{--bg:#f6f6f4;--fg:#111112;--muted:rgba(17,17,18,0.55);--pad:28px;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body{min-height:100%;}
+    body{
+      background:radial-gradient(ellipse 42% 46% at 50% 50%, rgba(150,200,240,0.16), rgba(150,200,240,0) 70%) fixed, var(--bg);
+      color:var(--fg);font-family:var(--mono);font-size:13px;letter-spacing:.2px;-webkit-font-smoothing:antialiased;
+    }
+    a{color:inherit;-webkit-tap-highlight-color:transparent;}
+    :focus-visible{outline:1px dashed var(--fg);outline-offset:4px;}
+    .top{height:68px;display:flex;justify-content:space-between;align-items:center;padding:0 var(--pad);}
+    .logo img{width:76px;height:auto;display:block;filter:invert(1);opacity:.1;transition:opacity .6s;}
+    .logo:hover img{opacity:.3;}
+    .back{color:var(--muted);letter-spacing:2px;font-size:12px;padding:8px 0;text-decoration:none;transition:color .4s;}
+    .back:hover{color:var(--fg);}
+    main{min-height:calc(100vh - 136px);min-height:calc(100dvh - 136px);display:grid;place-items:center;padding:0 var(--pad);}
+    @media (max-width:768px){:root{--pad:16px;} .top{height:60px;} .logo img{width:62px;}}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a href="../" class="logo" aria-label="R4N home"><img src="../assets/logo-white.png" alt="R4N" /></a>
+    <a href="../" class="back">← R4N</a>
+  </header>
+  <main>
+    <p>test</p>
+  </main>
+</body>
+</html>
