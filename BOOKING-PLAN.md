@@ -36,8 +36,8 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - [x] 2. /booking/ routing: booking/index.html generated, pushState/popstate, dark theme
 - [x] 3. Dive + invert transition both ways
 - [x] 4. Passport model, textures, crest with 51, text
-- [~] 5. Glow (edges, rays, bloom), motion (shake/bounce every 3-5 s), hover
-- [ ] 6. Sizes on desktop/laptop/phone, performance, tests, deploy to R4N-SITE
+- [x] 5. Glow (edges, rays, bloom), motion (shake/bounce every 3-5 s), hover
+- [x] 6. Sizes on desktop/laptop/phone, performance, tests, deploy to R4N-SITE
 
 ## Status notes
 - js/booking.js works on its own (dev page: create `booking-dev.html` at the repo root that imports
@@ -48,4 +48,4 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
   check /booking/, ← R4N, browser back/forward, direct /booking/).
 - Gotcha: after pushState the document URL is /booking/, so relative URLs fetched later resolve
   there: resolve module assets with import.meta.url (fonts in js/booking.js).
-- Next: step 6 (phones, regression tests: ACCESS desktop + phones), then deploy to R4N-SITE.
+- Done and deployed to R4N-SITE. Next (later, when R4N asks): clicking the passport opens it (live shows, photos, booking link). In js/route.js, onClick in getPassport is the hook.
