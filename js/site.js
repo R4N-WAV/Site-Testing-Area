@@ -208,8 +208,8 @@ function startSpace(releases, ui, textures) {
     const creep = clamp(d, 0, 6) * (phone() ? 0.015 : 0.045) * (1 - diveOpen);
     const opened = diveOpen * (phone() ? 0.9 : 0.5) * (1 + 0.15 * clamp(d, 0, 6));
     outP.set(
-      camera.position.x + (phone() ? centring.x : 0.24) + side * (wall() - creep + opened + passing * 0.9),
-      camera.position.y - 0.05 + (i % 2 ? 0.04 : 0),
+      camera.position.x + (phone() ? centring.x : 0.27) + side * (wall() - creep + opened + passing * 0.9),
+      camera.position.y - 0.01 + (i % 2 ? 0.03 : 0), // the front record on your eye line: centred on screen
       camera.position.z - dist
     );
     // extra turn toward the centre on top of facing you
