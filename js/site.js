@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, formatDate } from "./data.js";
 import { createShared, buildRecord, loadSharedTextures, TEXTURE_COUNT, SLEEVE } from "./materials.js";
 import { initAccess } from "./access.js";
+import { initBooking } from "./route.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
 const BG = 0xf6f6f4; // white, keep in sync with --bg in css/site.css
@@ -347,7 +348,7 @@ function startSpace(releases, ui, textures) {
   // the wheel or trackpad sends its ticks.
   let settleTimer = 0, scrollFrom = null;
   window.addEventListener("wheel", (e) => {
-    if (selected !== -1 || document.body.classList.contains("index-open") || document.body.classList.contains("access-open")) return;
+    if (selected !== -1 || document.body.classList.contains("index-open") || document.body.classList.contains("access-open") || document.documentElement.classList.contains("is-booking")) return;
     const delta = e.deltaMode === 1 ? e.deltaY * 16 : (Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX);
     if (scrollFrom === null) scrollFrom = focusIndex;
     travel = clamp(travel + clamp(delta, -120, 120) / 420, -0.3, count() - 0.7);
@@ -571,7 +572,7 @@ ${gpu}`;
     if (warp) {
       warp.t += dt;
       if (warp.phase === "out") {
-        const k = Math.min(1, warp.t / WARP_OUT);
+        const k = Math.min(1, warp.t / (warp.dur || WARP_OUT));
         focus.x = warp.from + k * k * k * 7;       // accelerate down the tunnel
         focus.v = 0;
         warpKick = k * k;
@@ -581,13 +582,17 @@ ${gpu}`;
           items.forEach((it) => { if (it.slot >= 0) { it.slotS.x = it.slot; it.slotS.v = 0; } });
           focus.x = -7; focus.v = 0;              // new tunnel starts far ahead...
           travel = 0; focusIndex = 0;
-          warp.phase = "in"; warp.t = 0;
+          warp.phase = warp.hold ? "held" : "in"; warp.t = 0;
+          if (warp.hold) warp.done?.();
         }
+      } else if (warp.phase === "held") {
+        // dived out (to the booking page): waiting, out of sight, to fly back in
+        warpKick = 1; warpFlash = 1;
       } else {
         const k = Math.min(1, warp.t / WARP_IN);
         warpKick = (1 - k) * (1 - k);
         warpFlash = Math.pow(1 - k, 3);
-        if (k >= 1) warp = null;
+        if (k >= 1) { const done = warp.done; warp = null; done?.(); }
       }
     }
     camera.fov = baseFov + warpKick * (phone() ? 12 : 22); // a smaller kick on phones: less sideways whip
@@ -716,6 +721,26 @@ ${gpu}`;
     capture: () => new Promise((resolve) => captureWaiters.push(resolve)),
     setPaused(p) { paused = p; if (p) setHovered(-1); },
     nudge(dir) { if (!warp) focusOn(focusIndex + dir); },
+    // Leaving for the booking page: rush down the tunnel and stay out of sight ...
+    diveOut(dur = 0.85) {
+      return new Promise((done) => {
+        if (reducedMotion) dur = 0.01;
+        setHovered(-1);
+        warp = { phase: "out", t: 0, from: focus.x, next: order.slice(), hold: true, dur, done };
+      });
+    },
+    // ... and back: the tunnel flies in from the distance, as after switching songs.
+    diveIn() {
+      return new Promise((done) => {
+        if (!warp || warp.phase !== "held") { done(); return; }
+        warp.phase = "in"; warp.t = 0; warp.done = done;
+      });
+    },
+    // the booking page opened straight from its address: start out of sight
+    holdOut() {
+      warp = { phase: "held", t: 0, from: 0, next: order.slice(), hold: true };
+      focus.x = -7; focus.v = 0; travel = 0; focusIndex = 0;
+    },
     openFocused() { if (order.length && !warp) select(order[focusIndex]); },
     // show only these records (item indexes, in order); the rest leave the tunnel
     setFilter(visible, animate = false) {
@@ -1000,7 +1025,7 @@ function buildUI(releases) {
   // clicking the empty space beside the text closes it
   scroller.addEventListener("click", (e) => { if (e.target === scroller) close(); });
   document.addEventListener("keydown", (e) => {
-    if (document.body.classList.contains("access-open")) return;
+    if (document.body.classList.contains("access-open") || document.documentElement.classList.contains("is-booking")) return;
     if (e.key === "Escape") { if (!indexEl.hidden) setIndex(false); else close(); return; }
     if (current !== -1) {
       if (e.key === "ArrowRight") stepDetail(1);
@@ -1129,6 +1154,7 @@ async function main() {
 
   await loader.finish();
   initAccess({ space });
+  initBooking({ space });
   const slug = decodeURIComponent(location.hash.slice(1));
   if (slug) ui.openBySlug(slug);
 }

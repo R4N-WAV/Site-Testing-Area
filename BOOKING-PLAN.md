@@ -33,8 +33,8 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 
 ## Steps (tick when pushed)
 - [x] 1. Socials always visible at the bottom (phones: mode toggle moves up above them)
-- [ ] 2. /booking/ routing: booking/index.html generated, pushState/popstate, dark theme
-- [ ] 3. Dive + invert transition both ways
+- [x] 2. /booking/ routing: booking/index.html generated, pushState/popstate, dark theme
+- [x] 3. Dive + invert transition both ways
 - [x] 4. Passport model, textures, crest with 51, text
 - [~] 5. Glow (edges, rays, bloom), motion (shake/bounce every 3-5 s), hover
 - [ ] 6. Sizes on desktop/laptop/phone, performance, tests, deploy to R4N-SITE
@@ -43,4 +43,9 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - js/booking.js works on its own (dev page: create `booking-dev.html` at the repo root that imports
   `createPassport` from ./js/booking.js into a full-screen div with an importmap for "three";
   it's git-ignored locally). Look approved by Claude in screenshots; R4N hasn't seen it yet.
-- Next: step 2 (routing + dark theme) and 3 (dive + invert), wiring js/booking.js into js/site.js.
+- Steps 2-3 done: js/route.js (enter/exit, history, direct /booking/), dark theme in css/site.css
+  (html.is-booking), tunnel diveOut/diveIn/holdOut in js/site.js. Test: route test (click BOOKING,
+  check /booking/, ← R4N, browser back/forward, direct /booking/).
+- Gotcha: after pushState the document URL is /booking/, so relative URLs fetched later resolve
+  there: resolve module assets with import.meta.url (fonts in js/booking.js).
+- Next: step 6 (phones, regression tests: ACCESS desktop + phones), then deploy to R4N-SITE.

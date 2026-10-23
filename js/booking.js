@@ -366,7 +366,7 @@ function lightSheet() {
 }
 
 export async function createPassport(layer, { onClick } = {}) {
-  await Promise.all(["400", "600", "700"].map((w) => new FontFace("Cinzel", `url(assets/fonts/cinzel-latin-${w}-normal.woff2)`, { weight: w }).load().then((f) => document.fonts.add(f))));
+  await Promise.all(["400", "600", "700"].map((w) => new FontFace("Cinzel", `url(${new URL(`../assets/fonts/cinzel-latin-${w}-normal.woff2`, import.meta.url)})`, { weight: w }).load().then((f) => document.fonts.add(f))));
 
   const canvas = document.createElement("canvas");
   canvas.className = "booking__canvas";

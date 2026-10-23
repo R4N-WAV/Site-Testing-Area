@@ -2,38 +2,143 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <!-- generated from index.html by scripts/sync-pages.mjs: edit index.html, not this -->
+  <base href="../" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- opened at /booking/: dark from the very first paint -->
+  <script>if (/\/booking\/?$/.test(location.pathname)) document.documentElement.classList.add("is-booking");</script>
   <title>Booking — R4N</title>
-  <meta name="description" content="Book R4N." />
+  <meta name="description" content="R4N — music." />
   <meta name="theme-color" content="#f6f6f4" />
-  <link rel="icon" type="image/png" href="../assets/icon.png" />
-  <style>
-    :root{--bg:#f6f6f4;--fg:#111112;--muted:rgba(17,17,18,0.55);--pad:28px;
-      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
-    *{margin:0;padding:0;box-sizing:border-box;}
-    html,body{min-height:100%;}
-    body{
-      background:radial-gradient(ellipse 42% 46% at 50% 50%, rgba(150,200,240,0.16), rgba(150,200,240,0) 70%) fixed, var(--bg);
-      color:var(--fg);font-family:var(--mono);font-size:13px;letter-spacing:.2px;-webkit-font-smoothing:antialiased;
-    }
-    a{color:inherit;-webkit-tap-highlight-color:transparent;}
-    :focus-visible{outline:1px dashed var(--fg);outline-offset:4px;}
-    .top{height:68px;display:flex;justify-content:space-between;align-items:center;padding:0 var(--pad);}
-    .logo img{width:76px;height:auto;display:block;filter:invert(1);opacity:.1;transition:opacity .6s;}
-    .logo:hover img{opacity:.3;}
-    .back{color:var(--muted);letter-spacing:2px;font-size:12px;padding:8px 0;text-decoration:none;transition:color .4s;}
-    .back:hover{color:var(--fg);}
-    main{min-height:calc(100vh - 136px);min-height:calc(100dvh - 136px);display:grid;place-items:center;padding:0 var(--pad);}
-    @media (max-width:768px){:root{--pad:16px;} .top{height:60px;} .logo img{width:62px;}}
-  </style>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="R4N" />
+  <meta property="og:title" content="R4N" />
+  <meta property="og:description" content="R4N — music." />
+  <meta property="og:image" content="https://www.r4n.no/assets/share.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" type="image/png" href="assets/icon.png" />
+  <link rel="preload" as="image" href="assets/logo-white.png" />
+  <!-- ?v= numbers force browsers to fetch fresh files after each update -->
+  <link rel="stylesheet" href="css/site.css?v=20261024100000" />
+  <script type="importmap">
+    { "imports": {
+        "three": "./vendor/three.module.min.js",
+        "./js/data.js": "./js/data.js?v=20261024100000",
+        "./js/materials.js": "./js/materials.js?v=20261024100000",
+        "./js/access.js": "./js/access.js?v=20261024100000",
+        "./js/route.js": "./js/route.js?v=20261024100000",
+        "./js/booking.js": "./js/booking.js?v=20261024100000"
+    } }
+  </script>
+  <!-- fetch everything the site needs at once, instead of one after another -->
+  <link rel="modulepreload" href="./vendor/three.module.min.js" />
+  <link rel="modulepreload" href="./js/site.js?v=20261024100000" />
+  <link rel="modulepreload" href="./js/data.js?v=20261024100000" />
+  <link rel="modulepreload" href="./js/materials.js?v=20261024100000" />
+  <link rel="modulepreload" href="./js/access.js?v=20261024100000" />
+  <link rel="modulepreload" href="./js/route.js?v=20261024100000" />
+  <link rel="preload" href="assets/tex/paper.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap3-normal.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap3-haze.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap3-shade.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap11-normal.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap11-haze.webp" as="image" crossorigin />
+  <link rel="preload" href="assets/tex/wrap11-shade.webp" as="image" crossorigin />
 </head>
 <body>
+  <canvas id="space" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="hoverTag" id="hoverTag" aria-hidden="true"><span id="hoverTitle"></span><span id="hoverArtist"></span></div>
+
   <header class="top">
-    <a href="../" class="logo" aria-label="R4N home"><img src="../assets/logo-white.png" alt="R4N" /></a>
-    <a href="../" class="back">← R4N</a>
+    <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
+    <!-- switch between R4N's own songs and songs R4N worked on for others -->
+    <div class="modeToggle" role="group" aria-label="Which songs to show">
+      <button type="button" data-mode="mine" aria-pressed="true"><span class="foil" data-text="MY SONGS">MY SONGS</span><sup data-count="mine"></sup></button>
+      <span class="modeToggle__sep" aria-hidden="true">/</span>
+      <button type="button" data-mode="worked-on" aria-pressed="false"><span class="foil" data-text="WORKED ON">WORKED ON</span><sup data-count="worked-on"></sup></button>
+    </div>
+    <a class="textBtn bookBtn" id="bookBtn" href="booking/">BOOKING</a>
+    <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
+    <button class="textBtn accessBtn" id="accessBtn" type="button">ACCESS</button>
+    <button class="textBtn homeBtn" id="homeBtn" type="button">← R4N</button>
   </header>
-  <main>
-    <p>test</p>
-  </main>
+  <p class="emptyNote" id="emptyNote" hidden>NOTHING HERE YET</p>
+  <!-- always at the very bottom, on every page (an opened record keeps its own in the same place, hidden) -->
+  <nav class="socials siteSocials" id="siteSocials" aria-label="Social links">
+    <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
+    <span>/</span>
+    <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
+    <span>/</span>
+    <a href="mailto:r4nmusic@outlook.com">contact</a>
+  </nav>
+
+  <!-- ACCESS: the page breaks apart and collapses into one password field -->
+  <div class="access" id="access" hidden>
+    <canvas class="access__canvas" id="accessCanvas" aria-hidden="true"></canvas>
+    <form class="access__field" id="accessField" autocomplete="off">
+      <input class="access__input" id="accessInput" type="password" autocomplete="off" spellcheck="false" aria-label="Password" />
+      <button class="access__go" id="accessGo" type="button" aria-label="Continue" hidden>→</button>
+    </form>
+    <p class="access__note" id="accessNote" aria-live="polite"></p>
+  </div>
+  <div class="hub" id="hub" hidden></div>
+  <!-- BOOKING: the passport (js/booking.js draws it here) -->
+  <div class="booking" id="booking" hidden></div>
+
+  <!-- List of every release: the INDEX button, and the fallback when 3D isn't available -->
+  <section class="index" id="index" aria-label="All releases" hidden>
+    <button class="textBtn index__close" id="indexClose" type="button">CLOSE ✕</button>
+    <ol class="index__list" id="indexList"></ol>
+  </section>
+
+  <!-- One release: the enlarged 3D record and its details, always fitted to one screen -->
+  <section class="detail" id="detail" aria-label="Release details" aria-hidden="true">
+    <button class="textBtn detail__close" id="detailClose" type="button">CLOSE ✕</button>
+    <div class="detail__scroll" id="detailScroll">
+      <div class="detail__hero" id="detailHero"><img id="dCover" alt="" /></div>
+      <article class="detail__info" id="detailInfo">
+        <div class="detail__inner" id="detailInner">
+          <p class="detail__meta" id="dMeta"></p>
+          <h1 class="detail__title" id="dTitle"></h1>
+          <p class="detail__artist" id="dArtist"></p>
+          <details class="about" id="dAbout">
+            <summary>ABOUT</summary>
+            <div class="detail__desc" id="dDesc"></div>
+          </details>
+          <dl class="detail__credits" id="dCredits"></dl>
+          <div class="detail__links" id="dLinks"></div>
+        </div>
+      </article>
+      <!-- the footer: always at the very bottom of the screen -->
+      <footer class="detail__foot">
+        <div class="detail__nav">
+          <button class="textBtn" id="dPrev" type="button">← PREV</button>
+          <button class="textBtn" id="allBtn" type="button">ALL</button>
+          <button class="textBtn" id="dNext" type="button">NEXT →</button>
+        </div>
+        <nav class="socials" aria-label="Social links">
+          <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
+          <span>/</span>
+          <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
+          <span>/</span>
+          <a href="mailto:r4nmusic@outlook.com">contact</a>
+        </nav>
+      </footer>
+    </div>
+  </section>
+
+  <div class="loader" id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <img class="loader__logo" id="loaderLogo" src="assets/logo-white.png" alt="R4N" />
+    <div class="loader__progress" aria-hidden="true">
+      <div class="loader__track"><div class="loader__fill" id="loaderFill"></div></div>
+      <span class="loader__pct" id="loaderPct">0%</span>
+    </div>
+    <p class="loader__note" id="loaderNote"></p>
+  </div>
+
+  <noscript><p class="noscript">This site needs JavaScript. Find R4N on <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr">Spotify</a>.</p></noscript>
+
+  <script type="module" src="js/site.js?v=20261024100000"></script>
 </body>
 </html>

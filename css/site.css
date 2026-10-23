@@ -15,6 +15,8 @@
 
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{height:100%;}
+/* the page's own background (not passed up to the window), so the booking dive's invert() covers it */
+html{background:var(--bg);}
 body{
   background:radial-gradient(ellipse 42% 46% at 50% 50%, var(--glow), rgba(150,200,240,0) 70%) fixed, var(--bg);
   color:var(--fg);
@@ -393,3 +395,25 @@ body.no3d .index__close{display:none;}
   position:fixed;left:var(--pad);bottom:56px;z-index:1001;max-width:min(560px,calc(100vw - 2 * var(--pad)));
   padding:8px 10px;background:rgba(17,17,18,.82);color:#f6f6f4;font:10px/1.5 var(--mono);white-space:pre-wrap;pointer-events:none;
 }
+
+/* ---------- BOOKING: the site inverted (js/route.js), with the passport (js/booking.js) ---------- */
+/* exactly the light theme turned negative, so the swap from the inverting dive can't be seen */
+html.is-booking{
+  --bg:#09090b;
+  --fg:#eeeeed;
+  --muted:rgba(238,238,237,0.6);
+  --faint:rgba(238,238,237,0.16);
+  --glow:rgba(105,55,15,0.16);
+}
+html.is-booking .top .logo img,html.is-booking .loader__logo{filter:none;}
+html.is-booking .top .logo img{opacity:.22;}
+html.is-booking .top .logo:hover img{opacity:.45;}
+html.is-booking .loader__track{background:rgba(238,238,237,0.12);}
+html.is-booking #space,html.is-booking .hoverTag,html.is-booking .emptyNote,
+html.is-booking .modeToggle,html.is-booking #indexBtn,html.is-booking .accessBtn,html.is-booking .bookBtn{display:none;}
+.homeBtn{display:none;}
+html.is-booking .homeBtn{display:block;margin-left:auto;opacity:0;animation:fadeIn .9s var(--ease) .5s forwards;}
+/* on the way there, everything but the logo steps aside */
+body.is-diving .modeToggle,body.is-diving #indexBtn,body.is-diving .accessBtn,body.is-diving .bookBtn{opacity:0;pointer-events:none;transition-delay:0s;}
+.booking{position:fixed;inset:0;z-index:20;}
+.booking__canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:manipulation;}
