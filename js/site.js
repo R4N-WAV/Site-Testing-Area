@@ -719,7 +719,15 @@ ${gpu}`;
     openFocused() { if (order.length && !warp) select(order[focusIndex]); },
     // show only these records (item indexes, in order); the rest leave the tunnel
     setFilter(visible, animate = false) {
-      if (!animate || reducedMotion) { applyOrder(visible); focusOn(0); return; }
+      if (!animate || reducedMotion) {
+        // straight into place: no gliding from where they were (on load, the tunnel starts with
+        // every record and is then filtered; gliding made them jump around as the page appeared)
+        applyOrder(visible);
+        items.forEach((it) => { if (it.slot >= 0) { it.slotS.x = it.slot; it.slotS.v = 0; } });
+        focusOn(0);
+        focus.x = 0; focus.v = 0;
+        return;
+      }
       warp = { phase: "out", t: 0, from: focus.x, next: visible.slice() };
     },
     // Prepares every shader before the first frame (in the background, where the browser can),
@@ -1105,10 +1113,10 @@ async function main() {
       // two frames, so the loader has painted its new position before the building starts
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       space = startSpace(releases, ui, textures);
+      ui.attach(space); // the records are in their places before anything is drawn
       loader.at(68, 72);
       await space.firstFrame((f) => loader.at(68 + 28 * f, 68 + 28 * Math.min(1, f + 0.12)));
       loader.at(98);
-      ui.attach(space);
       has3D = true;
     } catch (err) {
       console.error(err);
