@@ -32,7 +32,7 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
   (the record shows its own in the same place).
 
 ## Steps (tick when pushed)
-- [ ] 1. Socials always visible at the bottom (phones: mode toggle moves up above them)
+- [x] 1. Socials always visible at the bottom (phones: mode toggle moves up above them)
 - [ ] 2. /booking/ routing: booking/index.html generated, pushState/popstate, dark theme
 - [ ] 3. Dive + invert transition both ways
 - [ ] 4. Passport model, textures, crest with 51, text

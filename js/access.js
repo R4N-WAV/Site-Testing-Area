@@ -135,7 +135,7 @@ export function initAccess({ space }) {
     paintBackground(ctx);
     if (space) ctx.drawImage(await space.capture(), 0, 0, W, H);
     drawLogo(ctx);
-    for (const el of document.querySelectorAll(".modeToggle, #bookBtn, #indexBtn, #accessBtn, #emptyNote")) drawText(ctx, el);
+    for (const el of document.querySelectorAll(".modeToggle, #bookBtn, #indexBtn, #accessBtn, #siteSocials, #emptyNote")) drawText(ctx, el);
     return c;
   }
 
