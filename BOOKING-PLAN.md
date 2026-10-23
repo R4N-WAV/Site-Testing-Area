@@ -35,6 +35,12 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - [x] 1. Socials always visible at the bottom (phones: mode toggle moves up above them)
 - [ ] 2. /booking/ routing: booking/index.html generated, pushState/popstate, dark theme
 - [ ] 3. Dive + invert transition both ways
-- [ ] 4. Passport model, textures, crest with 51, text
-- [ ] 5. Glow (edges, rays, bloom), motion (shake/bounce every 3-5 s), hover
+- [x] 4. Passport model, textures, crest with 51, text
+- [~] 5. Glow (edges, rays, bloom), motion (shake/bounce every 3-5 s), hover
 - [ ] 6. Sizes on desktop/laptop/phone, performance, tests, deploy to R4N-SITE
+
+## Status notes
+- js/booking.js works on its own (dev page: create `booking-dev.html` at the repo root that imports
+  `createPassport` from ./js/booking.js into a full-screen div with an importmap for "three";
+  it's git-ignored locally). Look approved by Claude in screenshots; R4N hasn't seen it yet.
+- Next: step 2 (routing + dark theme) and 3 (dive + invert), wiring js/booking.js into js/site.js.
