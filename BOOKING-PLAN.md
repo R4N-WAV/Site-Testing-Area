@@ -49,3 +49,23 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - Gotcha: after pushState the document URL is /booking/, so relative URLs fetched later resolve
   there: resolve module assets with import.meta.url (fonts in js/booking.js).
 - Done and deployed to R4N-SITE. Next (later, when R4N asks): clicking the passport opens it (live shows, photos, booking link). In js/route.js, onClick in getPassport is the hook.
+
+## Round 2 (R4N's feedback on the first version), steps
+- [ ] a. Smaller passport (closed: ~56% of height on desktop, ~62% of width on phones)
+- [ ] b. Glow weaker, shorter rays; fade the light sheet out before its edges (it clipped on the right)
+- [ ] c. Jolts: no jump-scare. Spring physics with small random shoves (1-3 per event, varied size,
+       direction, timing), cover lift on its own spring; never the same twice
+- [ ] d. "STUDIO" above the 51 inside the shield (51 keeps its size; shield grows to fit)
+- [ ] e. R4N letters a little closer
+- [ ] f. Real passport build (photos): thin flexible cover wrapping round the page block, a rounded
+       spine fold (square corners at the spine, rounded on the open side), cover overhangs the pages
+       a little, white/blue-grey page edges with many sheets, back cover present
+- [ ] g. Texture like the photos: deep crimson, fine grain under a satin sheen (clearcoat normal
+       map, tiled), pale satin gold foil; chip symbol filled gold with the red line and ring
+- [ ] h. No waiting at the dive on the first visit: build the passport in the background after the
+       site has loaded (textures made in small chunks so the tunnel doesn't stutter)
+- [ ] i. Open version on click: desktop opens like a book (spread horizontally), tall screens open
+       the way a passport is shown (spine across the middle, pages landscape); comes closer, bigger.
+       Inside: security-paper pages, "broski ekke klar ennå as". Click again / outside / Esc closes
+- [ ] j. BOOKING button much more visible: a small outlined pill with a warm glow pulse, top bar
+- [ ] k. Check everything on phones and other sizes; tests; deploy
