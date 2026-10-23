@@ -26,7 +26,7 @@ export function initBooking({ space }) {
   let passport = null, making = null, busy = false;
   // the passport's code and textures are only fetched and made when someone heads there
   const getPassport = () => (making ||= import("./booking.js")
-    .then(({ createPassport }) => createPassport(layer, { onClick: () => {} }))
+    .then(({ createPassport }) => createPassport(layer))
     .then((p) => (passport = p))
     .catch((err) => { making = null; throw err; }));
 
@@ -107,6 +107,13 @@ export function initBooking({ space }) {
     if (atBooking()) enter(true, false);
     else exit(false);
   });
+
+  // Made ahead of time: a little after the site has loaded, while nobody's looking, so heading
+  // there never waits for it (its textures are made in small pieces, the tunnel keeps moving)
+  if (space && !html.classList.contains("is-booking")) {
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1));
+    setTimeout(() => idle(() => getPassport().then((p) => { if (!html.classList.contains("is-booking")) p.setPaused(true); }).catch(() => {}), { timeout: 4000 }), 2500);
+  }
 
   // opened at /booking/ (the dark theme was already set before the page drew, in index.html)
   if (html.classList.contains("is-booking")) {
