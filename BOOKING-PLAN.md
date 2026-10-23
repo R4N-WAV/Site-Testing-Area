@@ -68,7 +68,8 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
        the way a passport is shown (spine across the middle, pages landscape); comes closer, bigger.
        Inside: security-paper pages, "broski ekke klar ennå as". Click again / outside / Esc closes
 - [x] j. BOOKING button much more visible: a small outlined pill with a warm glow pulse, top bar
-- [ ] k. Check everything on phones and other sizes; tests; deploy
+- [x] k. Check everything on phones and other sizes; tests; deploy
 - Round 2 status: a-j built (js/booking.js rewritten; route.js prebuilds the passport ~2.5 s after
   load; BOOKING pill in css/site.css). Remaining: k (tests on phones/desktop incl. ACCESS
   regression), then deploy to R4N-SITE with the sync script (keeps CNAME).
+- Round 2 deployed to R4N-SITE.
