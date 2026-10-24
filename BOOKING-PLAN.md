@@ -126,6 +126,7 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
        open" guide (language aware)
 - [x] m. Language switch EN/NO: small dropdown next to BOOKING (site style), remembered; switching
        morphs each letter of the existing text into the new language (scramble-resolve)
-- [ ] n. Tests (desktop, phones, ACCESS regression, perf), deploy
+- [x] n. Tests (desktop, phones, ACCESS regression, perf), deploy
 - Round 4 status: a-m built (js/passport-art.js new: all canvas art; js/booking.js rebuilt; js/i18n.js
   new; form via FormSubmit, needs one activation click by R4N). Remaining: n (tests, deploy).
+- Round 4 deployed to R4N-SITE.
