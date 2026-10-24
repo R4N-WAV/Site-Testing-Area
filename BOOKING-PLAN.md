@@ -177,4 +177,5 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - [x] g. BOOK NOW pulls: periodic nudge, glint sweep, hover stub flap
 - [x] h. Language morph on booking (DOM texts morph; baked texts redrawn on change)
 - [x] i. Film caption: "FLAWLESS FASADE VISUALIZER · R4N PÅ UKM 2025", ticket clear of it
-- [ ] j. Tests, deploy
+- [x] j. Tests, deploy
+- Round 6 deployed to R4N-SITE.
