@@ -19,7 +19,7 @@ const STRINGS = {
     fallback: "Opening your e-mail app instead…",
   },
   no: {
-    mine: "MINE LÅTER", workedOn: "JOBBET PÅ", booking: "BOOKING", index: "OVERSIKT", access: "TILGANG",
+    mine: "MINE LÅTER", workedOn: "JOBBET PÅ", booking: "BOOKING", index: "INDEKS", access: "TILGANG",
     empty: "INGENTING HER ENNÅ", contact: "kontakt", close: "LUKK ✕", about: "OM",
     prev: "← FORRIGE", all: "ALLE", next: "NESTE →", lost: "SIGNALET FORSVANT — PRØV Å LASTE PÅ NYTT",
     listenOn: "Lytt på", language: "Språk",

@@ -24,6 +24,23 @@ the tunnel (`js/route.js` switches between them, `js/booking.js` draws the passp
 `booking/index.html` is a copy of `index.html`: after editing `index.html`, run
 `node scripts/sync-pages.mjs` to regenerate it.
 
+Opened, the passport shows memories of a trip and a ticket, BOOK NOW, which turns the page to a
+booking form. The form sends to r4nmusic@outlook.com through [FormSubmit](https://formsubmit.co)
+(no account needed). **The very first message sent asks for confirmation:** FormSubmit e-mails
+r4nmusic@outlook.com an activation link, which has to be clicked once; from then on messages
+arrive by themselves. If the service can't be reached, the form opens the visitor's own e-mail
+app with the message already written.
+
+The film on the spread is a stand-in. To use the real one, add a short looping video (an `.mp4`,
+muted, a few MB at most) to `assets/` and call `passport.setVideo("assets/your-file.mp4")` in
+`js/route.js` right after the passport is made.
+
+## Language
+
+English and Norwegian (`js/i18n.js`). The picker sits next to BOOKING; the choice is remembered,
+and on the first visit it follows the browser. Text that should change with it is marked
+`data-i18n="key"` in `index.html`, with the words in `js/i18n.js`.
+
 ## How it's built
 
 Plain HTML, CSS and JavaScript, no build step. Served by GitHub Pages from the `main` branch.
@@ -33,7 +50,8 @@ Plain HTML, CSS and JavaScript, no build step. Served by GitHub Pages from the `
 - `js/materials.js`: the records (sleeve, shrink-wrap, reflections), all generated in code
 - `js/data.js`: reads the release folders
 - `js/access.js`: the ACCESS screen
-- `js/route.js`, `js/booking.js`: the booking page and its passport
+- `js/route.js`, `js/booking.js`, `js/passport-art.js`: the booking page, its passport, the passport's artwork
+- `js/i18n.js`: English / Norwegian
 - `vendor/addons`: three.js bloom and studio-light helpers (MIT); `assets/fonts`: Cinzel (OFL)
 - `vendor/three.module.min.js`: [three.js](https://threejs.org) r170 (MIT, see `vendor/THREE-LICENSE`)
 - `scripts/build-releases.mjs` + `.github/workflows/releases.yml`: keep `releases/index.json` up to date

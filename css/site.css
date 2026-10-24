@@ -524,3 +524,11 @@ html.is-booking .langPick{display:none;}
   .langPick__btn{padding-left:2px;padding-right:2px;}
 }
 @media (max-width:380px){.langPick{margin-right:8px;}.langPick__caret{display:none;}}
+/* the narrowest phones (320px): everything in the top bar a touch tighter, so Norwegian fits too */
+@media (max-width:360px){
+  .accessBtn{margin-right:8px;letter-spacing:1.3px;}
+  #bookBtn{margin-right:7px;padding:7px 8px 7px 7px;gap:5px;letter-spacing:1px;}
+  .langPick{margin-right:7px;}
+  #indexBtn{letter-spacing:1.3px;}
+  .top .logo img{width:52px;}
+}

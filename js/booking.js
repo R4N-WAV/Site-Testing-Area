@@ -177,6 +177,10 @@ export async function createPassport(layer) {
   renderer.toneMappingExposure = 0.95;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
+  // a software renderer (no graphics card): start at the cheapest settings
+  const gl = renderer.getContext(), gpuInfo = gl.getExtension("WEBGL_debug_renderer_info");
+  const software = /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(gl.getParameter(gpuInfo ? gpuInfo.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || ""));
+  if (software) { pixelRatio = 1; renderer.setPixelRatio(1); }
   const tex = (c, srgb = true) => {
     const t2 = new THREE.CanvasTexture(c);
     if (srgb) t2.colorSpace = THREE.SRGBColorSpace;
@@ -400,7 +404,7 @@ export async function createPassport(layer) {
   // ---- framing: never distorted (a narrow camera), sized to the screen; smooth edges ----
   // the scene is drawn into a multisampled target, so every edge and line is anti-aliased
   // (dense screens need fewer samples: their pixels are already small)
-  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: window.devicePixelRatio >= 2 ? 2 : 4 });
+  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: software ? 0 : window.devicePixelRatio >= 2 ? 2 : 4 });
   const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.45, 0.6, 0.88);
@@ -422,6 +426,18 @@ export async function createPassport(layer) {
   }
   resize();
   window.addEventListener("resize", resize);
+  // Keep it smooth: if frames keep coming slowly, draw fewer pixels; if that's not enough, stop
+  // multisampling (each step once, and only ever down)
+  let slowFor = 0, quality = software ? 0 : 2;
+  function keepSmooth(raw) {
+    if (quality === 0 || raw > 0.25) return; // (a long gap is a hidden tab, not a slow frame)
+    slowFor = raw > 1 / 32 ? slowFor + raw : Math.max(0, slowFor - raw * 0.5);
+    if (slowFor < 1.5) return;
+    slowFor = 0; quality--;
+    if (quality === 1) pixelRatio = Math.max(1, pixelRatio * 0.75);
+    else { pixelRatio = 1; for (const rt of [composer.renderTarget1, composer.renderTarget2]) { rt.samples = 0; rt.dispose(); } }
+    resize();
+  }
 
   // ---- on top of the canvas: the hint, and the form's real fields ----
   const hint = document.createElement("p");
@@ -530,9 +546,10 @@ export async function createPassport(layer) {
   const POSE = { x: -0.2, y: 0.16, z: -0.09 };
   function tick(now) {
     raf = requestAnimationFrame(tick);
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const raw = (now - last) / 1000, dt = Math.min(0.05, raw);
     last = now;
     if (paused) return;
+    keepSmooth(raw);
     time += dt;
     appear += (appearGoal - appear) * (1 - Math.exp(-dt * (appearGoal > appear ? 2.2 : 4)));
     hover += (hoverGoal - hover) * (1 - Math.exp(-dt * 6));

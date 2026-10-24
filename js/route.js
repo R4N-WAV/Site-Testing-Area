@@ -3,8 +3,9 @@
 //
 // In: the tunnel rushes forward while the whole page inverts (white to black, the records turn
 // to negatives), then the page quietly swaps to its dark theme, which looks the same, and the
-// passport comes up out of the dark. Out: the passport sinks away, the page swaps back to the
-// light theme under the same inversion, and the tunnel flies in while the inversion fades.
+// passport comes up out of the dark. Out: the passport falls away into the distance until it's a
+// spark, the page swaps back to the light theme under the same inversion, and you fall back into
+// the tunnel while the inversion fades.
 // Browser back/forward and opening /booking/ directly work too (booking/index.html is this page).
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
