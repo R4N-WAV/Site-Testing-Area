@@ -3,11 +3,13 @@ import { loadAllReleases, PLATFORMS, escapeHTML, safeUrl, richText, formatDate }
 import { createShared, buildRecord, loadSharedTextures, TEXTURE_COUNT, SLEEVE } from "./materials.js";
 import { initAccess } from "./access.js";
 import { initBooking } from "./route.js";
+import { initLang, t } from "./i18n.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
 const BG = 0xf6f6f4; // white, keep in sync with --bg in css/site.css
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+initLang(); // the language (and its picker) before anything is shown
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const isPhone = () => window.innerWidth <= 768;
@@ -865,7 +867,7 @@ function buildUI(releases) {
   const list = $("indexList");
   function buildIndex() {
     list.innerHTML = "";
-    if (!shown.length) list.innerHTML = `<li class="index__empty">NOTHING HERE YET</li>`;
+    if (!shown.length) list.innerHTML = `<li class="index__empty" data-i18n="empty">${t("empty")}</li>`;
     shown.forEach((i, k) => {
       const rel = releases[i];
       const li = document.createElement("li");
@@ -947,7 +949,7 @@ function buildUI(releases) {
       if (!url) continue;
       const name = PLATFORMS[key.toLowerCase()] || key;
       links.insertAdjacentHTML("beforeend",
-        `<a class="listen listen--${escapeHTML(key.toLowerCase())}" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="Listen on ${escapeHTML(name)}"><span>${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
+        `<a class="listen listen--${escapeHTML(key.toLowerCase())}" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML(t("listenOn"))} ${escapeHTML(name)}"><span>${escapeHTML(name)}</span><span aria-hidden="true">↗</span></a>`);
     }
     const many = shown.length > 1;
     $("dPrev").hidden = !many;
@@ -1161,5 +1163,5 @@ async function main() {
 
 main().catch((err) => {
   console.error(err);
-  $("loaderNote").textContent = "SIGNAL LOST — TRY RELOADING";
+  $("loaderNote").textContent = t("lost");
 });

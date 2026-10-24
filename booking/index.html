@@ -27,7 +27,9 @@
         "./js/materials.js": "./js/materials.js?v=20261024180000",
         "./js/access.js": "./js/access.js?v=20261024180000",
         "./js/route.js": "./js/route.js?v=20261024180000",
-        "./js/booking.js": "./js/booking.js?v=20261024180000"
+        "./js/booking.js": "./js/booking.js?v=20261024180000",
+        "./js/passport-art.js": "./js/passport-art.js?v=20261024180000",
+        "./js/i18n.js": "./js/i18n.js?v=20261024180000"
     } }
   </script>
   <!-- fetch everything the site needs at once, instead of one after another -->
@@ -37,6 +39,7 @@
   <link rel="modulepreload" href="./js/materials.js?v=20261024180000" />
   <link rel="modulepreload" href="./js/access.js?v=20261024180000" />
   <link rel="modulepreload" href="./js/route.js?v=20261024180000" />
+  <link rel="modulepreload" href="./js/i18n.js?v=20261024180000" />
   <link rel="preload" href="assets/tex/paper.webp" as="image" crossorigin />
   <link rel="preload" href="assets/tex/wrap3-normal.webp" as="image" crossorigin />
   <link rel="preload" href="assets/tex/wrap3-haze.webp" as="image" crossorigin />
@@ -54,23 +57,31 @@
     <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
     <!-- switch between R4N's own songs and songs R4N worked on for others -->
     <div class="modeToggle" role="group" aria-label="Which songs to show">
-      <button type="button" data-mode="mine" aria-pressed="true"><span class="foil" data-text="MY SONGS">MY SONGS</span><sup data-count="mine"></sup></button>
+      <button type="button" data-mode="mine" aria-pressed="true"><span class="foil" data-text="MY SONGS" data-i18n="mine">MY SONGS</span><sup data-count="mine"></sup></button>
       <span class="modeToggle__sep" aria-hidden="true">/</span>
-      <button type="button" data-mode="worked-on" aria-pressed="false"><span class="foil" data-text="WORKED ON">WORKED ON</span><sup data-count="worked-on"></sup></button>
+      <button type="button" data-mode="worked-on" aria-pressed="false"><span class="foil" data-text="WORKED ON" data-i18n="workedOn">WORKED ON</span><sup data-count="worked-on"></sup></button>
     </div>
     <a class="textBtn bookBtn" id="bookBtn" href="booking/">BOOKING</a>
-    <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index">INDEX</button>
-    <button class="textBtn accessBtn" id="accessBtn" type="button">ACCESS</button>
+    <!-- language: English / Norwegian (js/i18n.js) -->
+    <div class="langPick" id="langPick">
+      <button class="textBtn langPick__btn" type="button" aria-haspopup="listbox" aria-expanded="false" data-i18n-label="language"><span class="langPick__code">EN</span><span class="langPick__caret" aria-hidden="true">▾</span></button>
+      <ul class="langPick__list" role="listbox" hidden>
+        <li><button type="button" role="option" data-lang="en">ENGLISH</button></li>
+        <li><button type="button" role="option" data-lang="no">NORSK</button></li>
+      </ul>
+    </div>
+    <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index" data-i18n="index">INDEX</button>
+    <button class="textBtn accessBtn" id="accessBtn" type="button" data-i18n="access">ACCESS</button>
     <button class="textBtn homeBtn" id="homeBtn" type="button">← R4N</button>
   </header>
-  <p class="emptyNote" id="emptyNote" hidden>NOTHING HERE YET</p>
+  <p class="emptyNote" id="emptyNote" hidden data-i18n="empty">NOTHING HERE YET</p>
   <!-- always at the very bottom, on every page (an opened record keeps its own in the same place, hidden) -->
   <nav class="socials siteSocials" id="siteSocials" aria-label="Social links">
     <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
     <span>/</span>
     <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
     <span>/</span>
-    <a href="mailto:r4nmusic@outlook.com">contact</a>
+    <a href="mailto:r4nmusic@outlook.com" data-i18n="contact">contact</a>
   </nav>
 
   <!-- ACCESS: the page breaks apart and collapses into one password field -->
@@ -88,13 +99,13 @@
 
   <!-- List of every release: the INDEX button, and the fallback when 3D isn't available -->
   <section class="index" id="index" aria-label="All releases" hidden>
-    <button class="textBtn index__close" id="indexClose" type="button">CLOSE ✕</button>
+    <button class="textBtn index__close" id="indexClose" type="button" data-i18n="close">CLOSE ✕</button>
     <ol class="index__list" id="indexList"></ol>
   </section>
 
   <!-- One release: the enlarged 3D record and its details, always fitted to one screen -->
   <section class="detail" id="detail" aria-label="Release details" aria-hidden="true">
-    <button class="textBtn detail__close" id="detailClose" type="button">CLOSE ✕</button>
+    <button class="textBtn detail__close" id="detailClose" type="button" data-i18n="close">CLOSE ✕</button>
     <div class="detail__scroll" id="detailScroll">
       <div class="detail__hero" id="detailHero"><img id="dCover" alt="" /></div>
       <article class="detail__info" id="detailInfo">
@@ -103,7 +114,7 @@
           <h1 class="detail__title" id="dTitle"></h1>
           <p class="detail__artist" id="dArtist"></p>
           <details class="about" id="dAbout">
-            <summary>ABOUT</summary>
+            <summary data-i18n="about">ABOUT</summary>
             <div class="detail__desc" id="dDesc"></div>
           </details>
           <dl class="detail__credits" id="dCredits"></dl>
@@ -113,16 +124,16 @@
       <!-- the footer: always at the very bottom of the screen -->
       <footer class="detail__foot">
         <div class="detail__nav">
-          <button class="textBtn" id="dPrev" type="button">← PREV</button>
-          <button class="textBtn" id="allBtn" type="button">ALL</button>
-          <button class="textBtn" id="dNext" type="button">NEXT →</button>
+          <button class="textBtn" id="dPrev" type="button" data-i18n="prev">← PREV</button>
+          <button class="textBtn" id="allBtn" type="button" data-i18n="all">ALL</button>
+          <button class="textBtn" id="dNext" type="button" data-i18n="next">NEXT →</button>
         </div>
         <nav class="socials" aria-label="Social links">
           <a href="https://www.instagram.com/r4n.wav/" target="_blank" rel="noopener">instagram</a>
           <span>/</span>
           <a href="https://open.spotify.com/artist/2RhtCG7SVNhfYCBHkpFvFr" target="_blank" rel="noopener">spotify</a>
           <span>/</span>
-          <a href="mailto:r4nmusic@outlook.com">contact</a>
+          <a href="mailto:r4nmusic@outlook.com" data-i18n="contact">contact</a>
         </nav>
       </footer>
     </div>

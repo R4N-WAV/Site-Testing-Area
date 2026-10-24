@@ -443,3 +443,84 @@ html.is-booking .homeBtn{display:block;margin-left:auto;opacity:0;animation:fade
 body.is-diving .modeToggle,body.is-diving #indexBtn,body.is-diving .accessBtn,body.is-diving #bookBtn{opacity:0;pointer-events:none;transition-delay:0s;}
 .booking{position:fixed;inset:0;z-index:20;}
 .booking__canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:manipulation;}
+/* open, the passport fills the screen: the header and the links at the bottom keep a little dark under them */
+.booking::before,.booking::after{content:"";position:absolute;left:0;right:0;height:96px;pointer-events:none;z-index:1;opacity:0;transition:opacity .8s var(--ease);}
+.booking::before{top:0;background:linear-gradient(rgba(9,9,11,.62),rgba(9,9,11,0));}
+.booking::after{bottom:0;background:linear-gradient(rgba(9,9,11,0),rgba(9,9,11,.62));}
+html.passport-open .booking::before,html.passport-open .booking::after{opacity:1;}
+/* after a while with nothing clicked: how to open it */
+.booking__hint{
+  position:absolute;left:50%;bottom:calc(66px + env(safe-area-inset-bottom));z-index:2;margin:0;
+  padding:9px 17px 9px 34px;border-radius:999px;white-space:nowrap;
+  font-size:11px;letter-spacing:3px;color:rgba(240,223,178,.86);
+  background:rgba(22,17,14,.45);border:1px solid rgba(240,223,178,.2);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  opacity:0;transform:translate(-50%,8px);pointer-events:none;
+  transition:opacity .9s var(--ease),transform .9s var(--ease);
+}
+.booking__hint::before{
+  content:"";position:absolute;left:15px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;
+  background:rgba(255,190,110,.95);animation:hintRing 1.8s ease-out infinite;
+}
+@keyframes hintRing{0%{box-shadow:0 0 0 0 rgba(255,190,110,.55);}100%{box-shadow:0 0 0 12px rgba(255,190,110,0);}}
+.booking__hint.is-on{opacity:1;transform:translate(-50%,0);}
+/* the booking form: real fields laid over the passport's form pages (js/booking.js places them;
+   --u is one passport unit, 100 mm, in pixels) */
+.pform{position:absolute;inset:0;z-index:2;margin:0;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .45s var(--ease),visibility 0s linear .45s;}
+.pform.is-on{opacity:1;visibility:visible;transition:opacity .45s var(--ease),visibility 0s;}
+.pform.is-on > *{pointer-events:auto;}
+.pform__in{
+  position:absolute;box-sizing:border-box;margin:0;padding:0 .25em;border:0;border-radius:0;
+  background:transparent;outline:none;-webkit-appearance:none;appearance:none;
+  color:#23315f;caret-color:#8a1320;font:500 calc(var(--u) * .036)/1.2 var(--mono);letter-spacing:.02em;
+  transition:background-color .25s;
+}
+.pform__in::placeholder{color:rgba(62,44,32,.33);}
+.pform__in:focus{background:rgba(255,226,170,.22);}
+.pform__in.is-bad{background:rgba(161,34,48,.09);}
+.pform__msg{resize:none;padding-top:0;padding-bottom:0;overflow:hidden auto;font-size:calc(var(--u) * .034);}
+.pform__hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;}
+.pform__send{
+  position:absolute;box-sizing:border-box;margin:0;padding:0 0 0 .25em;cursor:pointer;
+  border:max(2px,calc(var(--u) * .004)) solid #8a1320;border-radius:calc(var(--u) * .012);
+  outline:1px solid rgba(138,19,32,.45);outline-offset:calc(var(--u) * -.011);
+  background:rgba(138,19,32,.04);color:#8a1320;font:700 calc(var(--u) * .04)/1 "Cinzel",serif;letter-spacing:.25em;
+  transition:background-color .25s,color .25s,transform .15s;
+}
+.pform__send:hover,.pform__send:focus-visible{background:#8a1320;color:#f3e4bb;}
+.pform__send:active{transform:scale(.97);}
+.pform__back{
+  position:absolute;margin:0;padding:0;border:0;background:none;cursor:pointer;text-align:left;
+  color:rgba(62,44,32,.72);font:700 calc(var(--u) * .026)/1 var(--mono);letter-spacing:.16em;
+}
+.pform__back:hover,.pform__back:focus-visible{color:#8a1320;}
+.pform__note{position:absolute;margin:0;text-align:center;font:600 calc(var(--u) * .024)/1.35 var(--mono);color:#2c684b;}
+.pform__note.is-bad{color:#a12230;}
+/* phones zoom into any field with smaller type than 16px: never smaller, there */
+@media (pointer:coarse){.pform__in{font-size:max(16px,calc(var(--u) * .036));}}
+
+/* ---------- language: EN / NO beside BOOKING (js/i18n.js) ---------- */
+.langPick{position:relative;margin-right:22px;opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s;}
+body.is-loaded .langPick{opacity:1;pointer-events:auto;}
+body.detail-open .langPick,body.index-open .langPick,body.access-open .langPick,body.is-diving .langPick{opacity:0;pointer-events:none;transition-delay:0s;}
+html.is-booking .langPick{display:none;}
+.langPick__btn{display:inline-flex;align-items:center;gap:6px;}
+.langPick__code{display:inline-block;min-width:2.2ch;}
+.langPick__caret{font-size:.75em;opacity:.55;transition:transform .3s var(--ease);}
+.langPick.is-open .langPick__caret{transform:rotate(180deg);}
+.langPick__list{
+  position:absolute;top:calc(100% + 6px);right:-8px;z-index:2;margin:0;padding:6px 0;list-style:none;min-width:128px;
+  background:var(--bg);border:1px solid var(--faint);box-shadow:0 14px 30px -18px rgba(0,0,0,.4);
+  animation:fadeIn .25s var(--ease);
+}
+.langPick__list button{
+  display:block;width:100%;padding:10px 16px;text-align:left;cursor:pointer;
+  font:inherit;font-size:11px;letter-spacing:2.6px;color:var(--muted);background:none;border:0;
+}
+.langPick__list button:hover,.langPick__list button[aria-selected="true"]{color:var(--fg);}
+.langPick__list button[aria-selected="true"]::after{content:"  ●";font-size:.7em;}
+@media (max-width:768px){
+  .langPick{order:2;margin-right:12px;}
+  .langPick__btn{padding-left:2px;padding-right:2px;}
+}
+@media (max-width:380px){.langPick{margin-right:8px;}.langPick__caret{display:none;}}
