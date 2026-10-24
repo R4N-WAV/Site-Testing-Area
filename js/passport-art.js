@@ -547,10 +547,15 @@ function ink(shape, color, seed, pressure = 1) {
   return c;
 }
 
-function label(g, text, x, y, size, { color = "#fff", align = "left", font = SANS, weight = 800, spacing = 0, base = "alphabetic" } = {}) {
+// text; with `max`, it shrinks (size and spacing together) until it fits that width
+function label(g, text, x, y, size, { color = "#fff", align = "left", font = SANS, weight = 800, spacing = 0, base = "alphabetic", max = 0 } = {}) {
   g.save();
   g.font = `${weight} ${size}px ${font}`;
   spaced(g, spacing);
+  if (max) {
+    const w = g.measureText(text).width;
+    if (w > max) { const f = max / w; size *= f; spacing *= f; g.font = `${weight} ${size}px ${font}`; spaced(g, spacing); }
+  }
   g.fillStyle = color; g.textAlign = align; g.textBaseline = base;
   g.fillText(text, x + (align === "center" ? spacing / 2 : 0), y);
   g.restore();
@@ -584,56 +589,6 @@ function postage(w, h, bg, art) {
 }
 
 const POSTAGE = {
-  // a record, on mustard: "A" (the domestic rate)
-  record: () => postage(400, 500, "#d6a23c", (g, x, y, w, h) => {
-    const cx = x + w * 0.56, cy = y + h * 0.5, R = w * 0.38;
-    g.fillStyle = "#1d1918"; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = "rgba(255,255,255,0.09)"; g.lineWidth = 1.5;
-    for (let k = 0.36; k < 0.98; k += 0.045) { g.beginPath(); g.arc(cx, cy, R * k, 0, Math.PI * 2); g.stroke(); }
-    g.strokeStyle = "rgba(255,240,210,0.22)"; g.lineWidth = R * 0.08;
-    g.beginPath(); g.arc(cx, cy, R * 0.72, -2.4, -1.7); g.stroke();
-    g.fillStyle = "#a01d2d"; g.beginPath(); g.arc(cx, cy, R * 0.32, 0, Math.PI * 2); g.fill();
-    g.fillStyle = "#d6a23c"; g.beginPath(); g.arc(cx, cy, R * 0.035, 0, Math.PI * 2); g.fill();
-    label(g, "NORGE", x + w * 0.07, y + h * 0.13, w * 0.15, { color: "#1f160e" });
-    label(g, "A", x + w * 0.93, y + h * 0.95, w * 0.3, { color: "#1f160e", align: "right" });
-    label(g, "INNLAND", x + w * 0.93, y + h * 0.71, w * 0.065, { color: "#1f160e", align: "right", weight: 700 });
-    label(g, "VINYL", x + w * 0.07, y + h * 0.95, w * 0.065, { color: "#1f160e", weight: 700, spacing: 2 });
-  }),
-  // mountains over a fjord, the sun low
-  fjord: () => postage(400, 500, "#c2d6d8", (g, x, y, w, h) => {
-    const sky = g.createLinearGradient(0, y, 0, y + h * 0.7);
-    sky.addColorStop(0, "#a9c6cc"); sky.addColorStop(1, "#e8dcc0");
-    g.fillStyle = sky; g.fillRect(x, y, w, h);
-    g.fillStyle = "#e88f4a"; g.beginPath(); g.arc(x + w * 0.66, y + h * 0.45, w * 0.12, 0, Math.PI * 2); g.fill();
-    const ridge = (col, pts) => { g.fillStyle = col; g.beginPath(); g.moveTo(x, y + h); pts.forEach(([a, b]) => g.lineTo(x + w * a, y + h * b)); g.lineTo(x + w, y + h); g.fill(); };
-    ridge("#6d8b96", [[0, 0.62], [0.18, 0.46], [0.3, 0.55], [0.5, 0.4], [0.7, 0.56], [0.86, 0.47], [1, 0.58]]);
-    ridge("#3f5864", [[0, 0.7], [0.22, 0.5], [0.4, 0.66], [0.6, 0.48], [0.82, 0.68], [1, 0.62]]);
-    g.fillStyle = "#f2efe6";
-    for (const [a, b] of [[0.22, 0.5], [0.6, 0.48]]) { g.beginPath(); g.moveTo(x + w * (a - 0.06), y + h * (b + 0.06)); g.lineTo(x + w * a, y + h * b); g.lineTo(x + w * (a + 0.06), y + h * (b + 0.065)); g.lineTo(x + w * (a + 0.02), y + h * (b + 0.05)); g.fill(); }
-    g.fillStyle = "#5f7f8c"; g.fillRect(x, y + h * 0.74, w, h * 0.26);
-    g.strokeStyle = "rgba(240,230,205,0.5)"; g.lineWidth = 2;
-    for (let k = 0; k < 6; k++) { const yy = y + h * (0.78 + k * 0.035); g.beginPath(); g.moveTo(x + w * (0.5 + k * 0.03), yy); g.lineTo(x + w * (0.8 - k * 0.02), yy); g.stroke(); }
-    label(g, "NORGE", x + w * 0.07, y + h * 0.13, w * 0.15, { color: "#1d2f36" });
-    label(g, "17,00", x + w * 0.93, y + h * 0.95, w * 0.17, { color: "#f4ecd8", align: "right" });
-    label(g, "OSLOFJORDEN", x + w * 0.07, y + h * 0.95, w * 0.058, { color: "#f4ecd8", weight: 700, spacing: 1 });
-  }),
-  // a microphone in a beam, on teal
-  mic: () => postage(400, 500, "#2d6b66", (g, x, y, w, h) => {
-    const beam = g.createLinearGradient(0, y, 0, y + h);
-    beam.addColorStop(0, "rgba(255,236,190,0.35)"); beam.addColorStop(1, "rgba(255,236,190,0)");
-    g.fillStyle = beam; g.beginPath(); g.moveTo(x + w * 0.42, y); g.lineTo(x + w * 0.58, y); g.lineTo(x + w * 0.9, y + h); g.lineTo(x + w * 0.1, y + h); g.fill();
-    const cx = x + w * 0.5;
-    g.fillStyle = "#efe2c2";
-    g.beginPath(); g.roundRect(cx - w * 0.11, y + h * 0.2, w * 0.22, h * 0.32, w * 0.11); g.fill();
-    g.strokeStyle = "#2d6b66"; g.lineWidth = 2;
-    for (let k = 0; k < 7; k++) { const yy = y + h * (0.25 + k * 0.034); g.beginPath(); g.moveTo(cx - w * 0.1, yy); g.lineTo(cx + w * 0.1, yy); g.stroke(); }
-    g.strokeStyle = "#efe2c2"; g.lineWidth = w * 0.035; g.lineCap = "round";
-    g.beginPath(); g.arc(cx, y + h * 0.4, w * 0.17, 0.15, Math.PI - 0.15); g.stroke();
-    g.beginPath(); g.moveTo(cx, y + h * 0.57); g.lineTo(cx, y + h * 0.72); g.moveTo(cx - w * 0.13, y + h * 0.72); g.lineTo(cx + w * 0.13, y + h * 0.72); g.stroke();
-    label(g, "NORGE", x + w * 0.07, y + h * 0.13, w * 0.15, { color: "#efe2c2" });
-    label(g, "B", x + w * 0.93, y + h * 0.95, w * 0.26, { color: "#efe2c2", align: "right" });
-    label(g, "R4N LIVE", x + w * 0.07, y + h * 0.95, w * 0.075, { color: "#efe2c2", weight: 700, spacing: 1 });
-  }),
   // the crown, gold on deep red
   crown: () => postage(400, 500, "#7d1424", (g, x, y, w, h) => {
     const c = makeCanvas(400, 400);
@@ -652,47 +607,12 @@ function star(g, x, y, r) {
   for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
   g.closePath(); g.fill();
 }
+// a music note
 function icon(g, kind, x, y, s) {
   g.save(); g.translate(x, y); g.lineCap = "round"; g.lineJoin = "round";
-  if (kind === "plane") {
-    g.rotate(-0.5);
-    g.beginPath();
-    g.moveTo(-s, -s * 0.1); g.lineTo(s * 0.8, -s * 0.12); g.quadraticCurveTo(s * 1.05, 0, s * 0.8, s * 0.12); g.lineTo(-s, s * 0.1); g.closePath(); g.fill();
-    g.beginPath(); g.moveTo(-s * 0.1, 0); g.lineTo(-s * 0.45, -s * 0.9); g.lineTo(-s * 0.2, -s * 0.9); g.lineTo(s * 0.35, 0); g.lineTo(-s * 0.2, s * 0.9); g.lineTo(-s * 0.45, s * 0.9); g.closePath(); g.fill();
-    g.beginPath(); g.moveTo(-s * 0.85, 0); g.lineTo(-s * 1.05, -s * 0.4); g.lineTo(-s * 0.9, -s * 0.4); g.lineTo(-s * 0.6, 0); g.closePath(); g.fill();
-  } else if (kind === "train") {
-    g.beginPath(); g.roundRect(-s * 0.8, -s * 0.8, s * 1.6, s * 1.3, s * 0.3); g.fill();
-    g.globalCompositeOperation = "destination-out";
-    g.fillRect(-s * 0.55, -s * 0.55, s * 1.1, s * 0.45);
-    g.globalCompositeOperation = "source-over";
-    g.beginPath(); g.arc(-s * 0.45, s * 0.75, s * 0.2, 0, 7); g.arc(s * 0.45, s * 0.75, s * 0.2, 0, 7); g.fill();
-  } else { // a note
-    g.beginPath(); g.ellipse(-s * 0.3, s * 0.55, s * 0.36, s * 0.26, -0.4, 0, 7); g.fill();
-    g.lineWidth = s * 0.16; g.beginPath(); g.moveTo(s * 0.02, s * 0.5); g.lineTo(s * 0.02, -s * 0.9); g.quadraticCurveTo(s * 0.5, -s * 0.6, s * 0.6, -s * 0.1); g.stroke();
-  }
+  g.beginPath(); g.ellipse(-s * 0.3, s * 0.55, s * 0.36, s * 0.26, -0.4, 0, 7); g.fill();
+  g.lineWidth = s * 0.16; g.beginPath(); g.moveTo(s * 0.02, s * 0.5); g.lineTo(s * 0.02, -s * 0.9); g.quadraticCurveTo(s * 0.5, -s * 0.6, s * 0.6, -s * 0.1); g.stroke();
   g.restore();
-}
-// a border-control stamp: square corners going in, rounded going out; the country in its ring
-// of stars, the date large, the means of travel, the place, the stamp's number up the side
-function borderStamp({ entry, place, date, kind = "plane", num = "051" }) {
-  const w = 720, h = 400, c = makeCanvas(w, h), g = c.getContext("2d");
-  g.fillStyle = g.strokeStyle = "#fff";
-  const lw = h * 0.045, m = lw;
-  g.lineWidth = lw;
-  g.beginPath(); g.roundRect(m, m, w - 2 * m, h - 2 * m, entry ? h * 0.025 : h * 0.18); g.stroke();
-  const cx = m + h * 0.26, cy = m + h * 0.28;
-  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; star(g, cx + Math.cos(a) * h * 0.16, cy + Math.sin(a) * h * 0.16, h * 0.026); }
-  label(g, "N", cx, cy + h * 0.075, h * 0.21, { align: "center" });
-  label(g, entry ? "INNREISE" : "UTREISE", w - m - h * 0.12, m + h * 0.2, h * 0.095, { align: "right", weight: 700, spacing: 3 });
-  g.lineWidth = h * 0.02;
-  g.beginPath(); g.moveTo(m + h * 0.52, m + h * 0.27); g.lineTo(w - m - h * 0.12, m + h * 0.27); g.stroke();
-  label(g, date, w * 0.6, h * 0.62, h * 0.21, { align: "center", weight: 700, spacing: 4 });
-  icon(g, kind, m + h * 0.27, h - m - h * 0.24, h * 0.12);
-  label(g, place, w * 0.6, h - m - h * 0.14, h * 0.115, { align: "center", weight: 700, spacing: 4 });
-  g.save(); g.translate(w - m - h * 0.06, h * 0.62); g.rotate(-Math.PI / 2);
-  label(g, num, 0, 0, h * 0.075, { align: "center", weight: 700, spacing: 2 });
-  g.restore();
-  return c;
 }
 function arcText(g, text, cx, cy, r, start, end, size, outside = true, font = SANS, weight = 800) {
   g.font = `${weight} ${size}px ${font}`;
@@ -777,77 +697,101 @@ function backstagePass() {
   return c;
 }
 
-// ---------- what's in it: the stamps, cached (several pages use them) ----------
+// ---------- what's in it: R4N's releases and live shows ----------
+// Postage stamps are the releases (their own cover art, printed as a stamp), each cancelled with a
+// postmark on its release date; rubber stamps are the live shows (js/memories.js). Everything that
+// means something can be clicked: the layout below says where each piece lies, so js/booking.js
+// knows what's under a click.
 const cache = new Map();
 const once = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
-const STAMP = {
-  record: () => once("record", POSTAGE.record),
-  fjord: () => once("fjord", POSTAGE.fjord),
-  mic: () => once("mic", POSTAGE.mic),
+
+const shortDate = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ""); return m ? `${m[3]}.${m[2]}.${m[1].slice(2)}` : ""; };
+const year = (d) => (/^(\d{4})/.exec(d || "") || [])[1] || "";
+
+// a release as a postage stamp: its cover, full bleed, NORGE, the year as the value, the title
+function releaseStamp(rel) {
+  return once(`rel:${rel.slug}`, () => postage(400, 500, "#1d1a18", (g, x, y, w, h) => {
+    const img = rel.image;
+    if (img) {
+      const s = Math.max(w / img.width, (h * 0.8) / img.height);
+      g.drawImage(img, x + (w - img.width * s) / 2, y + (h * 0.8 - img.height * s) / 2, img.width * s, img.height * s);
+    }
+    // the band along the foot, where the stamp's own lettering goes
+    g.fillStyle = "#f4efe3"; g.fillRect(x, y + h * 0.8, w, h * 0.2);
+    label(g, "NORGE", x + w * 0.06, y + h * 0.9, w * 0.105, { color: "#1b1714", base: "middle" });
+    label(g, year(rel.date).slice(2) || "R4N", x + w * 0.94, y + h * 0.9, w * 0.16, { color: "#8a1320", align: "right", base: "middle" });
+    label(g, rel.title, x + w * 0.06, y + h * 0.965, w * 0.052, { color: "#4a3f36", weight: 700, spacing: 1, max: w * 0.62 });
+  }));
+}
+// the post office's mark on a release: a round date stamp over the stamp's corner
+function releasePostmark(rel) {
+  return once(`pm:${rel.slug}`, () => ink(circleStamp(rel.category === "mine" ? "R4N · UTGITT" : "R4N · PROD", "RELEASED", shortDate(rel.date)), INK.black, 600 + rel.slug.length * 7, 0.8));
+}
+const LIVE_STAMP = {
+  ukm: () => once("ukm", () => ink(ukmShape(), INK.blue, 1201)),
+  band: () => once("band", () => ink(liveShape("LIVE", "R4N + BAND", "SPILT · PLAYED"), INK.red, 3301)),
+};
+const DECOR = {
   crown: () => once("crown", POSTAGE.crown),
   pass: () => once("pass", backstagePass),
-  ukm: () => once("ukm", () => ink(ukmShape(), INK.blue, 1201)),
   cancel: () => once("cancel", () => ink(waveCancel(), INK.black, 77, 0.8)),
-  inn: () => once("inn", () => ink(borderStamp({ entry: true, place: "OSLO S", date: "14.06.26", kind: "train", num: "051" }), INK.red, 3301)),
-  ut: () => once("ut", () => ink(borderStamp({ entry: false, place: "GARDERMOEN", date: "16.06.26", kind: "plane", num: "017" }), INK.blue, 4409)),
-  studio: () => once("studio", () => ink(circleStamp("STUDIO 51", "OSLO · NORGE", "12.06.26", "INNSPILT"), INK.violet, 5101)),
 };
-// stamps for the pages riffling past: other trips, other dates
-const TRIPS = [
-  ["inn", "BERGEN", "03.05.26", "plane", INK.red], ["ut", "BERGEN", "05.05.26", "plane", INK.blue],
-  ["inn", "TRONDHEIM", "21.03.26", "train", INK.green], ["ut", "TRONDHEIM", "22.03.26", "train", INK.violet],
-  ["inn", "STAVANGER", "09.08.25", "plane", INK.red], ["ut", "KRISTIANSAND", "30.08.25", "train", INK.blue],
-  ["circle", "TROMSØ", "LIVE", "18.01.26", INK.violet], ["circle", "LILLEHAMMER", "UKM", "11.04.26", INK.green],
-  ["circle", "OSLO", "STUDIO 51", "02.02.26", INK.red], ["inn", "OSLO S", "27.10.25", "train", INK.black],
-];
-function tripStamp(i) {
-  const [kind, a, b, c, col] = TRIPS[i % TRIPS.length];
-  return once(`trip${i % TRIPS.length}`, () => kind === "circle"
-    ? { canvas: ink(circleStamp(a, "R4N · " + b, c), col, 900 + i), round: true }
-    : { canvas: ink(borderStamp({ entry: kind === "inn", place: a, date: b, kind: c, num: String(100 + i * 7) }), col, 700 + i), round: false });
+// a rectangular show stamp: a big word, who played, a line under
+function liveShape(big, who, foot) {
+  const w = 720, h = 380, c = makeCanvas(w, h), g = c.getContext("2d");
+  g.fillStyle = g.strokeStyle = "#fff";
+  g.lineWidth = h * 0.05; g.beginPath(); g.roundRect(h * 0.05, h * 0.05, w - h * 0.1, h - h * 0.1, h * 0.06); g.stroke();
+  g.lineWidth = h * 0.018; g.beginPath(); g.roundRect(h * 0.13, h * 0.13, w - h * 0.26, h - h * 0.26, h * 0.03); g.stroke();
+  icon(g, "note", h * 0.42, h * 0.48, h * 0.14);
+  label(g, big, w * 0.58, h * 0.52, h * 0.3, { align: "center", font: '"Cinzel"', weight: 700, spacing: 10, max: w * 0.56 });
+  label(g, who, w * 0.58, h * 0.7, h * 0.085, { align: "center", weight: 800, spacing: 4, max: w * 0.56 });
+  label(g, foot, w * 0.5, h * 0.84, h * 0.06, { align: "center", weight: 700, spacing: 4 });
+  return c;
 }
 
-// The open spread: memories of a trip, laid out round the middle, where the film, the title and
-// the ticket lie across the fold (those are their own pieces, in js/booking.js). [x, y, rot]
-const SPREAD = {
-  wide: [
-    ["record", -0.68, 0.37, 0.2, 0.25, -0.08],
-    ["fjord", -0.44, 0.41, 0.2, 0.25, 0.07],
-    ["cancel", -0.5, 0.3, 0.42, 0.14, -0.04, "ink"],
-    ["inn", -0.6, 0.04, 0.34, 0.19, 0.1, "ink"],
-    ["ukm", -0.56, -0.32, 0.4, 0.4, -0.22, "ink"],
-    ["mic", 0.66, 0.37, 0.2, 0.25, 0.11],
-    ["studio", 0.73, 0.18, 0.24, 0.24, 0.3, "ink"],
-    ["pass", 0.6, -0.04, 0.34, 0.223, -0.05],
-    ["crown", 0.73, -0.41, 0.2, 0.25, -0.1],
-    ["ut", 0.5, -0.33, 0.3, 0.167, -0.14, "ink"],
-  ],
-  tall: [
-    ["record", -0.45, 0.68, 0.18, 0.225, -0.08],
-    ["fjord", -0.18, 0.71, 0.18, 0.225, 0.06],
-    ["cancel", -0.28, 0.6, 0.38, 0.127, -0.04, "ink"],
-    ["inn", 0.36, 0.7, 0.3, 0.167, 0.08, "ink"],
-    ["ukm", -0.47, 0.2, 0.27, 0.27, -0.2, "ink"],
-    ["mic", 0.48, 0.24, 0.17, 0.2125, 0.1],
-    ["pass", -0.47, -0.24, 0.24, 0.1575, 0.08],
-    ["studio", 0.47, -0.2, 0.2, 0.2, 0.3, "ink"],
-    ["crown", 0.42, -0.7, 0.18, 0.225, -0.1],
-    ["ut", -0.3, -0.7, 0.3, 0.167, -0.12, "ink"],
-  ],
+// The open spread: where each piece goes, wide (a book) and tall (a passport shown on its side).
+// [x, y, w, h, rot] in spread units. Postage slots take the newest releases in order.
+const LAYOUT = {
+  wide: {
+    postage: [[-0.68, 0.36, 0.2, 0.25, -0.07], [-0.44, 0.39, 0.2, 0.25, 0.06], [0.67, 0.37, 0.2, 0.25, 0.09], [0.46, 0.12, 0.2, 0.25, -0.05], [0.72, -0.08, 0.2, 0.25, 0.06]],
+    live: { band: [-0.62, 0.02, 0.34, 0.18, 0.08], ukm: [-0.55, -0.32, 0.38, 0.38, -0.2] },
+    decor: [["crown", 0.72, -0.43, 0.18, 0.225, -0.1], ["pass", 0.47, -0.3, 0.3, 0.197, 0.05, "band"]],
+  },
+  tall: {
+    postage: [[-0.47, 0.69, 0.17, 0.2125, -0.07], [-0.21, 0.71, 0.17, 0.2125, 0.06], [0.06, 0.69, 0.17, 0.2125, -0.04], [0.48, 0.24, 0.17, 0.2125, 0.08], [-0.44, -0.7, 0.17, 0.2125, 0.06]],
+    live: { band: [0.41, 0.7, 0.3, 0.158, 0.07], ukm: [-0.47, 0.2, 0.27, 0.27, -0.2] },
+    decor: [["crown", 0.44, -0.7, 0.17, 0.2125, -0.1], ["pass", -0.46, -0.24, 0.25, 0.164, 0.08, "band"]],
+  },
 };
+// what lies where on the spread, for clicks: [{ id, x, y, w, h, rot }]
+export function spreadHits(releases, vertical) {
+  const L = LAYOUT[vertical ? "tall" : "wide"], hits = [];
+  releases.slice(0, L.postage.length).forEach((rel, i) => { const [x, y, w, h, rot] = L.postage[i]; hits.push({ id: `rel:${rel.slug}`, x, y, w, h, rot }); });
+  for (const [id, [x, y, w, h, rot]] of Object.entries(L.live)) hits.push({ id: `live:${id}`, x, y, w, h, rot });
+  for (const [, x, y, w, h, rot, link] of L.decor) if (link) hits.push({ id: `live:${link}`, x, y, w, h, rot });
+  return hits;
+}
 
 // the open spread's two pages (L: left / top, R: right / bottom)
-export async function spreadPages(dims, tw, th, vertical) {
+export async function spreadPages(dims, tw, th, vertical, releases = []) {
+  const L = LAYOUT[vertical ? "tall" : "wide"];
+  const items = [];
+  releases.slice(0, L.postage.length).forEach((rel, i) => {
+    const [x, y, w, h, rot] = L.postage[i];
+    items.push({ make: () => releaseStamp(rel), x, y, w, h, rot });
+    // the postmark catches the stamp's inner edge, mostly on the paper
+    const side = x < 0 ? 1 : -1;
+    items.push({ make: () => releasePostmark(rel), x: x + side * w * 0.56, y: y - h * 0.18, w: w * 0.72, h: w * 0.72, rot: rot + side * 0.3, ink: true, alpha: 0.8 });
+  });
+  for (const [id, [x, y, w, h, rot]] of Object.entries(L.live)) items.push({ make: LIVE_STAMP[id], x, y, w, h, rot, ink: true, ghost: id === "band" });
+  for (const [key, x, y, w, h, rot] of L.decor) items.push({ make: DECOR[key], x, y, w, h, rot });
   const out = {};
   for (const side of ["L", "R"]) {
     const p = newPage(tw, th, { vertical, side, seed: side === "L" ? 41 : 42 });
     securityPrint(p, { num: side === "L" ? 14 : 15, seed: side === "L" ? 3 : 4 });
     await breathe();
     const reg = regionOf(dims, vertical, side);
-    for (const [key, x, y, w, h, rot, kind] of SPREAD[vertical ? "tall" : "wide"]) {
-      place(p, reg, { canvas: STAMP[key](), x, y, w, h, rot, ink: kind === "ink", ghost: key === "inn", alpha: 0.88 });
-      await breathe();
-    }
+    for (const it of items) { place(p, reg, { ...it, canvas: it.make(), alpha: it.alpha ?? 0.88 }); await breathe(); }
     pageShade(p);
     roundOuter(p, dims.R / dims.PW);
     out[side] = p.c;
@@ -856,25 +800,34 @@ export async function spreadPages(dims, tw, th, vertical) {
   return out;
 }
 
-// the pages that riffle past: visa pages from other trips (a few, used again and again)
-export async function leafPages(dims, tw, th, vertical, count) {
+// stamps for the pages riffling past: every release's postmark and its credit, the shows
+function riffleStamp(releases, i) {
+  const pool = [];
+  for (const rel of releases) {
+    pool.push({ key: `pm:${rel.slug}`, make: () => releasePostmark(rel), round: true });
+    pool.push({ key: `cr:${rel.slug}`, make: () => ink(liveShape(rel.category === "mine" ? "R4N" : "PROD", rel.title, shortDate(rel.date)), [INK.red, INK.blue, INK.violet, INK.green][rel.slug.length % 4], 700 + rel.slug.length), round: false });
+  }
+  pool.push({ key: "ukm", make: LIVE_STAMP.ukm, round: true }, { key: "band", make: LIVE_STAMP.band, round: false });
+  const s = pool[i % pool.length];
+  return { canvas: once(`riffle:${s.key}`, s.make), round: s.round };
+}
+
+// the pages that riffle past: visa pages full of the same story (a few, used again and again)
+export async function leafPages(dims, tw, th, vertical, count, releases = []) {
   const pages = { L: [], R: [] };
+  let n = 0;
   for (let i = 0; i < count; i++) {
     for (const side of ["L", "R"]) {
       const p = newPage(tw, th, { vertical, side, seed: 100 + i * 2 + (side === "L" ? 1 : 0) });
       securityPrint(p, { num: 4 + i * 2 + (side === "R" ? 1 : 0), header: "VISA / VISAS", seed: 10 + i });
       const r = rng(500 + i * 3 + (side === "L" ? 7 : 0));
-      const n = 2 + Math.floor(r() * 2);
-      for (let k = 0; k < n; k++) {
-        const s = tripStamp(i * 3 + k + (side === "L" ? 5 : 0));
-        const w = s.round ? 0.3 : 0.34, h = s.round ? 0.3 : 0.19;
-        // somewhere on the page, roughly in rows, never quite straight
-        const fx = 0.28 + r() * 0.44, fy = 0.2 + (k / n) * 0.62 + r() * 0.12;
-        const reg = regionOf(dims, vertical, side);
-        place(p, reg, {
-          canvas: s.canvas, ink: true, alpha: 0.85, rot: (r() - 0.5) * 0.6, w, h,
-          x: reg.x0 + fx * (reg.x1 - reg.x0), y: reg.y1 - fy * (reg.y1 - reg.y0),
-        });
+      const reg = regionOf(dims, vertical, side);
+      const k = 2 + Math.floor(r() * 2);
+      for (let j = 0; j < k; j++) {
+        const s = riffleStamp(releases, n++);
+        const w = s.round ? 0.3 : 0.36, h = s.round ? 0.3 : 0.19;
+        const fx = 0.3 + r() * 0.4, fy = 0.22 + (j / k) * 0.6 + r() * 0.1;
+        place(p, reg, { canvas: s.canvas, ink: true, alpha: 0.85, rot: (r() - 0.5) * 0.6, w, h, x: reg.x0 + fx * (reg.x1 - reg.x0), y: reg.y1 - fy * (reg.y1 - reg.y0) });
         await breathe();
       }
       pageShade(p);
@@ -891,18 +844,18 @@ export async function leafPages(dims, tw, th, vertical, count) {
 // js/booking.js lays over the page. Returns where those fields are, in spread units.
 const FORM = {
   wide: {
-    back: [-0.79, 0.53, 0.3, 0.06],
-    head: [-0.435, 0.4], sub: [-0.435, 0.33],
-    name: [-0.79, 0.12, 0.7, 0.075], email: [-0.79, -0.09, 0.7, 0.075],
-    office: [-0.79, -0.42, 0.7, 0.13],
+    back: [-0.8, 0.46, 0.34, 0.055],
+    head: [-0.435, 0.36], sub: [-0.435, 0.3],
+    name: [-0.79, 0.1, 0.7, 0.075], email: [-0.79, -0.1, 0.7, 0.075],
+    office: [-0.79, -0.46, 0.7, 0.2],
     message: [0.08, 0.42, 0.7, 0.56, 7], send: [0.27, -0.36, 0.32, 0.1],
     mrz: [0.06, -0.5],
   },
   tall: {
-    back: [-0.56, 0.8, 0.3, 0.055],
-    head: [0, 0.73], sub: [0, 0.67],
-    name: [-0.5, 0.48, 1.0, 0.07], email: [-0.5, 0.28, 1.0, 0.07],
-    office: [-0.5, 0.06, 1.0, 0.1],
+    back: [-0.56, 0.745, 0.34, 0.05],
+    head: [0, 0.66], sub: [0, 0.61],
+    name: [-0.5, 0.44, 1.0, 0.065], email: [-0.5, 0.26, 1.0, 0.065],
+    office: [-0.5, 0.03, 1.0, 0.15],
     message: [-0.5, -0.07, 1.0, 0.4, 5], send: [-0.15, -0.63, 0.3, 0.09],
     mrz: [-0.56, -0.81],
   },
@@ -919,10 +872,9 @@ export async function formPages(dims, tw, th, vertical) {
     const { g, LW } = p;
     const k = LW / (reg.x1 - reg.x0);
     const X = (x) => (x - reg.x0) * k, Y = (y) => (reg.y1 - y) * k;
-    const u = k / 1000; // pen size per 1/1000 of a unit
     const ink = "rgba(62,44,32,0.82)", pale = "rgba(62,44,32,0.5)";
     g.save();
-    const text = (t, x, y, size, opts = {}) => label(g, t, X(x), Y(y), size * u * 1000, { color: ink, weight: 700, ...opts });
+    const text = (t, x, y, size, opts = {}) => label(g, t, X(x), Y(y), size * k, { color: ink, weight: 700, ...opts });
     const line = (x, y, w, dash) => {
       g.strokeStyle = pale; g.lineWidth = Math.max(1, 0.0018 * k);
       g.setLineDash(dash ? [6 * k / 1000, 5 * k / 1000] : []);
@@ -933,22 +885,19 @@ export async function formPages(dims, tw, th, vertical) {
       text(`${n}. ${no} / ${en}`, x, y + h + 0.012, 0.024, { font: SANS, weight: 700, color: pale, spacing: 0.002 * k });
       line(x, y, w);
     };
-    // the heading and the office box: on the first page (left, or the top one)
     if (side === "L") {
-      text("BOOKINGSØKNAD", F.head[0], F.head[1], 0.05, { font: '"Cinzel"', align: "center", spacing: 0.006 * k });
+      text("BOOKINGSØKNAD", F.head[0], F.head[1], 0.05, { font: '"Cinzel"', align: "center", spacing: 0.006 * k, max: (reg.x1 - reg.x0 - 0.16) * k });
       text("BOOKING APPLICATION · R4N LIVE", F.sub[0], F.sub[1], 0.022, { font: SANS, align: "center", color: pale, spacing: 0.004 * k });
       field(F.name, 1, "Navn", "Name");
       field(F.email, 2, "E-post", "E-mail");
+      // R4N's own box: stamped and signed when a request is sent
       const [ox, oy, ow, oh] = F.office;
       g.strokeStyle = pale; g.lineWidth = 1.2 * k / 1000;
       g.strokeRect(X(ox), Y(oy + oh), ow * k, oh * k);
-      text("TIL BRUK FOR R4N / FOR R4N USE", ox + 0.02, oy + oh - 0.032, 0.018, { font: SANS, color: pale, spacing: 0.002 * k });
-      text("Mottatt / Received", ox + 0.02, oy + 0.025, 0.018, { font: SANS, weight: 600, color: pale });
-      line(ox + 0.22, oy + 0.02, ow * 0.3, true);
-      text("Svar / Reply", ox + ow * 0.58, oy + 0.025, 0.018, { font: SANS, weight: 600, color: pale });
-      line(ox + ow * 0.72, oy + 0.02, ow * 0.24, true);
-      // the R4N office's own stamp, faint, waiting in the corner
-      place(p, reg, { canvas: STAMP.studio(), x: ox + ow * 0.86, y: oy + oh * 0.55, w: 0.16, h: 0.16, rot: 0.25, ink: true, alpha: 0.35 });
+      text("TIL BRUK FOR R4N / FOR R4N USE", ox + 0.02, oy + oh - 0.03, 0.017, { font: SANS, color: pale, spacing: 0.002 * k });
+      text("Mottatt / Received", ox + 0.02, oy + 0.022, 0.017, { font: SANS, weight: 600, color: pale });
+      text("Signatur / Signature", ox + ow * 0.52, oy + 0.022, 0.017, { font: SANS, weight: 600, color: pale });
+      line(ox + ow * 0.52, oy + 0.05, ow * 0.44, true);
     }
     if (side === "R") {
       const [mx, my, mw, mh, rows] = F.message;
@@ -956,19 +905,15 @@ export async function formPages(dims, tw, th, vertical) {
       for (let i = 1; i <= rows; i++) line(mx, my - (mh / rows) * i, mw);
       const [sx, sy] = F.send;
       text("4. Send / Submit", sx - 0.01, sy + F.send[3] + 0.04, 0.02, { font: SANS, color: pale, spacing: 0.002 * k });
-    }
-    // the machine-readable lines, along the foot of the second page
-    if (side === "R") {
+      // the machine-readable lines, along the foot (44 characters, fixed width, as wide as fits)
       const [zx, zy] = F.mrz;
       g.fillStyle = "rgba(40,30,24,0.78)";
-      // as wide as the page allows, like the real lines (44 characters, fixed width)
       const mrz = ["P<NORR4N<<BOOKING<<STUDIO<51<<<<<<<<<<<<<<<", "R4N0000514NOR2606143<<<<<<<<<<<<<<<<<<<<06"];
       g.font = `600 ${0.024 * k}px ${MONO}`;
       const fit = Math.min(1, ((reg.x1 - zx) - 0.06) * k / g.measureText(mrz[0]).width);
       g.font = `600 ${0.024 * k * fit}px ${MONO}`;
       g.fillText(mrz[0], X(zx), Y(zy + 0.045));
       g.fillText(mrz[1], X(zx), Y(zy));
-      spaced(g, 0);
     }
     g.restore();
     pageShade(p);
@@ -979,25 +924,36 @@ export async function formPages(dims, tw, th, vertical) {
   return out;
 }
 
-// SENT: pressed onto the form when the message has gone
-export function sentStamp() {
-  return once("sent", () => {
-    const w = 720, h = 360, c = makeCanvas(w, h), g = c.getContext("2d");
-    g.fillStyle = g.strokeStyle = "#fff";
-    g.lineWidth = 16; g.beginPath(); g.roundRect(14, 14, w - 28, h - 28, 30); g.stroke();
-    g.lineWidth = 6; g.beginPath(); g.roundRect(40, 40, w - 80, h - 80, 18); g.stroke();
-    label(g, "SENDT · SENT", w / 2, h * 0.47, h * 0.2, { align: "center", font: '"Cinzel"', weight: 700, spacing: 6 });
-    label(g, "R4N · STUDIO 51", w / 2, h * 0.7, h * 0.09, { align: "center", weight: 800, spacing: 6 });
-    return ink(c, INK.red, 9001, 0.7);
-  });
-}
-// press the SENT stamp onto a form page (in place, on the canvas the page is made from)
-export function pressSent(canvas, dims, vertical, at) {
+// R4N's box, done: the RECEIVED stamp and the signature put onto the form page itself (so they
+// stay on the paper as the page turns back). `sign`: SVG path strings in a 300 x 120 box.
+export function stampForm(canvas, dims, vertical, stamp, sign) {
+  const F = formLayout(vertical), [ox, oy, ow, oh] = F.office;
   const p = { g: canvas.getContext("2d"), LW: vertical ? canvas.height : canvas.width, LH: vertical ? canvas.width : canvas.height };
+  const reg = regionOf(dims, vertical, "L"), k = p.LW / (reg.x1 - reg.x0);
   p.g.save();
   if (vertical) p.g.setTransform(0, -1, 1, 0, 0, canvas.height);
-  place(p, regionOf(dims, vertical, "R"), { canvas: sentStamp(), x: at[0], y: at[1], w: 0.42, h: 0.21, rot: 0.14, ink: true, alpha: 0.92 });
+  place(p, reg, { canvas: stamp, x: ox + ow * 0.22, y: oy + oh * 0.5, w: ow * 0.36, h: ow * 0.2, rot: 0.12, ink: true, alpha: 0.95 });
+  // the signature, in blue ink, over its line
+  const sx = (ox + ow * 0.53 - reg.x0) * k, sy = (reg.y1 - (oy + oh * 0.95)) * k, sw = ow * 0.42 * k, sh = oh * 0.86 * k;
+  const f = Math.min(sw / 300, sh / 120);
+  p.g.translate(sx + (sw - 300 * f) / 2, sy + (sh - 120 * f) / 2);
+  p.g.scale(f, f);
+  p.g.strokeStyle = "rgba(31,45,99,0.92)"; p.g.lineWidth = 3.4; p.g.lineCap = "round"; p.g.lineJoin = "round";
+  p.g.globalCompositeOperation = "multiply";
+  for (const d of sign) p.g.stroke(new Path2D(d));
   p.g.restore();
+}
+
+// RECEIVED, with the day's date: pressed into R4N's box when a request has gone
+export function receivedStamp(date) {
+  const w = 640, h = 360, c = makeCanvas(w, h), g = c.getContext("2d");
+  g.fillStyle = g.strokeStyle = "#fff";
+  g.lineWidth = 15; g.beginPath(); g.roundRect(12, 12, w - 24, h - 24, 28); g.stroke();
+  g.lineWidth = 5; g.beginPath(); g.roundRect(36, 36, w - 72, h - 72, 16); g.stroke();
+  label(g, "MOTTATT · RECEIVED", w / 2, h * 0.3, h * 0.085, { align: "center", weight: 800, spacing: 5 });
+  label(g, date, w / 2, h * 0.6, h * 0.24, { align: "center", weight: 800, spacing: 6 });
+  label(g, "R4N · STUDIO 51", w / 2, h * 0.8, h * 0.07, { align: "center", weight: 800, spacing: 6 });
+  return ink(c, INK.red, 9001 + date.length, 0.7);
 }
 
 // ---------- across the fold: the film's print, the title, the ticket ----------
@@ -1077,39 +1033,12 @@ export function ticketArt(hover) {
     g.strokeRect(h * 0.08, h * 0.08, stub - h * 0.16, h - h * 0.16);
     g.setLineDash([8, 9]); g.lineWidth = 4;
     g.beginPath(); g.moveTo(stub, nr * 1.4); g.lineTo(stub, h - nr * 1.4); g.stroke(); g.setLineDash([]);
-    label(g, "R4N LIVE · ADMIT ONE · STUDIO 51", stub / 2, h * 0.28, h * 0.085, { color: "rgba(240,223,178,0.8)", align: "center", weight: 700, spacing: 4 });
-    label(g, "BOOK NOW", stub / 2, h * 0.73, h * 0.36, { color: "#f3e4bb", align: "center", font: '"Cinzel"', weight: 700, spacing: 8 });
+    // the lettering always fits inside the inner frame, clear of the perforation
+    const room = stub - h * 0.5;
+    label(g, "R4N LIVE · ADMIT ONE · STUDIO 51", stub / 2, h * 0.3, h * 0.085, { color: "rgba(240,223,178,0.8)", align: "center", weight: 700, spacing: 4, max: room });
+    label(g, "BOOK NOW", stub / 2, h * 0.72, h * 0.34, { color: "#f3e4bb", align: "center", font: '"Cinzel"', weight: 700, spacing: 8, max: room });
     g.save(); g.translate((stub + w) / 2, h / 2); g.rotate(-Math.PI / 2);
     label(g, "Nº 0051", 0, h * 0.045, h * 0.13, { color: "#f3e4bb", align: "center", weight: 800, spacing: 3 });
     g.restore();
   });
-}
-
-// Until the real film arrives: a stop-motion stand-in, a few frames a second of a stage in the
-// dark (a figure at a mic in a cone of light), film grain and a counter.
-export function filmPlaceholder() {
-  const c = makeCanvas(420, 480);
-  const g = c.getContext("2d");
-  let frame = 0;
-  function draw() {
-    frame++;
-    const w = c.width, h = c.height, jit = (Math.random() - 0.5) * 6;
-    g.fillStyle = "#0f0c0a"; g.fillRect(0, 0, w, h);
-    const cone = g.createRadialGradient(w / 2 + jit, h * 0.1, 10, w / 2, h * 0.7, h * 0.75);
-    cone.addColorStop(0, "rgba(255,214,150,0.55)"); cone.addColorStop(1, "rgba(255,180,100,0)");
-    g.fillStyle = cone; g.beginPath(); g.moveTo(w * 0.42, 0); g.lineTo(w * 0.58, 0); g.lineTo(w * 0.95, h); g.lineTo(w * 0.05, h); g.fill();
-    const sway = Math.sin(frame * 0.9) * 8;
-    g.fillStyle = "#050404";
-    g.beginPath(); g.arc(w / 2 + sway, h * 0.5, w * 0.08, 0, 7); g.fill();
-    g.beginPath(); g.ellipse(w / 2 + sway * 0.6, h * 0.78, w * 0.24, h * 0.2, 0, Math.PI, 0); g.fill();
-    g.fillRect(w / 2 - w * 0.24 + sway * 0.6, h * 0.78, w * 0.48, h * 0.3);
-    g.strokeStyle = "#050404"; g.lineWidth = 5;
-    g.beginPath(); g.moveTo(w * 0.62, h * 0.53); g.lineTo(w * 0.7, h); g.stroke();
-    g.beginPath(); g.ellipse(w * 0.6, h * 0.53, 9, 14, -0.5, 0, 7); g.fill();
-    for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(255,240,220,${Math.random() * 0.12})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
-    g.fillStyle = "rgba(240,223,178,0.85)"; g.font = "600 15px ui-monospace, Menlo, monospace";
-    g.fillText(`REC ● 00:0${frame % 10}`, 16, 28);
-  }
-  draw();
-  return { canvas: c, draw };
 }

@@ -14,9 +14,12 @@ const STRINGS = {
     listenOn: "Listen on", language: "Language",
     hintClick: "CLICK TO OPEN", hintTap: "TAP TO OPEN",
     back: "← BACK", name: "Your name", email: "you@example.com", message: "Date, place, what kind of gig…",
-    send: "SEND", sending: "SENDING…", sent: "Sent. R4N will get back to you soon.",
+    send: "SEND", sending: "SENDING…", done: "OK",
     needName: "Write your name.", needEmail: "That e-mail doesn't look right.", needMessage: "Write a few words about the gig.",
-    fallback: "Opening your e-mail app instead…",
+    sendFailed: "It didn't go through. Try again in a moment, or write to r4nmusic@outlook.com.",
+    labelName: "1. Name", labelEmail: "2. E-mail", labelMessage: "3. Message",
+    thanksTitle: "Thank you for reaching out!", thanksText: "Your request has been received and will be answered as soon as possible.",
+    closePassport: "Close the passport", listenSpotify: "Listen on Spotify ↗", more: "More ↗", sound: "Sound",
   },
   no: {
     mine: "MINE LÅTER", workedOn: "JOBBET PÅ", booking: "BOOKING", index: "INDEKS", access: "TILGANG",
@@ -25,11 +28,16 @@ const STRINGS = {
     listenOn: "Lytt på", language: "Språk",
     hintClick: "KLIKK FOR Å ÅPNE", hintTap: "TRYKK FOR Å ÅPNE",
     back: "← TILBAKE", name: "Navnet ditt", email: "deg@eksempel.no", message: "Dato, sted, hva slags spillejobb…",
-    send: "SEND", sending: "SENDER…", sent: "Sendt. R4N svarer deg så snart som mulig.",
+    send: "SEND", sending: "SENDER…", done: "OK",
     needName: "Skriv navnet ditt.", needEmail: "Den e-postadressen ser ikke riktig ut.", needMessage: "Skriv litt om spillejobben.",
-    fallback: "Åpner e-postappen din i stedet…",
+    sendFailed: "Det gikk ikke gjennom. Prøv igjen om litt, eller skriv til r4nmusic@outlook.com.",
+    labelName: "1. Navn", labelEmail: "2. E-post", labelMessage: "3. Melding",
+    thanksTitle: "Takk for at du tar kontakt!", thanksText: "Forespørselen din er mottatt og blir besvart så snart som mulig.",
+    closePassport: "Lukk passet", listenSpotify: "Lytt på Spotify ↗", more: "Mer ↗", sound: "Lyd",
   },
 };
+import { play } from "./sound.js";
+
 const KEY = "r4n-lang";
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -95,6 +103,7 @@ export function setLang(l) {
   current = l;
   try { localStorage.setItem(KEY, l); } catch {}
   apply(true);
+  play("morph");
   listeners.forEach((fn) => fn(l));
 }
 
@@ -115,6 +124,7 @@ export function initLang() {
     list.querySelectorAll("[data-lang]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.lang === current)));
   };
   mark();
+  list.querySelectorAll("[data-lang]").forEach((b) => { b.dataset.sound = "none"; }); // (the letters make the sound)
   btn.addEventListener("click", (e) => { e.stopPropagation(); show(list.hidden); });
   list.addEventListener("click", (e) => {
     const b = e.target.closest("[data-lang]");

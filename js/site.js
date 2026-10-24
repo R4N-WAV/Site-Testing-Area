@@ -4,12 +4,14 @@ import { createShared, buildRecord, loadSharedTextures, TEXTURE_COUNT, SLEEVE } 
 import { initAccess } from "./access.js";
 import { initBooking } from "./route.js";
 import { initLang, t } from "./i18n.js";
+import { initSound, play } from "./sound.js";
 
 // Mostly black and white; the palette's magenta only as a faint rim light.
 const BG = 0xf6f6f4; // white, keep in sync with --bg in css/site.css
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 initLang(); // the language (and its picker) before anything is shown
+initSound(); // the speaker button; sounds wake on the first tap or click
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const isPhone = () => window.innerWidth <= 768;
@@ -234,7 +236,7 @@ function startSpace(releases, ui, textures) {
   placeCamera();
   centring.x = phone() ? centringFor(0) : 0; // starts in place, no drift on arrival
 
-  let focusIndex = 0;
+  let focusIndex = 0, lastPassing = null;
   const focus = springState(0);
   let hovered = -1;
   let selected = -1;
@@ -330,7 +332,7 @@ function startSpace(releases, ui, textures) {
   let hoverSince = 0;
   const HOVER_DELAY = 0.66; // seconds
   function setHovered(i) {
-    if (i !== hovered) { hoverSince = sceneTime; tag.classList.remove("is-shown"); }
+    if (i !== hovered) { hoverSince = sceneTime; tag.classList.remove("is-shown"); if (i !== -1) play("hover"); }
     hovered = i;
     document.body.classList.toggle("is-hovering", hovered !== -1);
     if (i !== -1) {
@@ -377,6 +379,7 @@ function startSpace(releases, ui, textures) {
     // opening doesn't move you down the tunnel, so closing puts everything back as it was
     const prev = selected;
     selected = i;
+    play("open");
     items.forEach((other, k) => {
       if (k === i || other.leaving) return;
       other.blendTarget = 0; other.slide = null; other.off = 0;
@@ -402,6 +405,7 @@ function startSpace(releases, ui, textures) {
     ui.showDetail(items[i].rel, i);
   }
   function deselect() {
+    if (selected !== -1) play("close");
     selected = -1;
     // a record still sliding out finishes its slide first, then goes home on its own
     items.forEach((it) => { if (!it.leaving) { it.blendTarget = 0; it.slide = null; it.off = 0; } });
@@ -603,6 +607,8 @@ ${gpu}`;
 
     if (drag && drag.goal !== undefined) spring(focus, drag.goal, 24, dt); // follows the finger, minus its jitter
     else if (!drag && !(warp && warp.phase === "out")) spring(focus, travel, warp ? 4.2 : (reducedMotion ? 30 : 6.5), dt);
+    // a soft tick each time a record goes by
+    { const passing = Math.round(focus.x); if (passing !== lastPassing) { if (!warp && lastPassing !== null) play("tick", { power: clamp(Math.abs(focus.v) * 0.25, 0.4, 1) }); lastPassing = passing; } }
 
     // centring (phones): glides after the record you're at; holds still through the dive, then
     // eases once to where the new tunnel needs it
@@ -1156,7 +1162,7 @@ async function main() {
 
   await loader.finish();
   initAccess({ space });
-  initBooking({ space });
+  initBooking({ space, releases });
   const slug = decodeURIComponent(location.hash.slice(1));
   if (slug) ui.openBySlug(slug);
 }

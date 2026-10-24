@@ -3,17 +3,18 @@
 //
 // In: the tunnel rushes forward while the whole page inverts (white to black, the records turn
 // to negatives), then the page quietly swaps to its dark theme, which looks the same, and the
-// passport comes up out of the dark. Out: the passport falls away into the distance until it's a
-// spark, the page swaps back to the light theme under the same inversion, and you fall back into
-// the tunnel while the inversion fades.
+// passport comes up out of the dark. Out: the passport sinks back into the dark, the page swaps
+// back to the light theme under the same inversion, and the tunnel flies in while it fades.
 // Browser back/forward and opening /booking/ directly work too (booking/index.html is this page).
+
+import { play } from "./sound.js";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const wait = (ms) => new Promise((r) => setTimeout(r, reducedMotion ? 0 : ms));
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const IN_MS = 850, OUT_MS = 900;
 
-export function initBooking({ space }) {
+export function initBooking({ space, releases = [] }) {
   const html = document.documentElement, body = document.body;
   const layer = document.getElementById("booking");
   const bookBtn = document.getElementById("bookBtn");
@@ -27,7 +28,7 @@ export function initBooking({ space }) {
   let passport = null, making = null, busy = false;
   // the passport's code and textures are only fetched and made when someone heads there
   const getPassport = () => (making ||= import("./booking.js")
-    .then(({ createPassport }) => createPassport(layer))
+    .then(({ createPassport }) => createPassport(layer, { releases }))
     .then((p) => (passport = p))
     .catch((err) => { making = null; throw err; }));
 
@@ -52,6 +53,7 @@ export function initBooking({ space }) {
       body.style.transition = `filter ${IN_MS}ms cubic-bezier(.65,0,.35,1)`;
       await nextFrame();
       body.style.filter = "invert(1)";
+      play("dive");
       await Promise.all([space.diveOut(IN_MS / 1000), wait(IN_MS + 20)]);
     } else if (space) {
       space.holdOut();
@@ -71,6 +73,7 @@ export function initBooking({ space }) {
     if (busy || !html.classList.contains("is-booking")) return;
     busy = true;
     if (push) history.pushState(null, "", root);
+    play("rise");
     if (passport) {
       await passport.hide(true);
       passport.setPaused(true);

@@ -27,7 +27,9 @@
         "./js/route.js": "./js/route.js?v=20261025120000",
         "./js/booking.js": "./js/booking.js?v=20261025120000",
         "./js/passport-art.js": "./js/passport-art.js?v=20261025120000",
-        "./js/i18n.js": "./js/i18n.js?v=20261025120000"
+        "./js/i18n.js": "./js/i18n.js?v=20261025120000",
+        "./js/sound.js": "./js/sound.js?v=20261025120000",
+        "./js/memories.js": "./js/memories.js?v=20261025120000"
     } }
   </script>
   <!-- fetch everything the site needs at once, instead of one after another -->
@@ -38,6 +40,7 @@
   <link rel="modulepreload" href="./js/access.js?v=20261025120000" />
   <link rel="modulepreload" href="./js/route.js?v=20261025120000" />
   <link rel="modulepreload" href="./js/i18n.js?v=20261025120000" />
+  <link rel="modulepreload" href="./js/sound.js?v=20261025120000" />
   <link rel="preload" href="assets/tex/paper.webp" as="image" crossorigin />
   <link rel="preload" href="assets/tex/wrap3-normal.webp" as="image" crossorigin />
   <link rel="preload" href="assets/tex/wrap3-haze.webp" as="image" crossorigin />
@@ -55,11 +58,11 @@
     <a href="./" class="logo" id="wordmark" aria-label="R4N home"><img src="assets/logo-white.png" alt="R4N" /></a>
     <!-- switch between R4N's own songs and songs R4N worked on for others -->
     <div class="modeToggle" role="group" aria-label="Which songs to show">
-      <button type="button" data-mode="mine" aria-pressed="true"><span class="foil" data-text="MY SONGS" data-i18n="mine">MY SONGS</span><sup data-count="mine"></sup></button>
+      <button type="button" data-mode="mine" aria-pressed="true" data-sound="toggle"><span class="foil" data-text="MY SONGS" data-i18n="mine">MY SONGS</span><sup data-count="mine"></sup></button>
       <span class="modeToggle__sep" aria-hidden="true">/</span>
-      <button type="button" data-mode="worked-on" aria-pressed="false"><span class="foil" data-text="WORKED ON" data-i18n="workedOn">WORKED ON</span><sup data-count="worked-on"></sup></button>
+      <button type="button" data-mode="worked-on" aria-pressed="false" data-sound="toggle"><span class="foil" data-text="WORKED ON" data-i18n="workedOn">WORKED ON</span><sup data-count="worked-on"></sup></button>
     </div>
-    <a class="textBtn bookBtn" id="bookBtn" href="booking/">BOOKING</a>
+    <a class="textBtn bookBtn" id="bookBtn" href="booking/" data-sound="none">BOOKING</a>
     <!-- language: English / Norwegian (js/i18n.js) -->
     <div class="langPick" id="langPick">
       <button class="textBtn langPick__btn" type="button" aria-haspopup="listbox" aria-expanded="false" data-i18n-label="language"><span class="langPick__code">EN</span><span class="langPick__caret" aria-hidden="true">▾</span></button>
@@ -67,6 +70,8 @@
         <li><button type="button" role="option" data-lang="en">ENGLISH</button></li>
         <li><button type="button" role="option" data-lang="no">NORSK</button></li>
       </ul>
+      <!-- sound on / off (js/sound.js) -->
+      <button class="textBtn soundBtn" id="soundBtn" type="button" aria-pressed="true" data-i18n-label="sound"><svg viewBox="0 0 20 16" aria-hidden="true"><path class="soundBtn__box" d="M2 5.5h3.5L10 2v12l-4.5-3.5H2z"/><path class="soundBtn__wave" d="M13 5.2c1 .8 1.5 1.7 1.5 2.8s-.5 2-1.5 2.8M15.4 3c1.7 1.4 2.6 3.1 2.6 5s-.9 3.6-2.6 5"/><path class="soundBtn__off" d="M13 5.5l5 5m0-5l-5 5"/></svg></button>
     </div>
     <button class="textBtn" id="indexBtn" type="button" aria-expanded="false" aria-controls="index" data-i18n="index">INDEX</button>
     <button class="textBtn accessBtn" id="accessBtn" type="button" data-i18n="access">ACCESS</button>
