@@ -808,8 +808,8 @@ export async function createPassport(layer, { releases = [] } = {}) {
     document.documentElement.classList.toggle("passport-open", k > 0.5 && appearGoal === 1);
     // the hint, on the passport, if nothing's happened for a while
     const hintOn = !opening && openT === 0 && appear > 0.9 && appearGoal === 1 && time - shownAt > 4;
-    if (hintOn) { // a little right of the passport's middle
-      v3.set(0.07, 0.02, T);
+    if (hintOn) { // on the cover, in the clear red between BOOKING and the chip, a little right
+      v3.set(0.05, -0.42, T);
       body.localToWorld(v3).project(camera);
       hint.style.left = `${(v3.x * 0.5 + 0.5) * size[0]}px`;
       hint.style.top = `${(-v3.y * 0.5 + 0.5) * size[1]}px`;

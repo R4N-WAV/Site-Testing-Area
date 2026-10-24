@@ -24,16 +24,24 @@ the tunnel (`js/route.js` switches between them, `js/booking.js` draws the passp
 `booking/index.html` is a copy of `index.html`: after editing `index.html`, run
 `node scripts/sync-pages.mjs` to regenerate it.
 
-Opened, the passport shows memories of a trip and a ticket, BOOK NOW, which turns the page to a
-booking form. The form sends to r4nmusic@outlook.com through [FormSubmit](https://formsubmit.co)
-(no account needed). **The very first message sent asks for confirmation:** FormSubmit e-mails
-r4nmusic@outlook.com an activation link, which has to be clicked once; from then on messages
-arrive by themselves. If the service can't be reached, the form opens the visitor's own e-mail
-app with the message already written.
+Opened, the passport shows R4N's story: every release is a postage stamp (its own cover art,
+postmarked on its release date), the live shows are rubber stamps, and each one opens a small card
+when clicked. Releases come from `releases/` by themselves; the live shows and their words are in
+`js/memories.js`. The ticket, BOOK NOW, turns the page to a booking form.
 
-The film on the spread is a stand-in. To use the real one, add a short looping video (an `.mp4`,
-muted, a few MB at most) to `assets/` and call `passport.setVideo("assets/your-file.mp4")` in
-`js/route.js` right after the passport is made.
+The form sends straight to r4nmusic@outlook.com through [FormSubmit](https://formsubmit.co) (no
+account, nothing opens on the visitor's side). **The first time, FormSubmit sends r4nmusic@outlook.com
+an e-mail with an "Activate Form" button, which must be clicked once** (look in spam as well);
+until then requests can't arrive.
+
+The film is `assets/film/r4n-live.mp4`, made from R4N's footage with `scripts/make-film.sh`
+(stop-motion, black and white, paper-cut look; see the top of that file). The cover's textures are
+images in `assets/passport/`, made by `scripts/bake-passport.mjs`.
+
+## Sound
+
+Everything you touch makes a small sound (`js/sound.js`, all made in code, no files). The speaker
+button beside the language picker turns it off (remembered).
 
 ## Language
 
@@ -51,7 +59,7 @@ Plain HTML, CSS and JavaScript, no build step. Served by GitHub Pages from the `
 - `js/data.js`: reads the release folders
 - `js/access.js`: the ACCESS screen
 - `js/route.js`, `js/booking.js`, `js/passport-art.js`: the booking page, its passport, the passport's artwork
-- `js/i18n.js`: English / Norwegian
+- `js/i18n.js`: English / Norwegian; `js/sound.js`: the sounds; `js/memories.js`: the live shows in the passport
 - `vendor/addons`: three.js bloom and studio-light helpers (MIT); `assets/fonts`: Cinzel (OFL)
 - `vendor/three.module.min.js`: [three.js](https://threejs.org) r170 (MIT, see `vendor/THREE-LICENSE`)
 - `scripts/build-releases.mjs` + `.github/workflows/releases.yml`: keep `releases/index.json` up to date
