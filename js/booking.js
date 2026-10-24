@@ -881,7 +881,8 @@ export async function createPassport(layer) {
   const LAND = LEAF_START + LEAVES * LEAF_GAP + LEAF_DUR - 0.12, LAND_GAP = 0.09;
   const OPEN_END = LAND + memories.length * LAND_GAP + 0.3;
   let openT = 0, opening = false, vertical = false, overButton = false;
-  let paused = false, raf = 0, last = performance.now(), time = 0, filmClock = 0;
+  // made ahead of time, it waits without drawing until it's shown
+  let paused = true, raf = 0, last = performance.now(), time = 0, filmClock = 0;
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2(9, 9);
   const hitTargets = [front, back, pagesMesh, inside, rightPage, ...leaves.flatMap((l) => [l.frontLeaf, l.backLeaf]), ...memories.map((m) => m.mesh)];
@@ -1047,7 +1048,7 @@ export async function createPassport(layer) {
   const api = {
     canvas,
     get isOpen() { return opening; },
-    show(animate = true) { appearGoal = 1; if (!animate) appear = 1; nextEvent = 1.6; },
+    show(animate = true) { appearGoal = 1; if (!animate) appear = 1; nextEvent = 1.6; paused = false; last = performance.now(); },
     hide(animate = true) {
       appearGoal = 0; opening = false;
       if (!animate || reducedMotion) { appear = 0; openT = 0; return Promise.resolve(); }
