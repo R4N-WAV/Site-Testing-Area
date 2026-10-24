@@ -1,59 +1,56 @@
-// What the passport remembers, and what its little cards say when a stamp is clicked.
+// What the passport says about R4N live, and what its cards say when something is clicked.
+// Change any of the words here (Norwegian and English); the passport draws them by itself.
 //
-// Postage stamps are R4N's releases: they come from releases/ by themselves (cover, title, date,
-// credits, description, links), so a new release shows up in the passport too.
-// Rubber stamps are the live shows, written here. To add or change one, edit LIVE: the `id`s
-// match the stamps drawn in js/passport-art.js ("ukm", "band").
+// The releases (from releases/) appear as postage stamps on the pages that riffle past when it
+// opens; the open spread is about playing live.
 
-export const LIVE = {
-  ukm: {
-    title: "UKM-FESTIVALEN",
-    meta: { no: "Live · UKM", en: "Live · UKM" },
-    text: {
-      no: "R4N på scenen under UKM-festivalen.",
-      en: "R4N on stage at the UKM festival.",
-    },
-    link: "",
-  },
-  band: {
+// the two printed entries on the open spread
+export const LIVE_TEXT = {
+  // left page, top: like a passport's "observations" entry
+  about: {
+    head: "ANMERKNINGER / OBSERVATIONS",
     title: "R4N LIVE",
-    meta: { no: "Live med band", en: "Live with a band" },
     text: {
-      no: "R4N fremfører låtene sine live, med fullt band bak seg.",
-      en: "R4N performing the songs live, with a full band.",
+      no: "R4N har stått på scenen på en rekke arrangementer: for skoler, for kommunen og på UKM, hele veien til UKM-festivalen i Trondheim i 2025. Hver gang litt bedre enn sist, og alltid med noe publikum husker.",
+      en: "R4N has played a long list of events: for schools, for the municipality and at UKM, all the way to the UKM national festival in Trondheim in 2025. A little better every time, and always with something the audience remembers.",
     },
-    link: "https://www.instagram.com/r4n.wav/",
+  },
+  // right page, lower: what you get when you book
+  book: {
+    head: "BOOKING",
+    title: "BOOK R4N",
+    points: {
+      no: [
+        "Fra rolige kjærlighetssanger og rap med energi til dypere temaer, skreddersydd for akkurat ditt publikum.",
+        "Alt er skrevet av R4N, og nesten alt også produsert av R4N.",
+        "God kjennskap til lyd og sonisk design: det låter bra, hver gang.",
+      ],
+      en: [
+        "From quiet love songs and high-energy rap to deeper themes, tailored to your audience.",
+        "Everything written by R4N, nearly all of it produced by R4N too.",
+        "A real ear for sound and sonic design: it sounds right, every time.",
+      ],
+    },
   },
 };
 
-const fmt = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ""); return m ? `${m[3]}.${m[2]}.${m[1]}` : d || ""; };
-// [text](url) and **bold** as plain words
-const plain = (s) => String(s || "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1").trim();
-
-// The card for a release: what it is, when, who; its own description if it has one
-export function releaseCard(rel, lang) {
-  const no = lang === "no";
-  const date = fmt(rel.date);
-  const r4nRoles = rel.credits.filter((c) => c.people.some((p) => /^r4n$/i.test(p.name))).map((c) => c.role.toLowerCase());
-  let line;
-  if (rel.category === "mine") line = no ? `${rel.type || "Singel"} av ${rel.artist}. Ute ${date}.` : `${rel.type || "Single"} by ${rel.artist}. Out ${date}.`;
-  else {
-    const roles = r4nRoles.join(no ? " og " : " and ") || "prod";
-    line = no ? `${rel.artist}, med R4N på ${roles}. Ute ${date}.` : `${rel.artist}, with R4N on ${roles}. Out ${date}.`;
-  }
-  const desc = plain(rel.description);
-  const link = rel.links?.spotify || Object.values(rel.links || {}).find(Boolean) || "";
-  return {
-    title: rel.title,
-    meta: `${rel.category === "mine" ? (no ? "Utgivelse" : "Release") : (no ? "Produsert" : "Produced")} · ${date}`,
-    // the descriptions are written in Norwegian: in English, only the facts
-    text: no && desc ? `${desc}` : line,
-    sub: no && desc ? line : "",
-    link,
-  };
-}
+// the cards: what opens when a stamp is clicked
+export const LIVE = {
+  ukm: {
+    title: "UKM-FESTIVALEN",
+    meta: { no: "Live · UKM 2025 · Trondheim", en: "Live · UKM 2025 · Trondheim" },
+    text: {
+      no: "R4N har deltatt på UKM flere ganger, og gikk i 2025 helt videre til UKM-festivalen i Trondheim.",
+      en: "R4N has taken part in UKM several times, and in 2025 went all the way to the UKM national festival in Trondheim.",
+    },
+    link: "",
+  },
+};
 
 export function liveCard(id, lang) {
+  // the printed entries, as cards
+  if (id === "about") { const A = LIVE_TEXT.about; return { title: A.title, meta: A.head, text: A.text[lang] || A.text.en, link: "" }; }
+  if (id === "book") { const B = LIVE_TEXT.book; return { title: B.title, meta: B.head, text: (B.points[lang] || B.points.en).map((p) => `— ${p}`).join("\n"), link: "" }; }
   const m = LIVE[id];
   if (!m) return null;
   return { title: m.title, meta: m.meta[lang] || m.meta.en, text: m.text[lang] || m.text.en, link: m.link };

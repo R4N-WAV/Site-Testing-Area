@@ -8,6 +8,8 @@
 // spread units (the booklet's own size, x right, y up, the spine at 0), and drawn onto both pages,
 // each showing its own half, so anything lying across the fold carries on across it.
 
+import { LIVE_TEXT } from "./memories.js";
+
 export const breathe = () => new Promise((r) => setTimeout(r, 0));
 export function rng(seed) {
   let s = Math.abs(Math.floor(seed)) % 2147483646 + 1;
@@ -642,20 +644,6 @@ function circleStamp(top, bottom, date, middle) {
   if (middle) label(g, middle, m, m - n * 0.13, n * 0.06, { align: "center", weight: 700, spacing: 3 });
   return c;
 }
-// the post office's cancellation: wavy lines with the round date stamp at their start
-function waveCancel() {
-  const w = 900, h = 300, c = makeCanvas(w, h), g = c.getContext("2d");
-  g.fillStyle = g.strokeStyle = "#fff";
-  const ring = circleStamp("OSLO", "POSTEN", "14.06.26");
-  g.drawImage(ring, 0, 10, 280, 280);
-  g.lineWidth = 9; g.lineCap = "round";
-  for (let k = 0; k < 6; k++) {
-    g.beginPath();
-    for (let x = 300; x <= w - 10; x += 6) { const y = 50 + k * 40 + Math.sin(x * 0.028) * 13; if (x === 300) g.moveTo(x, y); else g.lineTo(x, y); }
-    g.stroke();
-  }
-  return c;
-}
 function ukmShape() {
   const n = 800, c = makeCanvas(n, n), g = c.getContext("2d"), m = n / 2;
   g.strokeStyle = g.fillStyle = "#fff";
@@ -697,11 +685,10 @@ function backstagePass() {
   return c;
 }
 
-// ---------- what's in it: R4N's releases and live shows ----------
-// Postage stamps are the releases (their own cover art, printed as a stamp), each cancelled with a
-// postmark on its release date; rubber stamps are the live shows (js/memories.js). Everything that
-// means something can be clicked: the layout below says where each piece lies, so js/booking.js
-// knows what's under a click.
+// ---------- what's in it: R4N live, and the releases ----------
+// The releases are postage stamps (their own cover art, printed as a stamp), each cancelled with a
+// postmark on its release date, on the pages that riffle past. The open spread is about playing
+// live (js/memories.js has its words).
 const cache = new Map();
 const once = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
 
@@ -729,14 +716,12 @@ function releasePostmark(rel) {
 }
 const LIVE_STAMP = {
   ukm: () => once("ukm", () => ink(ukmShape(), INK.blue, 1201)),
-  band: () => once("band", () => ink(liveShape("LIVE", "R4N + BAND", "SPILT · PLAYED"), INK.red, 3301)),
 };
 const DECOR = {
   crown: () => once("crown", POSTAGE.crown),
   pass: () => once("pass", backstagePass),
-  cancel: () => once("cancel", () => ink(waveCancel(), INK.black, 77, 0.8)),
 };
-// a rectangular show stamp: a big word, who played, a line under
+// a rectangular stamp: a big word, a line of what, a line under
 function liveShape(big, who, foot) {
   const w = 720, h = 380, c = makeCanvas(w, h), g = c.getContext("2d");
   g.fillStyle = g.strokeStyle = "#fff";
@@ -749,48 +734,105 @@ function liveShape(big, who, foot) {
   return c;
 }
 
-// The open spread: where each piece goes, wide (a book) and tall (a passport shown on its side).
-// [x, y, w, h, rot] in spread units. Postage slots take the newest releases in order.
+// The open spread is about playing live: the UKM stamp (click it for its story), two printed
+// entries (what R4N live is, what you get when you book; words in js/memories.js) and two
+// cut-outs glued in. Wide (a book) and tall (a passport shown on its side).
+// Pieces: [x, y, w, h, rot]; text boxes: [left, top, right, bottom], all in spread units.
 const LAYOUT = {
   wide: {
-    postage: [[-0.68, 0.36, 0.2, 0.25, -0.07], [-0.44, 0.39, 0.2, 0.25, 0.06], [0.67, 0.37, 0.2, 0.25, 0.09], [0.46, 0.12, 0.2, 0.25, -0.05], [0.72, -0.08, 0.2, 0.25, 0.06]],
-    live: { band: [-0.62, 0.02, 0.34, 0.18, 0.08], ukm: [-0.55, -0.32, 0.38, 0.38, -0.2] },
-    decor: [["crown", 0.72, -0.43, 0.18, 0.225, -0.1], ["pass", 0.47, -0.3, 0.3, 0.197, 0.05, "band"]],
+    live: { ukm: [-0.56, -0.33, 0.36, 0.36, -0.18] },
+    decor: [["pass", 0.52, 0.38, 0.3, 0.197, 0.06], ["crown", 0.75, 0.3, 0.17, 0.2125, -0.09]],
+    about: [-0.79, 0.5, -0.36, 0.0],
+    book: [0.38, 0.1, 0.81, -0.52],
   },
   tall: {
-    postage: [[-0.47, 0.69, 0.17, 0.2125, -0.07], [-0.21, 0.71, 0.17, 0.2125, 0.06], [0.06, 0.69, 0.17, 0.2125, -0.04], [0.48, 0.24, 0.17, 0.2125, 0.08], [-0.44, -0.7, 0.17, 0.2125, 0.06]],
-    live: { band: [0.41, 0.7, 0.3, 0.158, 0.07], ukm: [-0.47, 0.2, 0.27, 0.27, -0.2] },
-    decor: [["crown", 0.44, -0.7, 0.17, 0.2125, -0.1], ["pass", -0.46, -0.24, 0.25, 0.164, 0.08, "band"]],
+    live: { ukm: [-0.475, 0.26, 0.25, 0.25, -0.18] },
+    decor: [["pass", 0.47, 0.3, 0.24, 0.158, 0.08], ["crown", 0.48, -0.1, 0.14, 0.175, -0.09]],
+    about: [-0.56, 0.84, 0.56, 0.53],
+    book: [-0.56, -0.52, 0.56, -0.79],
   },
 };
-// what lies where on the spread, for clicks: [{ id, x, y, w, h, rot }]
-export function spreadHits(releases, vertical) {
-  const L = LAYOUT[vertical ? "tall" : "wide"], hits = [];
-  releases.slice(0, L.postage.length).forEach((rel, i) => { const [x, y, w, h, rot] = L.postage[i]; hits.push({ id: `rel:${rel.slug}`, x, y, w, h, rot }); });
-  for (const [id, [x, y, w, h, rot]] of Object.entries(L.live)) hits.push({ id: `live:${id}`, x, y, w, h, rot });
-  for (const [, x, y, w, h, rot, link] of L.decor) if (link) hits.push({ id: `live:${link}`, x, y, w, h, rot });
-  return hits;
+// what can be clicked on the spread: [{ id, x, y, w, h, rot }]. The printed entries too: on a
+// phone their type is small, so a tap opens them in a card, large.
+export function spreadHits(vertical) {
+  const L = LAYOUT[vertical ? "tall" : "wide"];
+  const box = (id, [x0, y0, x1, y1]) => ({ id, x: (x0 + x1) / 2, y: (y0 + y1) / 2, w: x1 - x0, h: y0 - y1, rot: 0 });
+  return [
+    ...Object.entries(L.live).map(([id, [x, y, w, h, rot]]) => ({ id: `live:${id}`, x, y, w, h, rot })),
+    box("text:about", L.about), box("text:book", L.book),
+  ];
 }
 
-// the open spread's two pages (L: left / top, R: right / bottom)
-export async function spreadPages(dims, tw, th, vertical, releases = []) {
+// words to lines that fit a width (at the pen's current font)
+function wrap(g, text, width) {
+  const lines = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && g.measureText(next).width > width) { lines.push(line); line = word; } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+// A printed entry, typed onto the page like the observations in a passport: a small heading with a
+// rule, a title, then the text (a paragraph, or points). It takes the largest type that fits its box.
+function textBlock(p, reg, [x0, y0, x1, y1], { head, title, text, points }) {
+  const { g, LW } = p;
+  const k = LW / (reg.x1 - reg.x0);
+  const bx = (x0 - reg.x0) * k, by = (reg.y1 - y0) * k, bw = (x1 - x0) * k, bh = (y0 - y1) * k;
+  if (bx + bw < 0 || bx > p.LW || by + bh < 0 || by > p.LH) return;
+  const paras = points || [text];
+  const ink = "rgba(36,28,22,0.86)", pale = "rgba(62,44,32,0.55)";
+  // the largest body size (in spread units) at which everything fits
+  let size = 0.03;
+  const layout = (s) => {
+    const px = s * k;
+    g.font = `500 ${px}px ${MONO}`;
+    const indent = points ? px * 1.4 : 0;
+    const lines = paras.map((t) => wrap(g, t, bw - indent));
+    const h = px * 1.1 /* head */ + px * 0.9 + px * 1.9 /* title */ + px * 0.5 + lines.reduce((n, l) => n + l.length, 0) * px * 1.5 + (paras.length - 1) * px * 0.6;
+    return { px, indent, lines, h };
+  };
+  let L = layout(size);
+  while (L.h > bh && size > 0.012) { size *= 0.94; L = layout(size); }
+  const { px, indent, lines } = L;
+  g.save();
+  g.textBaseline = "alphabetic";
+  let y = by + px;
+  label(g, head, bx, y, px * 0.78, { color: pale, weight: 700, spacing: px * 0.12, max: bw });
+  g.strokeStyle = pale; g.lineWidth = Math.max(1, px * 0.06);
+  g.beginPath(); g.moveTo(bx, y + px * 0.45); g.lineTo(bx + bw, y + px * 0.45); g.stroke();
+  y += px * 0.9 + px * 1.6;
+  label(g, title, bx, y, px * 1.5, { color: ink, font: '"Cinzel"', weight: 700, spacing: px * 0.1, max: bw });
+  y += px * 0.5;
+  g.font = `500 ${px}px ${MONO}`;
+  g.fillStyle = ink;
+  lines.forEach((ls, i) => {
+    ls.forEach((ln, j) => {
+      y += px * 1.5;
+      if (points && j === 0) g.fillText("—", bx, y);
+      g.fillText(ln, bx + indent, y);
+    });
+    y += px * 0.6;
+  });
+  g.restore();
+}
+
+// the open spread's two pages (L: left / top, R: right / bottom), in the visitor's language
+export async function spreadPages(dims, tw, th, vertical, lang = "en") {
   const L = LAYOUT[vertical ? "tall" : "wide"];
   const items = [];
-  releases.slice(0, L.postage.length).forEach((rel, i) => {
-    const [x, y, w, h, rot] = L.postage[i];
-    items.push({ make: () => releaseStamp(rel), x, y, w, h, rot });
-    // the postmark catches the stamp's inner edge, mostly on the paper
-    const side = x < 0 ? 1 : -1;
-    items.push({ make: () => releasePostmark(rel), x: x + side * w * 0.56, y: y - h * 0.18, w: w * 0.72, h: w * 0.72, rot: rot + side * 0.3, ink: true, alpha: 0.8 });
-  });
-  for (const [id, [x, y, w, h, rot]] of Object.entries(L.live)) items.push({ make: LIVE_STAMP[id], x, y, w, h, rot, ink: true, ghost: id === "band" });
+  for (const [id, [x, y, w, h, rot]] of Object.entries(L.live)) items.push({ make: LIVE_STAMP[id], x, y, w, h, rot, ink: true });
   for (const [key, x, y, w, h, rot] of L.decor) items.push({ make: DECOR[key], x, y, w, h, rot });
+  const A = LIVE_TEXT.about, B = LIVE_TEXT.book;
   const out = {};
   for (const side of ["L", "R"]) {
     const p = newPage(tw, th, { vertical, side, seed: side === "L" ? 41 : 42 });
     securityPrint(p, { num: side === "L" ? 14 : 15, seed: side === "L" ? 3 : 4 });
     await breathe();
     const reg = regionOf(dims, vertical, side);
+    textBlock(p, reg, L.about, { head: A.head, title: A.title, text: A.text[lang] || A.text.en });
+    textBlock(p, reg, L.book, { head: B.head, title: B.title, points: B.points[lang] || B.points.en });
     for (const it of items) { place(p, reg, { ...it, canvas: it.make(), alpha: it.alpha ?? 0.88 }); await breathe(); }
     pageShade(p);
     roundOuter(p, dims.R / dims.PW);
@@ -800,19 +842,8 @@ export async function spreadPages(dims, tw, th, vertical, releases = []) {
   return out;
 }
 
-// stamps for the pages riffling past: every release's postmark and its credit, the shows
-function riffleStamp(releases, i) {
-  const pool = [];
-  for (const rel of releases) {
-    pool.push({ key: `pm:${rel.slug}`, make: () => releasePostmark(rel), round: true });
-    pool.push({ key: `cr:${rel.slug}`, make: () => ink(liveShape(rel.category === "mine" ? "R4N" : "PROD", rel.title, shortDate(rel.date)), [INK.red, INK.blue, INK.violet, INK.green][rel.slug.length % 4], 700 + rel.slug.length), round: false });
-  }
-  pool.push({ key: "ukm", make: LIVE_STAMP.ukm, round: true }, { key: "band", make: LIVE_STAMP.band, round: false });
-  const s = pool[i % pool.length];
-  return { canvas: once(`riffle:${s.key}`, s.make), round: s.round };
-}
-
-// the pages that riffle past: visa pages full of the same story (a few, used again and again)
+// the pages that riffle past: R4N's releases, each a postage stamp with its postmark, among the
+// show's stamps (a few pages, used again and again)
 export async function leafPages(dims, tw, th, vertical, count, releases = []) {
   const pages = { L: [], R: [] };
   let n = 0;
@@ -822,14 +853,18 @@ export async function leafPages(dims, tw, th, vertical, count, releases = []) {
       securityPrint(p, { num: 4 + i * 2 + (side === "R" ? 1 : 0), header: "VISA / VISAS", seed: 10 + i });
       const r = rng(500 + i * 3 + (side === "L" ? 7 : 0));
       const reg = regionOf(dims, vertical, side);
-      const k = 2 + Math.floor(r() * 2);
-      for (let j = 0; j < k; j++) {
-        const s = riffleStamp(releases, n++);
-        const w = s.round ? 0.3 : 0.36, h = s.round ? 0.3 : 0.19;
-        const fx = 0.3 + r() * 0.4, fy = 0.22 + (j / k) * 0.6 + r() * 0.1;
-        place(p, reg, { canvas: s.canvas, ink: true, alpha: 0.85, rot: (r() - 0.5) * 0.6, w, h, x: reg.x0 + fx * (reg.x1 - reg.x0), y: reg.y1 - fy * (reg.y1 - reg.y0) });
+      const at = (fx, fy) => [reg.x0 + fx * (reg.x1 - reg.x0), reg.y1 - fy * (reg.y1 - reg.y0)];
+      const rel = releases.length ? releases[n++ % releases.length] : null;
+      if (rel) {
+        const sw = 0.2, sh = 0.25, [x, y] = at(0.32 + r() * 0.12, 0.3 + r() * 0.08), rot = (r() - 0.5) * 0.2;
+        place(p, reg, { canvas: releaseStamp(rel), x, y, w: sw, h: sh, rot });
+        place(p, reg, { canvas: releasePostmark(rel), x: x + sw * 0.55, y: y - sh * 0.2, w: sw * 0.72, h: sw * 0.72, rot: rot + 0.3, ink: true, alpha: 0.8 });
         await breathe();
       }
+      // and a stamp from the shows, lower down
+      const [x2, y2] = at(0.45 + r() * 0.2, 0.68 + r() * 0.1);
+      const show = (i + (side === "L" ? 1 : 0)) % 2 ? LIVE_STAMP.ukm() : once("riffle:live", () => ink(liveShape("LIVE", "R4N", "SPILT · PLAYED"), INK.red, 3301));
+      place(p, reg, { canvas: show, x: x2, y: y2, w: 0.3, h: show.height / show.width * 0.3, rot: (r() - 0.5) * 0.5, ink: true, alpha: 0.82 });
       pageShade(p);
       roundOuter(p, dims.R / dims.PW);
       pages[side].push(p.c);
@@ -979,8 +1014,8 @@ export function printArt() {
     g.globalCompositeOperation = "destination-out";
     g.fillRect(w * wx, h * wy, w * ww, h * wh);
     g.globalCompositeOperation = "source-over";
-    label(g, "R4N LIVE · UKM", w * wx, h * 0.935, h * 0.026, { color: "rgba(40,30,24,0.55)", weight: 700, font: MONO, spacing: 3 });
-    label(g, "14.06.26", w * (wx + ww), h * 0.935, h * 0.026, { color: "rgba(40,30,24,0.55)", weight: 700, font: MONO, align: "right", spacing: 3 });
+    // what the film is: cuts from two things
+    label(g, "FLAWLESS FASADE VISUALIZER · R4N PÅ UKM 2025", w / 2, h * 0.925, h * 0.026, { color: "rgba(40,30,24,0.62)", weight: 700, font: MONO, align: "center", spacing: 2, max: w * ww });
     // tape: translucent, its ends torn
     const tape = (x, y, a) => {
       g.save(); g.translate(x, y); g.rotate(a);
@@ -1011,6 +1046,19 @@ export function titleArt() {
     g.fillStyle = "#16120f"; g.textAlign = "center"; g.textBaseline = "middle";
     g.fillText("R4N LIVE", w / 2 + h * 0.03, h * 0.56);
     spaced(g, 0);
+  });
+}
+// the close tab: a crimson paper label stuck in the page's corner, gold lettering
+export const TAB = { w: 0.2, h: 0.085 };
+export function tabArt(hover) {
+  const W2 = 520, H2 = Math.round(520 * TAB.h / TAB.w);
+  return withPad(W2, H2, (g, w, h) => {
+    g.fillStyle = hover ? "#a31a2b" : "#8a1320";
+    g.beginPath(); g.roundRect(0, 0, w, h, h * 0.22); g.fill();
+    g.shadowColor = "rgba(0,0,0,0)";
+    g.strokeStyle = "rgba(240,223,178,0.5)"; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(h * 0.1, h * 0.1, w - h * 0.2, h - h * 0.2, h * 0.14); g.stroke();
+    label(g, "✕  LUKK · CLOSE", w / 2, h * 0.62, h * 0.36, { color: "#f3e4bb", align: "center", font: '"Cinzel"', weight: 700, spacing: 4, max: w * 0.84 });
   });
 }
 // BOOK NOW: a ticket, crimson, with its stub torn along a perforation

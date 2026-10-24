@@ -24,12 +24,12 @@ import { UnrealBloomPass } from "../vendor/addons/postprocessing/UnrealBloomPass
 import { OutputPass } from "../vendor/addons/postprocessing/OutputPass.js";
 import { RoomEnvironment } from "../vendor/addons/environments/RoomEnvironment.js";
 import {
-  coverArt, pageEdges, spreadPages, spreadHits, leafPages, formPages, formLayout, receivedStamp, stampForm,
+  coverArt, pageEdges, spreadPages, spreadHits, leafPages, formPages, formLayout, receivedStamp, stampForm, tabArt, TAB,
   printArt, titleArt, ticketArt, PAD, PRINT, TITLE, TICKET, PAPER,
 } from "./passport-art.js";
-import { t, lang, onLang } from "./i18n.js";
+import { t, lang, onLang, morph } from "./i18n.js";
 import { play } from "./sound.js";
-import { releaseCard, liveCard } from "./memories.js";
+import { liveCard } from "./memories.js";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const coarse = window.matchMedia("(pointer: coarse)").matches;
@@ -333,11 +333,11 @@ export async function createPassport(layer, { releases = [] } = {}) {
       const [tw, th] = leafRes;
       const leaves = await leafPages(DIMS, tw, th, vertical, 3, releases);
       const [sw, sh] = pageSize(vertical);
-      const spread = await spreadPages(DIMS, sw, sh, vertical, releases);
+      const spread = await spreadPages(DIMS, sw, sh, vertical, lang());
       return {
         leafL: leaves.L.map((c) => tex(c)), leafR: leaves.R.map((c) => tex(c)),
         spreadL: tex(spread.L), spreadR: tex(spread.R), form: null,
-        hits: spreadHits(releases, vertical),
+        hits: spreadHits(vertical), lang: lang(),
       };
     })();
     return decks[k];
@@ -410,6 +410,28 @@ export async function createPassport(layer, { releases = [] } = {}) {
     set(formLeaf.frontLeaf, D.spreadR);
   }
   const ready = deck(vertical).then((d) => { D = d; dress(); });
+  // a new language: the spread's printed words are drawn again, and swapped in when ready
+  function relang() {
+    const l = lang();
+    (async () => {
+      for (const v of [false, true]) {
+        const d = await decks[v ? "tall" : "wide"];
+        if (!d || d.lang === l) continue;
+        const [sw, sh] = pageSize(v);
+        const spread = await spreadPages(DIMS, sw, sh, v, l);
+        if (lang() !== l) return;
+        const old = [d.spreadL, d.spreadR];
+        d.spreadL = tex(spread.L); d.spreadR = tex(spread.R); d.lang = l;
+        if (d === D) {
+          const set = (m, map) => { m.material.map = map; m.material.needsUpdate = true; };
+          set(lastLeaf.backLeaf, d.spreadL);
+          if (!formGoal && formT === 0) set(rightPage, d.spreadR);
+          set(formLeaf.frontLeaf, d.spreadR);
+        }
+        old.forEach((t2) => t2.dispose());
+      }
+    })();
+  }
   const gutter = gutterGlow();
   gutter.position.set(-W / 2, 0, LIFT + STEP * (LEAVES + 4));
   gutter.visible = false;
@@ -483,14 +505,39 @@ export async function createPassport(layer, { releases = [] } = {}) {
   // the ticket glows and breathes: warm light behind it, its gold catching it
   const ticketTex = [tex(ticketArt(false)), tex(ticketArt(true))];
   const ticketHolder = new THREE.Group();
-  ticketHolder.position.set(0.025, -0.335, 0.0012); ticketHolder.rotation.z = 0.035;
+  ticketHolder.position.set(0.025, -0.375, 0.0012); ticketHolder.rotation.z = 0.035;
   const ticket = cutout(TICKET.w, TICKET.h, ticketTex[0], 13);
   ticket.material.emissive = new THREE.Color(0xffffff);
   ticket.material.emissiveMap = ticketTex[0];
   const halo = new THREE.Mesh(new THREE.PlaneGeometry(TICKET.w * 1.9, TICKET.h * 3.2), new THREE.MeshBasicMaterial({ map: tex(haloArt()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
   halo.renderOrder = 12;
   halo.position.z = -0.0004;
-  ticketHolder.add(halo, ticket);
+  // a glint of light that now and then sweeps across the ticket's gold
+  const glint = new THREE.Mesh(ticket.geometry, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { map: { value: ticketTex[0] }, at: { value: -1 }, opacity: { value: 0 } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform sampler2D map; uniform float at, opacity; varying vec2 vUv;
+      void main(){
+        vec4 c = texture2D(map, vUv);
+        float d = vUv.x + (vUv.y - 0.5) * 0.35 - at;
+        float band = exp(-d * d * 260.0);
+        float gold = smoothstep(0.45, 0.85, max(c.r, c.g)); // the lettering and frame, most of all
+        gl_FragColor = vec4(vec3(1.0, 0.86, 0.6) * band * c.a * (0.25 + 0.9 * gold) * opacity, 1.0);
+      }`,
+  }));
+  glint.renderOrder = 14;
+  glint.position.z = 0.0002;
+  ticketHolder.add(halo, ticket, glint);
+  const kick = spring(26, 0.22), kickZ = spring(30, 0.3);
+  let nextNudge = 2.5, glintT = -1;
+  // the close tab: crimson paper stuck in the top right corner of the open passport
+  const tabTex = [tex(tabArt(false)), tex(tabArt(true))];
+  const tab = new THREE.Mesh(new THREE.PlaneGeometry(TAB.w * (1 + 2 * PAD), TAB.h * (1 + 2 * PAD)), new THREE.MeshStandardMaterial({ map: tabTex[0], transparent: true, roughness: 0.8, depthWrite: false, opacity: 0 }));
+  tab.renderOrder = 15;
+  spreadFrame.add(tab);
+  let tabHover = 0, overTab = false;
   centre.add(printMesh, titleMesh, ticketHolder);
   const centreMats = [printMesh.material, titleMesh.material, ticket.material];
 
@@ -539,10 +586,10 @@ export async function createPassport(layer, { releases = [] } = {}) {
 
   // ---- on top of the canvas: the hint, the corner that closes it, the cards, the form ----
   const el = (tag, cls, html = "") => { const e = document.createElement(tag); e.className = cls; e.innerHTML = html; return e; };
-  const hint = el("p", "booking__hint");
+  // the hint: a label beside the passport with a line drawn to it, like a note on a mind map
+  const hint = el("div", "booking__hint", `<svg class="booking__hintLine"><path pathLength="1" /><circle r="3.2" /></svg><span class="booking__hintText"></span>`);
   hint.setAttribute("aria-hidden", "true");
-  const shut = el("button", "booking__shut", `<span aria-hidden="true">✕</span>`);
-  shut.type = "button";
+  const hintText = hint.querySelector(".booking__hintText"), hintPath = hint.querySelector("path"), hintDot = hint.querySelector("circle");
   const card = el("div", "pcard", `
     <div class="pcard__paper" role="dialog" aria-modal="false">
       <button type="button" class="pcard__x" aria-label="Close">✕</button>
@@ -570,7 +617,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
       <div class="pwrite__row"><button type="button" class="pwrite__done"></button></div>
     </div>`);
   writer.hidden = true;
-  layer.append(hint, shut, card, form, writer);
+  layer.append(hint, card, form, writer);
   // the thank-you, over everything (the page darkens behind it)
   const thanks = el("div", "bthanks", `
     <div class="bthanks__paper" role="dialog" aria-modal="true" aria-labelledby="bthanksTitle">
@@ -584,21 +631,22 @@ export async function createPassport(layer, { releases = [] } = {}) {
   const F = (n) => form.querySelector(n);
   const fields = { name: F('[name="name"]'), email: F('[name="email"]'), message: F('[name="message"]'), send: F(".pform__send"), back: F(".pform__back"), note: F(".pform__note"), stamp: F(".pform__stamp"), sign: F(".pform__sign") };
   let sending = false, cardShown = null;
-  function words() {
-    hint.textContent = t(coarse ? "hintTap" : "hintClick");
-    shut.setAttribute("aria-label", t("closePassport")); shut.title = t("closePassport");
+  // the words on top of the passport; on a change of language they morph, like the rest of the site
+  const say = (e, text, animate) => (animate ? morph(e, text) : (e.textContent = text));
+  function words(animate = false) {
+    say(hintText, t(coarse ? "hintTap" : "hintClick"), animate);
     fields.name.placeholder = t("name"); fields.name.setAttribute("aria-label", t("name"));
     fields.email.placeholder = t("email"); fields.email.setAttribute("aria-label", "E-mail");
     fields.message.placeholder = t("message"); fields.message.setAttribute("aria-label", t("message"));
-    if (!sending) fields.send.textContent = t("send");
-    fields.back.textContent = t("back");
-    thanks.querySelector(".bthanks__title").textContent = t("thanksTitle");
-    thanks.querySelector(".bthanks__text").textContent = t("thanksText");
-    writer.querySelector(".pwrite__done").textContent = t("done");
-    if (cardShown) showCard(cardShown, false);
+    if (!sending) say(fields.send, t("send"), animate);
+    say(fields.back, t("back"), animate);
+    say(thanks.querySelector(".bthanks__title"), t("thanksTitle"), animate);
+    say(thanks.querySelector(".bthanks__text"), t("thanksText"), animate);
+    say(writer.querySelector(".pwrite__done"), t("done"), animate);
+    if (cardShown) showCard(cardShown, false, animate);
   }
   words();
-  const offLang = onLang(words);
+  const offLang = onLang(() => { words(true); relang(); });
 
   // ---- motion ----
   // Something inside rattles it every second or two: a burst of hard jolts, side to side, each a
@@ -619,7 +667,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
   let paused = true, raf = 0, last = performance.now(), time = 0, shownAt = 0, coverSound = false;
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2(9, 9);
-  const hitTargets = [front, back, pagesMesh, inside, rightPage, ...[...leaves, formLeaf].flatMap((l) => [l.frontLeaf, l.backLeaf]), printMesh, titleMesh, ticket];
+  const hitTargets = [front, back, pagesMesh, inside, rightPage, ...[...leaves, formLeaf].flatMap((l) => [l.frontLeaf, l.backLeaf]), printMesh, titleMesh, ticket, tab];
 
   function jolt(m, dir) {
     const r = Math.random;
@@ -677,11 +725,25 @@ export async function createPassport(layer, { releases = [] } = {}) {
     pin(fields.sign, ox2 + ow * 0.53, oy2 + oh * 0.95, ow * 0.42, oh * 0.86, z);
     form.style.setProperty("--u", `${unit}px`);
   }
-  // the corner that closes the open passport: its top right, as seen
-  function placeShut() {
+  // the hint's label and line: the label in the clear space beside the passport (below it on a
+  // tall screen), the line ending in a dot on the cover
+  const scr = (x, y) => { v3.set(x, y, T); body.localToWorld(v3).project(camera); return [(v3.x * 0.5 + 0.5) * size[0], (-v3.y * 0.5 + 0.5) * size[1]]; };
+  function placeHint() {
+    const [ax, ay] = scr(0.18, -0.12);
+    let lx, ly;
+    if (tall()) { const [, by] = scr(0, -H / 2); lx = size[0] / 2; ly = Math.min(size[1] - 90, by + 70); }
+    else { const [ex] = scr(W / 2, 0); lx = Math.min(size[0] - 120, ex + 150); ly = ay - 70; }
+    hintText.style.left = `${lx}px`; hintText.style.top = `${ly}px`;
+    // the line leaves from the label's near side and bends a little on its way
+    const sx = tall() ? lx : lx - hintText.offsetWidth / 2 - 10, sy = tall() ? ly - 16 : ly;
+    const mx = (sx + ax) / 2 + (tall() ? 40 : 0), my = (sy + ay) / 2 - (tall() ? 0 : 40);
+    hintPath.setAttribute("d", `M${sx.toFixed(1)} ${sy.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${ax.toFixed(1)} ${ay.toFixed(1)}`);
+    hintDot.setAttribute("cx", ax.toFixed(1)); hintDot.setAttribute("cy", ay.toFixed(1));
+  }
+  // the close tab, stuck in the page's top right corner (inside it, so no screen edge can cut it)
+  function placeTab() {
     const [x, y] = vertical ? [PH / 2, PW] : [PW, PH / 2];
-    const [sx, sy2] = toScreen(x, y, LIFT + 0.01);
-    shut.style.left = `${sx}px`; shut.style.top = `${sy2}px`;
+    tab.position.set(x - TAB.w * 0.5 - 0.035, y - TAB.h * 0.5 - 0.03, LIFT + STEP * (LEAVES + 5) - 0.0006);
   }
 
   const POSE = { x: -0.2, y: 0.16, z: -0.09 };
@@ -749,6 +811,9 @@ export async function createPassport(layer, { releases = [] } = {}) {
     }
     flare += (clamp(lift * 3 + Math.abs(rz.v) * 0.01 + riffle * 0.22, 0, 1.0) - flare) * (1 - Math.exp(-dt * 10));
 
+    // back from the form, by whatever way: the spread's page goes back under the leaf
+    if (formT === 0 && formGoal === 0 && D && rightPage.material.map !== D.spreadR) { rightPage.material.map = D.spreadR; rightPage.material.needsUpdate = true; }
+
     // across the fold: there as the last page lands; lifted off while the form is out
     const centreIn = clamp((openT - (LAND - 0.12)) / 0.18, 0, 1) * (1 - clamp(formT * 3, 0, 1));
     centre.visible = centreIn > 0;
@@ -760,8 +825,26 @@ export async function createPassport(layer, { releases = [] } = {}) {
     halo.material.opacity = centreIn * (0.35 + 0.3 * pulse + 0.45 * ticketHover);
     halo.scale.setScalar(1 + 0.06 * pulse + 0.1 * ticketHover);
     ticket.material.emissiveIntensity = 0.06 + 0.09 * pulse + 0.2 * ticketHover;
-    ticketHolder.scale.setScalar(1 + 0.012 * pulse + 0.05 * ticketHover);
-    ticketHolder.position.z = 0.0012 + 0.006 * ticketHover;
+    // every few seconds the ticket gives a little nudge (it wants to be picked up), and the light
+    // runs across its gold
+    if (centreIn === 1 && !formGoal && !reducedMotion) {
+      nextNudge -= dt;
+      if (nextNudge <= 0) { nextNudge = 3.2 + Math.random() * 1.6; kick.v += (Math.random() < 0.5 ? -1 : 1) * 2.2; kickZ.v += 0.9; glintT = 0; }
+    }
+    stepSpring(kick, overTicket ? 0.06 : 0, dt); stepSpring(kickZ, 0, dt);
+    if (glintT >= 0) { glintT += dt / 0.9; if (glintT > 1) glintT = -1; }
+    glint.material.uniforms.at.value = glintT < 0 ? -1 : mix(-0.3, 1.3, glintT);
+    glint.material.uniforms.opacity.value = centreIn * (overTicket ? 1.2 : 1);
+    if (overTicket && glintT < 0 && Math.random() < dt * 1.2) glintT = 0;
+    ticketHolder.rotation.z = 0.035 + kick.x * 0.08;
+    ticketHolder.scale.setScalar(1 + 0.012 * pulse + 0.05 * ticketHover + Math.max(0, kickZ.x) * 0.04);
+    ticketHolder.position.z = 0.0012 + 0.006 * ticketHover + Math.max(0, kickZ.x) * 0.01;
+    // the close tab: there whenever it's open (the form too), lifting a touch under the pointer
+    const tabIn = opening && appearGoal === 1 ? clamp((openT - (LAND - 0.05)) / 0.2, 0, 1) : 0;
+    tabHover += ((overTab ? 1 : 0) - tabHover) * (1 - Math.exp(-dt * 10));
+    tab.visible = tabIn > 0;
+    tab.material.opacity = tabIn;
+    if (tab.visible) { placeTab(); tab.position.y += tabHover * 0.01; tab.scale.setScalar(1 + tabHover * 0.04); }
 
     // pose: tilted and floating when closed; flat, facing you, turned for the screen when open.
     // On tall screens it sits a little above the middle (the hint and the links are below it).
@@ -806,20 +889,11 @@ export async function createPassport(layer, { releases = [] } = {}) {
     canvas.style.opacity = String(clamp(appear * 1.6, 0, 1));
 
     document.documentElement.classList.toggle("passport-open", k > 0.5 && appearGoal === 1);
-    // the hint, on the passport, if nothing's happened for a while
+    // the hint, beside the passport, if nothing's happened for a while
     const hintOn = !opening && openT === 0 && appear > 0.9 && appearGoal === 1 && time - shownAt > 4;
-    if (hintOn) { // on the cover, in the clear red between BOOKING and the chip, a little right
-      v3.set(0.05, -0.42, T);
-      body.localToWorld(v3).project(camera);
-      hint.style.left = `${(v3.x * 0.5 + 0.5) * size[0]}px`;
-      hint.style.top = `${(-v3.y * 0.5 + 0.5) * size[1]}px`;
-    }
+    if (hintOn) placeHint();
     hint.classList.toggle("is-on", hintOn);
-    // the corner that closes it, once it's open
-    const shutOn = openT >= OPEN_END - 0.01 && opening && appearGoal === 1;
-    if (shutOn) placeShut();
-    shut.classList.toggle("is-on", shutOn);
-    if (!shutOn && cardShown) hideCard();
+    if ((!opening || openT < LAND) && cardShown) hideCard();
     // the form's fields, over the pages, once the page has turned
     const showForm = formT === 1 && formGoal === 1 && openT >= OPEN_END - 0.01;
     if (showForm) placeForm();
@@ -832,19 +906,15 @@ export async function createPassport(layer, { releases = [] } = {}) {
   }
 
   // ---- the cards: what a stamp is about ----
-  const cardFor = (id) => {
-    const [kind, key2] = id.split(":");
-    if (kind === "rel") { const rel = releases.find((r) => r.slug === key2); return rel ? releaseCard(rel, lang()) : null; }
-    return liveCard(key2, lang());
-  };
-  function showCard(id, sound = true) {
+  const cardFor = (id) => liveCard(id.split(":")[1], lang());
+  function showCard(id, sound = true, animate = false) {
     const c = cardFor(id);
     if (!c) return;
     cardShown = id;
     const q = (s) => card.querySelector(s);
-    q(".pcard__meta").textContent = c.meta || "";
-    q(".pcard__title").textContent = c.title;
-    q(".pcard__text").textContent = c.text || "";
+    say(q(".pcard__meta"), c.meta || "", animate);
+    say(q(".pcard__title"), c.title, animate);
+    say(q(".pcard__text"), c.text || "", animate);
     q(".pcard__sub").textContent = c.sub || "";
     q(".pcard__sub").hidden = !c.sub;
     const a = q(".pcard__link");
@@ -890,9 +960,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
     closeWriter(false);
     document.activeElement?.blur?.();
     play("page");
-    // once it has turned back, the spread's page goes back under it
-    const wait = () => (formT > 0 ? requestAnimationFrame(wait) : (rightPage.material.map = D.spreadR, rightPage.material.needsUpdate = true));
-    requestAnimationFrame(wait);
+    // (once it has turned back, tick() puts the spread's page back under it)
   }
   const note = (s, bad = false) => { fields.note.textContent = s; fields.note.classList.toggle("is-bad", bad); };
   const wait = (ms) => new Promise((r) => setTimeout(r, reducedMotion ? Math.min(ms, 200) : ms));
@@ -1037,19 +1105,23 @@ export async function createPassport(layer, { releases = [] } = {}) {
     if (nowOver !== overTicket) { overTicket = nowOver; ticket.material.map = ticket.material.emissiveMap = ticketTex[overTicket ? 1 : 0]; if (nowOver) play("hover"); }
     const mem = spreadUp() && !nowOver ? memoryAt(hit) : null;
     if (mem !== overMemory) { overMemory = mem; if (mem) play("hover"); }
+    const nowTab = opening && obj === tab;
+    if (nowTab !== overTab) { overTab = nowTab; tab.material.map = tabTex[nowTab ? 1 : 0]; if (nowTab) play("hover"); }
     if (!opening && obj && hoverGoal === 0) play("hover");
     hoverGoal = obj && !opening ? 1 : 0;
-    canvas.style.cursor = overTicket || mem || (obj && !opening) ? "pointer" : opening && !obj ? "zoom-out" : "";
+    canvas.style.cursor = overTicket || mem || overTab || (obj && !opening) ? "pointer" : opening && !obj ? "zoom-out" : "";
   };
   const onLeave = () => { hoverGoal = 0; canvas.style.cursor = ""; };
   const onClick = (e) => {
     const hit = hitAt(e), obj = hit?.object;
     if (!opening) { if (obj) { play("click"); api.open(); } return; }
+    if (obj === tab) { play("click"); api.close(); return; }
     if (cardShown) { hideCard(); return; }
     if (obj === ticket && spreadUp()) { play("click"); toForm(); return; }
     const mem = spreadUp() ? memoryAt(hit) : null;
     if (mem) { showCard(mem); return; }
-    if (!obj && !formGoal) api.close();
+    // a click beside it: from the form, back to the spread; from the spread, closed
+    if (!obj) { if (formGoal) fromForm(); else api.close(); }
   };
   const onKey = (e) => {
     if (e.key !== "Escape") return;
@@ -1059,8 +1131,6 @@ export async function createPassport(layer, { releases = [] } = {}) {
     if (!opening) return;
     if (formGoal) fromForm(); else api.close();
   };
-  shut.dataset.sound = "none";
-  shut.addEventListener("click", () => { formGoal = 0; api.close(); });
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("pointerleave", onLeave);
   canvas.addEventListener("click", onClick);
@@ -1078,6 +1148,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
   const api = {
     canvas,
     get isOpen() { return opening; },
+    get onSpread() { return spreadUp(); }, // open and settled on the spread
     show(animate = true) {
       appearGoal = 1;
       if (!animate) appear = 1;
@@ -1122,7 +1193,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", onKey);
       renderer.dispose();
-      for (const e of [canvas, hint, shut, card, form, writer, thanks]) e.remove();
+      for (const e of [canvas, hint, card, form, writer, thanks]) e.remove();
     },
   };
   return api;
