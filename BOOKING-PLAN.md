@@ -93,3 +93,37 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - [x] j. Tests (desktop, phones, ACCESS regression), deploy
 - Round 3 status: a-i built (js/booking.js: fbm grain, engraved STUDIO, beige paper, 10 riffling
   leaves, spread glow + gutter glow, memories with stamps/film/BOOK NOW). Remaining: j (tests, deploy).
+- Round 3 deployed to R4N-SITE.
+
+## Round 4 (R4N's feedback, 13 points), steps
+- [ ] a. Crest: 51 back to how it was before round 3 (v2 figure); only STUDIO heavier and clearly
+       readable (bold, filled, but not changing 51)
+- [ ] b. Pages carry content: every page is a texture (security paper with guilloche, faint
+       landscape line art, page number, microtext). Riffling leaves show filled visa/stamp pages.
+       Stamps are baked into the final pages, so they are already there when it lands (no thunking
+       in one by one). Faster riffle (~0.9 s for 10 leaves).
+- [ ] c. Glow tied to the geometry: the lit outline follows the cover as it swings (x from
+       PW*cos(angle) to PW) so the light never stands in empty space ahead of the book
+- [ ] d. Rattle: more often (every ~1.2-2.8 s), a quick shaking burst (several alternating jolts,
+       decaying), varied, not a single heartbeat pulse
+- [ ] e. Edge bugs when open: no black dashed lines on the left edge (z-fighting of leaf stack /
+       cover), left and right pages the same size, a thin red cover rim round both like a real one
+- [ ] f. Open layout per the sketch: film, R4N LIVE (no glow, printed/cut-out), BOOK NOW centred on
+       the spread (across the gutter, like a print glued across). Paper with more character.
+- [ ] g. BOOK NOW turns the page to a contact form spread (name, e-mail, message, send) in the
+       passport style; DOM inputs laid over the projected page; sends to r4nmusic@outlook.com via
+       FormSubmit (ajax), falls back to mailto. A SENT stamp thunks down on success. Back to the
+       memories by turning back.
+- [ ] h. Anti-aliasing: MSAA render target in the composer (WebGL2), anisotropic filtering +
+       mipmaps on the textures; adaptive (fewer samples on weak GPUs)
+- [ ] i. Exit: the passport falls away into the distance (shrinks back into the dark, glow fading
+       last), then the tunnel dives back in (no plain fade)
+- [ ] j. Open passport fills the whole screen (desktop: full height; phones: full width)
+- [ ] k. Stamps look legit: real stamp printing (engraved line shading, halftone, proper type,
+       denomination), slight paper shadow (glued), postmark wave lines across; rubber stamps with
+       uneven pressure, ink pooling, worn edges, partial overlaps
+- [ ] l. Idle hint: after a few seconds without a click, a translucent "click to open" / "tap to
+       open" guide (language aware)
+- [ ] m. Language switch EN/NO: small dropdown next to BOOKING (site style), remembered; switching
+       morphs each letter of the existing text into the new language (scramble-resolve)
+- [ ] n. Tests (desktop, phones, ACCESS regression, perf), deploy
