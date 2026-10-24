@@ -130,3 +130,35 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - Round 4 status: a-m built (js/passport-art.js new: all canvas art; js/booking.js rebuilt; js/i18n.js
   new; form via FormSubmit, needs one activation click by R4N). Remaining: n (tests, deploy).
 - Round 4 deployed to R4N-SITE.
+
+## Round 5 (R4N's feedback, 17 points), steps
+- [ ] a. Glow seam on the left (atan wraps at +-PI: ray noise must be periodic round the circle)
+- [ ] b. BOOK NOW ticket glows and pulls: warm halo behind it, gentle pulse, lifts and brightens on hover
+- [ ] c. Language picker everywhere (portfolio, record view, index, booking), always reachable
+- [ ] d. Sound effects across the whole site, made in code (Web Audio, no files): hover/click records,
+       tunnel scroll ticks, mode toggle, language morph, dive to booking and back, passport rattle,
+       open/riffle, page turn, ticket, form typing, stamp, signature, send. Mute toggle beside language
+       (remembered). Starts on the first tap/click (browsers need a gesture).
+- [ ] e. Leaving booking: no flying off / spinning. The passport sinks straight back a little and fades
+       while the page inverts back and the tunnel dives in (the same leaving as before round 4)
+- [ ] f. Rattle much bigger (visible shakes)
+- [ ] g. "Click to open": plain translucent grey text on top of the passport, a little right of centre
+- [ ] h. Open passport: a corner to close it (always visible), without leaving the booking page
+- [ ] i. Memories real and clickable: postage stamps = R4N's releases (their cover art printed as a
+       stamp, date), rubber stamps = live shows (UKM-festivalen, ...). Click one: a small card with a
+       few lines (and a link). All texts in one data file (js/memories.js) so they're easy to change.
+- [ ] j. Red rim on the right page too (raise the back cover to page level when open)
+- [ ] k. Form sends directly (FormSubmit AJAX), never opens an e-mail app; clear error if it fails.
+       (FormSubmit needs R4N to click its activation e-mail once.)
+- [ ] l. No clipping anywhere: BOOK NOW text inside the ticket, TILBAKE clear of the microtext, stamp
+       texts not overlapping
+- [ ] m. After sending: the "for R4N use" box gets stamped with today's date and signed "R4N"
+       (animated: stamp thunks down, signature writes itself), then the passport closes and a message
+       in the middle of the screen thanks them (dimmed background, x to close)
+- [ ] n. The film: R4N's upload made into a stop-motion, black-and-white, paper-cut look (posterised,
+       held frames, jitter, heavy grain), small looping mp4 in assets/, used in the passport
+- [ ] o. Faster first appearance (cover art baked to image files; inside pages drawn after it's shown);
+       on phones the passport (closed and open) sits higher
+- [ ] p. Phones: typing in the form doesn't throw the layout about (a writing card at the top of the
+       screen while typing; the passport underneath stays put)
+- [ ] q. Tests, deploy
