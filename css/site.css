@@ -69,27 +69,30 @@ body.is-hovering #space{cursor:pointer;}
 .top .logo img{filter:invert(1);opacity:0.1;transition:opacity .6s var(--ease);}
 body.is-loaded .top .logo{opacity:1;}
 /* BOOKING: a plain link to booking/, beside INDEX, in the same quiet style */
-/* a small outlined pill with a tiny passport in it, glowing now and then like the real one */
-.bookBtn{
+/* the one call to action: a pill in the passport's own crimson and gold, with a tiny passport in it
+   that glows now and then like the real one (ids, so the plain text-button rules never win) */
+#bookBtn{
   margin-left:auto;margin-right:26px;text-decoration:none;
-  display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 12px;
-  color:var(--fg);border:1px solid rgba(17,17,18,0.32);border-radius:999px;
+  display:inline-flex;align-items:center;gap:10px;padding:10px 19px 10px 15px;
+  font-size:12px;letter-spacing:2.6px;line-height:1;white-space:nowrap;
+  color:#f0dfb2;background:#8a1320;border:1px solid rgba(240,223,178,0.45);border-radius:999px;
+  box-shadow:0 1px 0 rgba(255,255,255,0.12) inset,0 6px 18px -8px rgba(138,19,32,0.7);
   opacity:0;pointer-events:none;
-  transition:opacity 1.2s var(--ease) .4s,color .4s var(--ease),background-color .4s var(--ease),border-color .4s var(--ease);
+  animation:bookPulse 4.2s ease-in-out infinite;
+  transition:opacity 1.2s var(--ease) .4s,background-color .35s var(--ease),transform .35s var(--ease);
 }
-.bookBtn::before{
-  content:"";flex:none;width:8px;height:11px;border-radius:1.5px;
-  background:#8a1320;box-shadow:inset 0 0 0 1px rgba(226,199,132,0.55);
-  animation:bookGlow 4.2s ease-in-out infinite;
+#bookBtn::before{
+  content:"";flex:none;width:9px;height:12px;border-radius:1.5px;
+  border:1px solid rgba(240,223,178,0.85);background:rgba(240,223,178,0.12);
 }
-@keyframes bookGlow{
-  0%,62%,100%{box-shadow:inset 0 0 0 1px rgba(226,199,132,0.55),0 0 0 rgba(255,170,60,0);}
-  74%{box-shadow:inset 0 0 0 1px rgba(255,214,140,0.95),0 0 9px 2px rgba(255,170,60,0.75);}
+@keyframes bookPulse{
+  0%,60%,100%{box-shadow:0 1px 0 rgba(255,255,255,0.12) inset,0 6px 18px -8px rgba(138,19,32,0.7),0 0 0 0 rgba(255,170,60,0);}
+  75%{box-shadow:0 1px 0 rgba(255,255,255,0.12) inset,0 6px 18px -8px rgba(138,19,32,0.7),0 0 18px 3px rgba(255,170,60,0.45);}
 }
-#bookBtn{color:var(--fg);}
-#bookBtn:hover{background:var(--fg);color:var(--bg);border-color:var(--fg);}
-body.is-loaded .bookBtn{opacity:1;pointer-events:auto;}
-body.detail-open .bookBtn,body.index-open .bookBtn,body.access-open .bookBtn{opacity:0;pointer-events:none;transition-delay:0s;}
+#bookBtn:hover{background:#a3192a;transform:translateY(-1px);}
+#bookBtn:active{transform:translateY(0);}
+body.is-loaded #bookBtn{opacity:1;pointer-events:auto;}
+body.detail-open #bookBtn,body.index-open #bookBtn,body.access-open #bookBtn{opacity:0;pointer-events:none;transition-delay:0s;}
 #indexBtn{opacity:0;pointer-events:none;transition:opacity 1.2s var(--ease) .4s,color .4s var(--ease);}
 body.is-loaded #indexBtn{opacity:1;pointer-events:auto;}
 body.detail-open #indexBtn,body.index-open #indexBtn{opacity:0;pointer-events:none;transition-delay:0s;}
@@ -332,12 +335,12 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
 @media (hover:none){.accessBtn{color:rgba(17,17,18,0.32);}}
 @media (max-width:768px){
   .accessBtn{position:static;order:1;margin-left:auto;margin-right:18px;padding:8px 4px;font-size:11px;letter-spacing:2.8px;}
-  .bookBtn{order:2;margin-left:0;margin-right:14px;padding:6px 11px 6px 9px;gap:7px;font-size:11px;letter-spacing:1.8px;}
+  #bookBtn{order:2;margin-left:0;margin-right:14px;padding:8px 13px 8px 11px;gap:7px;font-size:11px;letter-spacing:1.8px;}
   .accessBtn{margin-right:14px;}
   #indexBtn{order:3;}
 }
 @media (max-width:380px){
-  .bookBtn{margin-right:10px;padding:5px 9px 5px 8px;gap:6px;font-size:10px;letter-spacing:1.4px;}
+  #bookBtn{margin-right:10px;padding:7px 10px 7px 9px;gap:6px;font-size:10px;letter-spacing:1.3px;}
   .accessBtn{margin-right:10px;font-size:10px;letter-spacing:2.2px;}
 }
 
@@ -433,10 +436,10 @@ html.is-booking .top .logo img{opacity:.22;}
 html.is-booking .top .logo:hover img{opacity:.45;}
 html.is-booking .loader__track{background:rgba(238,238,237,0.12);}
 html.is-booking #space,html.is-booking .hoverTag,html.is-booking .emptyNote,
-html.is-booking .modeToggle,html.is-booking #indexBtn,html.is-booking .accessBtn,html.is-booking .bookBtn{display:none;}
+html.is-booking .modeToggle,html.is-booking #indexBtn,html.is-booking .accessBtn,html.is-booking #bookBtn{display:none;}
 .homeBtn{display:none;}
 html.is-booking .homeBtn{display:block;margin-left:auto;opacity:0;animation:fadeIn .9s var(--ease) .5s forwards;}
 /* on the way there, everything but the logo steps aside */
-body.is-diving .modeToggle,body.is-diving #indexBtn,body.is-diving .accessBtn,body.is-diving .bookBtn{opacity:0;pointer-events:none;transition-delay:0s;}
+body.is-diving .modeToggle,body.is-diving #indexBtn,body.is-diving .accessBtn,body.is-diving #bookBtn{opacity:0;pointer-events:none;transition-delay:0s;}
 .booking{position:fixed;inset:0;z-index:20;}
 .booking__canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:manipulation;}

@@ -75,7 +75,7 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - Round 2 deployed to R4N-SITE.
 
 ## Round 3 (R4N's feedback), steps
-- [ ] a. BOOKING button: not ignorable. Filled crimson pill (the passport's colour), gold text, a
+- [x] a. BOOKING button: not ignorable. Filled crimson pill (the passport's colour), gold text, a
        little larger, warm glow pulse; its outline must never be clipped (own padding wins)
 - [ ] b. Spine: same material and grain density as the covers (UVs by arc length)
 - [ ] c. STUDIO in the same style as 51: bold, filled, engraved line, filling its band
