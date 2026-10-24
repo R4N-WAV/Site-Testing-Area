@@ -90,6 +90,6 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
        "R4N LIVE", BOOK NOW button (mailto for now), postage stamps around, rubber stamps incl.
        "UKM-FESTIVALEN". Stamps/video/button as their own planes (raycast for BOOK NOW).
        Vertical (phone) layout arranged for landscape pages.
-- [ ] j. Tests (desktop, phones, ACCESS regression), deploy
+- [x] j. Tests (desktop, phones, ACCESS regression), deploy
 - Round 3 status: a-i built (js/booking.js: fbm grain, engraved STUDIO, beige paper, 10 riffling
   leaves, spread glow + gutter glow, memories with stamps/film/BOOK NOW). Remaining: j (tests, deploy).
