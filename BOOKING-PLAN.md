@@ -167,14 +167,14 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
   js/memories.js are short (R4N to give dates/places/details).
 
 ## Round 6 (R4N's feedback, 10 points), steps (full plan: /root/.claude/plans/jolly-shimmying-alpaca.md)
-- [ ] a. Closing from the form hangs: reproduce, fix (restore spread page in tick; turn back then close)
-- [ ] b. Overlap/bug sweep on all viewports x EN/NO x states; fix (portfolio texts on phones, stuck pages)
-- [ ] c. Sounds organic (modal knocks, granular paper, rattle = loose object clicks), ~3x louder, hover faint
-- [ ] d. Hint: mind-map label beside the passport with a drawn line to it
-- [ ] e. Live content: release stamps only on riffle pages; spread = UKM stamp + text blocks (observations,
+- [x] a. Closing from the form hangs: reproduce, fix (restore spread page in tick; turn back then close)
+- [x] b. Overlap/bug sweep on all viewports x EN/NO x states; fix (portfolio texts on phones, stuck pages)
+- [x] c. Sounds organic (modal knocks, granular paper, rattle = loose object clicks), ~3x louder, hover faint
+- [x] d. Hint: mind-map label beside the passport with a drawn line to it
+- [x] e. Live content: release stamps only on riffle pages; spread = UKM stamp + text blocks (observations,
        BOOK R4N) + pass/crown moved top right; no band; UKM card text
-- [ ] f. Close control as a paper index tab on the passport (3D), not a DOM square
-- [ ] g. BOOK NOW pulls: periodic nudge, glint sweep, hover stub flap
-- [ ] h. Language morph on booking (DOM texts morph; baked texts redrawn on change)
-- [ ] i. Film caption: "FLAWLESS FASADE VISUALIZER · R4N PÅ UKM 2025", ticket clear of it
+- [x] f. Close control as a paper index tab on the passport (3D), not a DOM square
+- [x] g. BOOK NOW pulls: periodic nudge, glint sweep, hover stub flap
+- [x] h. Language morph on booking (DOM texts morph; baked texts redrawn on change)
+- [x] i. Film caption: "FLAWLESS FASADE VISUALIZER · R4N PÅ UKM 2025", ticket clear of it
 - [ ] j. Tests, deploy
