@@ -8,7 +8,6 @@
 // spread units (the booklet's own size, x right, y up, the spine at 0), and drawn onto both pages,
 // each showing its own half, so anything lying across the fold carries on across it.
 
-import { LIVE_TEXT } from "./memories.js";
 
 export const breathe = () => new Promise((r) => setTimeout(r, 0));
 export function rng(seed) {
@@ -752,6 +751,11 @@ const LAYOUT = {
     book: [-0.56, -0.52, 0.56, -0.79],
   },
 };
+// where the printed entries go: [left, top, right, bottom] in spread units
+export function textBoxes(vertical) {
+  const L = LAYOUT[vertical ? "tall" : "wide"];
+  return { about: L.about, book: L.book };
+}
 // what can be clicked on the spread: [{ id, x, y, w, h, rot }]. The printed entries too: on a
 // phone their type is small, so a tap opens them in a card, large.
 export function spreadHits(vertical) {
@@ -763,76 +767,19 @@ export function spreadHits(vertical) {
   ];
 }
 
-// words to lines that fit a width (at the pen's current font)
-function wrap(g, text, width) {
-  const lines = [];
-  let line = "";
-  for (const word of text.split(/\s+/)) {
-    const next = line ? `${line} ${word}` : word;
-    if (line && g.measureText(next).width > width) { lines.push(line); line = word; } else line = next;
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-// A printed entry, typed onto the page like the observations in a passport: a small heading with a
-// rule, a title, then the text (a paragraph, or points). It takes the largest type that fits its box.
-function textBlock(p, reg, [x0, y0, x1, y1], { head, title, text, points }) {
-  const { g, LW } = p;
-  const k = LW / (reg.x1 - reg.x0);
-  const bx = (x0 - reg.x0) * k, by = (reg.y1 - y0) * k, bw = (x1 - x0) * k, bh = (y0 - y1) * k;
-  if (bx + bw < 0 || bx > p.LW || by + bh < 0 || by > p.LH) return;
-  const paras = points || [text];
-  const ink = "rgba(36,28,22,0.86)", pale = "rgba(62,44,32,0.55)";
-  // the largest body size (in spread units) at which everything fits
-  let size = 0.03;
-  const layout = (s) => {
-    const px = s * k;
-    g.font = `500 ${px}px ${MONO}`;
-    const indent = points ? px * 1.4 : 0;
-    const lines = paras.map((t) => wrap(g, t, bw - indent));
-    const h = px * 1.1 /* head */ + px * 0.9 + px * 1.9 /* title */ + px * 0.5 + lines.reduce((n, l) => n + l.length, 0) * px * 1.5 + (paras.length - 1) * px * 0.6;
-    return { px, indent, lines, h };
-  };
-  let L = layout(size);
-  while (L.h > bh && size > 0.012) { size *= 0.94; L = layout(size); }
-  const { px, indent, lines } = L;
-  g.save();
-  g.textBaseline = "alphabetic";
-  let y = by + px;
-  label(g, head, bx, y, px * 0.78, { color: pale, weight: 700, spacing: px * 0.12, max: bw });
-  g.strokeStyle = pale; g.lineWidth = Math.max(1, px * 0.06);
-  g.beginPath(); g.moveTo(bx, y + px * 0.45); g.lineTo(bx + bw, y + px * 0.45); g.stroke();
-  y += px * 0.9 + px * 1.6;
-  label(g, title, bx, y, px * 1.5, { color: ink, font: '"Cinzel"', weight: 700, spacing: px * 0.1, max: bw });
-  y += px * 0.5;
-  g.font = `500 ${px}px ${MONO}`;
-  g.fillStyle = ink;
-  lines.forEach((ls, i) => {
-    ls.forEach((ln, j) => {
-      y += px * 1.5;
-      if (points && j === 0) g.fillText("—", bx, y);
-      g.fillText(ln, bx + indent, y);
-    });
-    y += px * 0.6;
-  });
-  g.restore();
-}
-
-// the open spread's two pages (L: left / top, R: right / bottom), in the visitor's language
-export async function spreadPages(dims, tw, th, vertical, lang = "en") {
+// the open spread's two pages (L: left / top, R: right / bottom). The printed entries aren't drawn
+// on them: they're real text laid over the paper (js/booking.js), in the boxes textBoxes() gives.
+export async function spreadPages(dims, tw, th, vertical) {
   const L = LAYOUT[vertical ? "tall" : "wide"];
   const items = [];
   for (const [id, [x, y, w, h, rot]] of Object.entries(L.live)) items.push({ make: LIVE_STAMP[id], x, y, w, h, rot, ink: true });
   for (const [key, x, y, w, h, rot] of L.decor) items.push({ make: DECOR[key], x, y, w, h, rot });
-  const A = LIVE_TEXT.about, B = LIVE_TEXT.book;
   const out = {};
   for (const side of ["L", "R"]) {
     const p = newPage(tw, th, { vertical, side, seed: side === "L" ? 41 : 42 });
     securityPrint(p, { num: side === "L" ? 14 : 15, seed: side === "L" ? 3 : 4 });
     await breathe();
     const reg = regionOf(dims, vertical, side);
-    textBlock(p, reg, L.about, { head: A.head, title: A.title, text: A.text[lang] || A.text.en });
-    textBlock(p, reg, L.book, { head: B.head, title: B.title, points: B.points[lang] || B.points.en });
     for (const it of items) { place(p, reg, { ...it, canvas: it.make(), alpha: it.alpha ?? 0.88 }); await breathe(); }
     pageShade(p);
     roundOuter(p, dims.R / dims.PW);
@@ -960,7 +907,7 @@ export async function formPages(dims, tw, th, vertical) {
 }
 
 // R4N's box, done: the RECEIVED stamp and the signature put onto the form page itself (so they
-// stay on the paper as the page turns back). `sign`: SVG path strings in a 300 x 120 box.
+// stay on the paper as the page turns back). `sign`: js/signature.js (ink shapes in a 300 x 120 box).
 export function stampForm(canvas, dims, vertical, stamp, sign) {
   const F = formLayout(vertical), [ox, oy, ow, oh] = F.office;
   const p = { g: canvas.getContext("2d"), LW: vertical ? canvas.height : canvas.width, LH: vertical ? canvas.width : canvas.height };
@@ -973,9 +920,9 @@ export function stampForm(canvas, dims, vertical, stamp, sign) {
   const f = Math.min(sw / 300, sh / 120);
   p.g.translate(sx + (sw - 300 * f) / 2, sy + (sh - 120 * f) / 2);
   p.g.scale(f, f);
-  p.g.strokeStyle = "rgba(31,45,99,0.92)"; p.g.lineWidth = 3.4; p.g.lineCap = "round"; p.g.lineJoin = "round";
+  p.g.fillStyle = "rgba(26,34,76,0.94)";
   p.g.globalCompositeOperation = "multiply";
-  for (const d of sign) p.g.stroke(new Path2D(d));
+  for (const d of sign.shapes) p.g.fill(new Path2D(d));
   p.g.restore();
 }
 

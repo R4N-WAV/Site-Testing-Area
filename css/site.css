@@ -449,15 +449,24 @@ body.is-diving .modeToggle,body.is-diving #indexBtn,body.is-diving .accessBtn,bo
 .booking::after{bottom:0;background:linear-gradient(rgba(9,9,11,0),rgba(9,9,11,.62));}
 html.passport-open .booking::before,html.passport-open .booking::after{opacity:1;}
 /* after a while with nothing clicked: a note beside the passport, with a line drawn to it */
+/* the printed entries on the open spread: real text over the paper (js/booking.js sets each box and
+   its type size; everything inside is in em, so it scales as one) */
+.ptexts{position:absolute;inset:0;z-index:1;pointer-events:none;}
+.ptexts--probe{visibility:hidden;}
+.ptext{position:absolute;margin:0;color:rgba(36,28,22,.88);font:500 12px/1.5 "OCR B","OCR-B",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;overflow:visible;}
+.ptext__head{margin:0 0 .5em;padding-bottom:.35em;border-bottom:max(1px,.06em) solid rgba(62,44,32,.5);font-size:.78em;font-weight:700;letter-spacing:.12em;color:rgba(62,44,32,.6);white-space:nowrap;}
+.ptext__title{margin:0 0 .25em;font:700 1.5em/1.25 "Cinzel",serif;letter-spacing:.06em;white-space:nowrap;}
+.ptext__body p{margin:0;}
+.ptext__body ul{margin:0;padding:0;list-style:none;}
+.ptext__body li{position:relative;margin:0 0 .45em;padding-left:1.4em;}
+.ptext__body li:last-child{margin-bottom:0;}
+.ptext__body li::before{content:"—";position:absolute;left:0;}
 .booking__hint{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .6s var(--ease);}
 .booking__hint.is-on{opacity:1;}
 .booking__hintLine{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
 .booking__hintLine path{fill:none;stroke:rgba(236,232,226,.55);stroke-width:1.3;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;}
-.booking__hintLine circle{fill:rgba(255,206,140,.95);opacity:0;}
 .booking__hint.is-on .booking__hintLine path{animation:hintDraw 1.1s cubic-bezier(.45,.05,.55,.95) .35s forwards;}
-.booking__hint.is-on .booking__hintLine circle{animation:hintDot 2.4s ease-in-out 1.4s infinite;}
 @keyframes hintDraw{to{stroke-dashoffset:0;}}
-@keyframes hintDot{0%,100%{opacity:.95;r:3.2px;}50%{opacity:.55;r:4.6px;}}
 .booking__hintText{
   position:absolute;transform:translate(-50%,-50%);white-space:nowrap;
   font-size:12px;letter-spacing:3.4px;color:rgba(238,234,228,.82);
@@ -524,13 +533,9 @@ html.passport-open .booking::before,html.passport-open .booking::after{opacity:1
 .pform__stamp{position:absolute;object-fit:contain;mix-blend-mode:multiply;opacity:0;transform:rotate(-7deg) scale(1.6);pointer-events:none;}
 .pform.is-stamped .pform__stamp{opacity:.95;transform:rotate(-7deg) scale(1);transition:transform .16s cubic-bezier(.5,0,.75,0),opacity .12s;}
 .pform__sign{position:absolute;overflow:visible;pointer-events:none;}
-.pform__sign path{fill:none;stroke:#1f2d63;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;}
-.pform.is-signed .pform__sign path{animation:sign .3s cubic-bezier(.45,.05,.55,.95) forwards;}
-.pform.is-signed .pform__sign path:nth-child(2){animation-duration:.42s;animation-delay:.2s;}
-.pform.is-signed .pform__sign path:nth-child(3){animation-delay:.66s;}
-.pform.is-signed .pform__sign path:nth-child(4){animation-duration:.18s;animation-delay:.92s;}
-.pform.is-signed .pform__sign path:nth-child(5){animation-duration:.4s;animation-delay:1.08s;}
-.pform.is-signed .pform__sign path:nth-child(6){animation-duration:.34s;animation-delay:1.5s;}
+.pform__signInk{fill:#1a224c;fill-opacity:.94;}
+.pform__signLine{fill:none;stroke:#fff;stroke-width:15;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:none;}
+.pform.is-signed .pform__signLine{animation-name:sign;animation-timing-function:cubic-bezier(.4,.1,.6,1);animation-fill-mode:forwards;}
 @keyframes sign{to{stroke-dashoffset:0;}}
 /* phones: a card at the top of the screen to write in, the keyboard below it */
 .pwrite{position:absolute;inset:0;z-index:5;display:flex;align-items:flex-start;justify-content:center;padding:calc(76px + env(safe-area-inset-top)) 16px 0;background:rgba(6,5,5,.55);}
