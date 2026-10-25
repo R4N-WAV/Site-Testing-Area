@@ -19,7 +19,6 @@ const STRINGS = {
     sendFailed: "It didn't go through. Try again in a moment, or write to r4nmusic@outlook.com.",
     labelName: "1. Name", labelEmail: "2. E-mail", labelMessage: "3. Message",
     thanksTitle: "Thank you for reaching out!", thanksText: "Your request has been received and will be answered as soon as possible.",
-    readMoreTap: "TAP TO READ MORE ↗", readMoreClick: "CLICK TO READ MORE ↗",
     closePassport: "Close the passport", listenSpotify: "Listen on Spotify ↗", more: "More ↗", sound: "Sound",
   },
   no: {
@@ -34,7 +33,6 @@ const STRINGS = {
     sendFailed: "Det gikk ikke gjennom. Prøv igjen om litt, eller skriv til r4nmusic@outlook.com.",
     labelName: "1. Navn", labelEmail: "2. E-post", labelMessage: "3. Melding",
     thanksTitle: "Takk for at du tar kontakt!", thanksText: "Forespørselen din er mottatt og blir besvart så snart som mulig.",
-    readMoreTap: "TRYKK FOR Å LESE MER ↗", readMoreClick: "KLIKK FOR Å LESE MER ↗",
     closePassport: "Lukk passet", listenSpotify: "Lytt på Spotify ↗", more: "Mer ↗", sound: "Lyd",
   },
 };
@@ -51,7 +49,7 @@ let current = initial();
 const listeners = new Set();
 
 export const lang = () => current;
-export const t = (key, l = current) => STRINGS[l][key] ?? STRINGS.en[key] ?? key;
+export const t = (key) => STRINGS[current][key] ?? STRINGS.en[key] ?? key;
 export function onLang(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
 // ---- the morph: each letter scrambles and lands on its new one, a little after the one before ----

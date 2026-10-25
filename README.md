@@ -24,12 +24,11 @@ the tunnel (`js/route.js` switches between them, `js/booking.js` draws the passp
 `booking/index.html` is a copy of `index.html`: after editing `index.html`, run
 `node scripts/sync-pages.mjs` to regenerate it.
 
-Opened, the passport is about R4N live: two printed entries (what R4N live is, what you get when
-you book), the UKM stamp (click it for its story) and a film. The words are all in
-`js/memories.js`, in Norwegian and English. The releases are postage stamps on the pages that riffle
+Opened, the passport is about R4N live: notes scribbled in an unreadable hand (drawn in
+`js/passport-art.js`), the UKM stamp (click it for its story; its words are in `js/memories.js`) and
+a film. The releases are postage stamps on the pages that riffle
 past as it opens (they come from `releases/` by themselves). The ticket, BOOK NOW, turns the page to
-a booking form; the red tab hanging under the passport closes it. On phones the two entries show a
-short version (a tap opens the full text in a card).
+a booking form; the red tab hanging under the passport closes it.
 
 The form sends straight to r4nmusic@outlook.com through [FormSubmit](https://formsubmit.co) (no
 account, nothing opens on the visitor's side). **The first time, FormSubmit sends r4nmusic@outlook.com

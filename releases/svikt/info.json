@@ -11,7 +11,17 @@
   "date": "16.10.2026",
   "cover": "cover.jpg",
   "description": "",
-  "credits": [],
+  "credits": [
+    {
+      "role": "Lyrics / Prod / Mix / Master",
+      "people": [
+        {
+          "name": "R4N",
+          "url": "https://www.instagram.com/r4n.wav/"
+        }
+      ]
+    }
+  ],
   "links": {
     "spotify": "https://open.spotify.com/track/42Bock8fdDKJHDgJV028gR",
     "apple": "https://music.apple.com/us/album/svikt-single/6822738809"

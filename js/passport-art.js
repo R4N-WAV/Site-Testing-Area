@@ -751,24 +751,89 @@ const LAYOUT = {
     book: [-0.56, -0.37, 0.56, -0.81],
   },
 };
-// where the printed entries go: [left, top, right, bottom] in spread units
-export function textBoxes(vertical) {
-  const L = LAYOUT[vertical ? "tall" : "wide"];
-  return { about: L.about, book: L.book };
-}
-// what can be clicked on the spread: [{ id, x, y, w, h, rot }]. The printed entries too: on a
-// phone their type is small, so a tap opens them in a card, large.
+// what can be clicked on the spread: [{ id, x, y, w, h, rot }]
 export function spreadHits(vertical) {
   const L = LAYOUT[vertical ? "tall" : "wide"];
-  const box = (id, [x0, y0, x1, y1]) => ({ id, x: (x0 + x1) / 2, y: (y0 + y1) / 2, w: x1 - x0, h: y0 - y1, rot: 0 });
-  return [
-    ...Object.entries(L.live).map(([id, [x, y, w, h, rot]]) => ({ id: `live:${id}`, x, y, w, h, rot })),
-    box("text:about", L.about), box("text:book", L.book),
-  ];
+  return Object.entries(L.live).map(([id, [x, y, w, h, rot]]) => ({ id: `live:${id}`, x, y, w, h, rot }));
 }
 
-// the open spread's two pages (L: left / top, R: right / bottom). The printed entries aren't drawn
-// on them: they're real text laid over the paper (js/booking.js), in the boxes textBoxes() gives.
+// Handwriting nobody can read: lines of quick, joined, looping script in blue-black ink, the way
+// notes are scribbled into a passport's observations. It looks like words (humps, loops up and
+// down, a dot here and there, gaps between words) without saying anything. `items`: how many
+// paragraphs (each a few lines); `dash`: each starts with a little dash, like a list.
+const LETTERS = {
+  n: [[0.22, 1], [0.24, 0.02], [0.22, 1], [0.24, 0]],
+  u: [[0.12, 1], [0.16, 0.05], [0.2, 1], [0.12, 0]],
+  e: [[0.32, 0.72], [-0.12, 0.62], [0.08, 0.02]],
+  o: [[0.12, 0.95], [-0.22, 0.65], [0.06, 0.05], [0.34, 0.85]],
+  l: [[0.32, 2.3], [-0.16, 1.4], [0.14, 0]],
+  h: [[0.3, 2.2], [-0.15, 1.2], [0.1, 0], [0.22, 1], [0.2, 0]],
+  g: [[0.18, 0.95], [0.04, -1.15], [-0.22, -0.7], [0.38, 0.15]],
+  i: [[0.14, 0.95], [0.14, 0], 0],
+  t: [[0.2, 1.7], [0.06, 0.02], 1],
+  s: [[0.24, 0.9], [-0.06, 0.4], [0.14, 0.05]],
+};
+const LETTER_KEYS = "nnueeoolhgisstunoe".split("");
+function scribble(p, reg, [x0, y0, x1, y1], seed, { items = 1, dash = false, lineH = 0.058 } = {}) {
+  const { g, LW, LH } = p;
+  const k = LW / (reg.x1 - reg.x0);
+  const bx = (x0 - reg.x0) * k, by = (reg.y1 - y0) * k, bw = (x1 - x0) * k, bh = (y0 - y1) * k;
+  if (bx + bw < 0 || bx > LW || by + bh < 0 || by > LH) return;
+  const r = rng(seed);
+  const lh = lineH * k, xh = lh * 0.34, slant = 0.32;
+  const lines = Math.max(1, Math.floor(bh / lh));
+  // how many lines each paragraph gets (together they fill the box), and where each ends
+  const per = Array.from({ length: items }, () => 1);
+  for (let left = lines - items - (items - 1) * (dash ? 0.4 : 0); left >= 1; left--) per[Math.floor(r() * items)]++;
+  g.save();
+  g.lineCap = g.lineJoin = "round";
+  g.strokeStyle = "rgb(30,36,74)";
+  g.lineWidth = Math.max(1.4, lh * 0.05);
+  let row = 0;
+  const pen = (pts, base) => { // a smooth line through the points ([x, y] on the page, leaning forward from the line)
+    const q = pts.map(([x, y]) => [x + slant * (base - y), y]);
+    g.beginPath();
+    g.moveTo(q[0][0], q[0][1]);
+    for (let i = 1; i < q.length - 1; i++) g.quadraticCurveTo(q[i][0], q[i][1], (q[i][0] + q[i + 1][0]) / 2, (q[i][1] + q[i + 1][1]) / 2);
+    g.lineTo(q[q.length - 1][0], q[q.length - 1][1]);
+    g.stroke();
+  };
+  for (let it = 0; it < items; it++) {
+    for (let ln = 0; ln < per[it]; ln++, row++) {
+      const base = by + (row + 0.8) * lh + (dash ? it * lh * 0.4 : 0);
+      if (base > by + bh + lh * 0.2) break;
+      const indent = ln === 0 && dash ? xh * 2.6 : ln === 0 && !dash ? xh * (1 + r() * 2) : 0;
+      if (ln === 0 && dash) { g.globalAlpha = 0.8; pen([[bx + xh * 0.2, base - xh * 0.5], [bx + xh * 0.9, base - xh * 0.55], [bx + xh * 1.6, base - xh * 0.48]], base); }
+      const last = ln === per[it] - 1;
+      const end = bx + bw * (last ? 0.35 + r() * 0.45 : 0.9 + r() * 0.1);
+      let x = bx + indent;
+      while (x < end - xh * 2) {
+        // a word: a lead-in stroke, then letters joined up
+        const n = 2 + Math.floor(r() * 6);
+        const pts = [[x, base - xh * 0.1], [x + xh * 0.3, base - xh * 0.35]];
+        let cx = x + xh * 0.3;
+        const dots = [];
+        for (let j = 0; j < n && cx < end; j++) {
+          const L = LETTERS[LETTER_KEYS[Math.floor(r() * LETTER_KEYS.length)]];
+          const w = xh * (0.75 + r() * 0.5), hy = 0.85 + r() * 0.3;
+          for (const kn of L) {
+            if (typeof kn === "number") { dots.push([cx - xh * 0.1, base - xh * (kn ? 2.0 : 1.7)]); continue; }
+            cx += kn[0] * w * 2;
+            pts.push([cx + (r() - 0.5) * xh * 0.08, base - kn[1] * xh * hy + (r() - 0.5) * xh * 0.08]);
+          }
+        }
+        pts.push([cx + xh * 0.35, base - xh * 0.45]);
+        g.globalAlpha = 0.72 + r() * 0.22;
+        pen(pts, base);
+        for (const [dx, dy] of dots) if (r() < 0.6) pen([[dx, dy], [dx + xh * 0.12, dy - xh * 0.05]], base);
+        x = cx + xh * (1.1 + r() * 0.9);
+      }
+    }
+  }
+  g.restore();
+}
+
+// the open spread's two pages (L: left / top, R: right / bottom)
 export async function spreadPages(dims, tw, th, vertical) {
   const L = LAYOUT[vertical ? "tall" : "wide"];
   const items = [];
@@ -780,6 +845,9 @@ export async function spreadPages(dims, tw, th, vertical) {
     securityPrint(p, { num: side === "L" ? 14 : 15, seed: side === "L" ? 3 : 4 });
     await breathe();
     const reg = regionOf(dims, vertical, side);
+    // the observations and the booking notes, in an unreadable hand
+    scribble(p, reg, L.about, 71, { items: 1 });
+    scribble(p, reg, L.book, 72, { items: 4, dash: true });
     for (const it of items) { place(p, reg, { ...it, canvas: it.make(), alpha: it.alpha ?? 0.88 }); await breathe(); }
     pageShade(p);
     roundOuter(p, dims.R / dims.PW);

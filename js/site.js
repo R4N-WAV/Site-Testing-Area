@@ -17,13 +17,18 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const isPhone = () => window.innerWidth <= 768;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Where the enlarged record sits when a song is open: on top, with the details underneath.
+// Where the enlarged record sits when a song is open: the record and its details under it make one
+// group, centred in the room between the top bar and the footer (the eye looks to the middle).
 // Sized so the whole thing fits on one screen, on any device.
+const HERO_GAP = 28;   // between the record and its details (px)
+let detailInfoH = 230; // the details' height, measured when a record opens (see showDetail)
 function heroLayout() {
   const W = window.innerWidth, H = window.innerHeight;
-  const top = H < 600 ? 50 : isPhone() ? 62 : 76;
-  // the rest of the height goes to the details (~270px) and the footer (~70px), with room to breathe
-  const size = Math.round(clamp(Math.min(W * 0.8, H * 0.44, H - top - 360, 460), Math.min(W * 0.5, H * 0.28), 460));
+  const bar = H < 600 ? 50 : isPhone() ? 62 : 76;  // under the top bar
+  const foot = isPhone() ? 96 : 86;                // PREV / ALL / NEXT and the links
+  const room = H - bar - foot;
+  const size = Math.round(clamp(Math.min(W * 0.8, H * 0.5, room - HERO_GAP - detailInfoH, 520), Math.min(W * 0.5, H * 0.28), 520));
+  const top = Math.round(bar + Math.max(0, (room - size - HERO_GAP - detailInfoH) / 2));
   return { top, size, cx: W / 2, cy: top + size / 2 };
 }
 function applyHeroLayout() {
@@ -228,6 +233,10 @@ function startSpace(releases, ui, textures) {
     camera.aspect = window.innerWidth / window.innerHeight;
     baseFov = phone() ? 58 : 40;
     camera.fov = baseFov;
+    // on a phone the records sit a little above the middle: centred in the room between the top bar
+    // and the rows along the bottom (MY SONGS / WORKED ON, the links, the corners)
+    const w = window.innerWidth, h = window.innerHeight;
+    if (phone()) camera.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     camera.position.set(0, 0.05, 4);
     camera.lookAt(0, 0.05, -10);
@@ -454,7 +463,8 @@ function startSpace(releases, ui, textures) {
     const W = window.innerWidth, H = window.innerHeight;
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     worldPerPx = (2 * HERO_DEPTH * tanV) / H;
-    heroPos.set((cx - W / 2) * worldPerPx, -(cy - H / 2) * worldPerPx, -HERO_DEPTH);
+    const shift = camera.view?.enabled ? camera.view.offsetY : 0; // (on a phone the view is moved, see placeCamera)
+    heroPos.set((cx - W / 2) * worldPerPx, -(cy + shift - H / 2) * worldPerPx, -HERO_DEPTH);
     heroTarget.position.copy(heroPos);
     camera.localToWorld(heroPos);
     heroScale = (size * worldPerPx) / SLEEVE;
@@ -1009,6 +1019,10 @@ function buildUI(releases) {
       detail.setAttribute("aria-hidden", "false");
       document.body.classList.add("detail-open");
       history.replaceState(null, "", `#${rel.slug}`);
+      // the group is centred on the details as they first show (ABOUT closed)
+      inner.style.transform = "";
+      detailInfoH = inner.offsetHeight;
+      applyHeroLayout();
       fitDetail();
     },
     attach(s) { space = s; space.setFilter(shown); },
