@@ -236,7 +236,7 @@ function startSpace(releases, ui, textures) {
     // on a phone the records sit a little above the middle: centred in the room between the top bar
     // and the rows along the bottom (MY SONGS / WORKED ON, the links, the corners)
     const w = window.innerWidth, h = window.innerHeight;
-    if (phone()) camera.setViewOffset(w, h, 0, Math.round(h * 0.1), w, h); else camera.clearViewOffset();
+    if (phone()) camera.setViewOffset(w, h, 0, Math.round(h * 0.05), w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     camera.position.set(0, 0.05, 4);
     camera.lookAt(0, 0.05, -10);
