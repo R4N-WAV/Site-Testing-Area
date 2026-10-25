@@ -333,15 +333,15 @@ body.is-loaded .accessBtn{opacity:1;pointer-events:auto;}
 body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessBtn{opacity:0;pointer-events:none;transition-delay:0s;}
 /* touch screens have no hover to bring it up, so it starts a touch darker */
 @media (hover:none){.accessBtn{color:rgba(17,17,18,0.32);}}
+/* phones: the top bar keeps only R4N, BOOKING and INDEX, with room round each; ACCESS goes to the
+   bottom right corner, as on a computer (language and sound to the bottom left, further down) */
 @media (max-width:768px){
-  .accessBtn{position:static;order:1;margin-left:auto;margin-right:18px;padding:8px 4px;font-size:11px;letter-spacing:2.8px;}
-  #bookBtn{order:2;margin-left:0;margin-right:14px;padding:8px 13px 8px 11px;gap:7px;font-size:11px;letter-spacing:1.8px;}
-  .accessBtn{margin-right:14px;}
-  #indexBtn{order:3;}
+  #bookBtn{margin-left:auto;margin-right:24px;padding:12px 16px 12px 13px;gap:8px;font-size:11px;letter-spacing:2px;}
+  #indexBtn{padding:14px 2px;font-size:11px;letter-spacing:2.4px;}
+  .accessBtn{bottom:calc(6px + env(safe-area-inset-bottom));padding:14px 2px;font-size:10px;letter-spacing:2.6px;}
 }
-@media (max-width:380px){
-  #bookBtn{margin-right:10px;padding:7px 10px 7px 9px;gap:6px;font-size:10px;letter-spacing:1.3px;}
-  .accessBtn{margin-right:10px;font-size:10px;letter-spacing:2.2px;}
+@media (max-width:360px){
+  #bookBtn{margin-right:18px;padding:11px 13px 11px 11px;letter-spacing:1.6px;}
 }
 
 /* the page in pieces, then the single field it collapses into */
@@ -595,33 +595,22 @@ body.detail-open .langPick,body.index-open .langPick{transform:translateX(-40px)
 }
 .langPick__list button:hover,.langPick__list button[aria-selected="true"]{color:var(--fg);}
 .langPick__list button[aria-selected="true"]::after{content:"  ●";font-size:.7em;}
+/* phones: language and sound in the bottom left corner (on the booking page they stay up in the
+   bar, which has room there), its list opening upwards; the bottom rows step up to make room */
 @media (max-width:768px){
-  .langPick{order:2;margin-right:10px;gap:7px;}
-  body.detail-open .langPick,body.index-open .langPick{transform:translateX(-96px);}
-  .langPick__btn{padding-left:2px;padding-right:2px;}
-}
-@media (max-width:430px){
+  html:not(.is-booking) .langPick{position:fixed;left:var(--pad);bottom:calc(6px + env(safe-area-inset-bottom));z-index:41;margin:0;gap:14px;}
+  html:not(.is-booking) .langPick__list{top:auto;bottom:calc(100% + 4px);left:-8px;right:auto;}
+  html:not(.is-booking) .langPick__btn,html:not(.is-booking) .soundBtn{padding-top:14px;padding-bottom:14px;}
+  body.detail-open .langPick,body.index-open .langPick{transform:none;}
+  html:not(.is-booking) body:is(.detail-open,.index-open,.access-open) .langPick{opacity:0;pointer-events:none;transition-delay:0s;}
   .langPick__caret{display:none;}
-  .langPick{margin-right:9px;}
-  #bookBtn{margin-right:10px;}
-  .accessBtn{margin-right:10px;}
-  .soundBtn svg{width:17px;height:14px;}
+  html:not(.is-booking) .siteSocials{bottom:calc(50px + env(safe-area-inset-bottom));}
+  html:not(.is-booking) .modeToggle{bottom:calc(80px + env(safe-area-inset-bottom));}
+  /* booking: the way back in the right corner, as on a computer */
+  html.is-booking .langPick{order:2;margin-right:18px;}
+  html.is-booking .homeBtn{order:3;padding:14px 0;}
 }
-@media (max-width:380px){.langPick{margin-right:7px;gap:5px;}}
-/* the narrowest phones (320px): everything in the top bar a touch tighter, so Norwegian fits too */
-@media (max-width:360px){
-  .accessBtn{margin-right:8px;letter-spacing:1.3px;}
-  #bookBtn{margin-right:7px;padding:7px 8px 7px 7px;gap:5px;letter-spacing:1px;}
-  .langPick{margin-right:7px;}
-  #indexBtn{letter-spacing:1.3px;}
-  .top .logo img{width:52px;}
-}
-@media (max-width:360px){
-  #bookBtn::before{display:none;}
-  #bookBtn{padding:7px 9px;}
-  .accessBtn,#indexBtn{letter-spacing:.9px;}
-  .langPick{gap:4px;margin-right:6px;}
-}
+@media (max-width:360px){.top .logo img{width:52px;}}
 /* the index on a narrow phone: the year goes under the title, so titles get the whole width */
 @media (max-width:480px){
   .index__item button{grid-template-columns:22px 48px 1fr;grid-template-rows:auto auto;column-gap:12px;}

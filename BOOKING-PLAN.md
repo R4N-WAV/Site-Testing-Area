@@ -189,3 +189,8 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - [x] e. Signature: filled calligraphic R4N (Kendrick-like), revealed by a mask
 - [x] f. Full QA (booksweep: all booking states, 11 viewports, EN/NO, clean) matrix phone/tablet/desktop x EN/NO x all states; fix until clean
 - [x] g. Deploy
+
+## Round 8 (R4N's feedback) — done
+- [x] BOOK R4N: R4N's own four points, the last "For både unge og voksne." (EN "For young and old alike.")
+- [x] Signature: smooth joined cursive (scripts/make-signature.py)
+- [x] Phones: top bar = R4N, BOOKING, INDEX; language + sound bottom left, ACCESS bottom right; booking: "← R4N" in the right corner

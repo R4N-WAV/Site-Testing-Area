@@ -19,31 +19,31 @@ from pathlib import Path
 import numpy as np
 
 STROKES = [
-    # R: down the stem, back up, round the bowl, and out along the leg
+    # one joined stroke: R (in from below, up and down the stem, a loop at its foot, round the
+    # bowl, a little loop, out along the leg), into the 4 (diagonal, loop, bar, loop, upright,
+    # loop), into the N, and away in a long soft swash
     [
-        (38, 8), (38, 8), (33, 54), (26, 106), (26, 106),
-        (34, 56), (41, 10), (41, 10),
-        (64, 3), (83, 18), (72, 38), (50, 47), (40, 46), (40, 46),
-        (55, 55), (67, 76), (82, 97),
+        (8, 98), (20, 90), (32, 64), (40, 32), (46, 16), (52, 16),
+        (48, 44), (42, 72), (36, 96), (30, 104), (24, 99), (29, 90), (38, 70),
+        (46, 40), (56, 18), (72, 10), (86, 18), (82, 34), (66, 45), (51, 48),
+        (47, 44), (53, 41), (60, 47),
+        (68, 64), (76, 86), (86, 97), (98, 97),
+        (106, 82), (110, 56), (113, 34), (116, 26), (117, 32),
+        (113, 50), (111, 64), (116, 70), (128, 68), (146, 66), (154, 60), (155, 46), (150, 32), (143, 24), (137, 27), (135, 40),
+        (133, 62), (130, 86), (129, 99), (133, 104), (140, 98),
+        (146, 76), (151, 48), (155, 30), (160, 26), (164, 36),
+        (170, 60), (177, 84), (183, 95), (188, 88), (193, 62), (198, 38), (203, 22),
+        (212, 14), (232, 9), (258, 10), (284, 16), (300, 26),
     ],
-    # 4 (the diagonal, the bar, the upright), into the N, and away in a swash
-    [
-        (107, 14), (107, 14), (85, 66), (85, 66),
-        (139, 63), (139, 63),
-        (133, 40), (127, 24), (127, 24), (120, 72), (117, 106), (117, 106),
-        (147, 28), (147, 28),
-        (171, 92), (171, 92),
-        (190, 22), (198, 12), (218, 5), (252, 4), (296, 12),
-    ],
-    # the underline: a quick flick from under the R, rising to the right
-    [(14, 114), (70, 108), (150, 100), (232, 90), (278, 76)],
+    # the underline: a quick, light flick rising to the right
+    [(16, 113), (80, 108), (160, 101), (236, 92), (282, 78)],
 ]
 # how long each stroke takes to write (seconds), and the pause before it
-TIMING = [(0.42, 0.0), (0.62, 0.06), (0.3, 0.06)]
-SLANT = 0.26          # forward lean (x += SLANT * (baseline - y))
+TIMING = [(1.25, 0.0), (0.3, 0.08)]
+SLANT = 0.3           # forward lean (x += SLANT * (baseline - y))
 BASE = 100
 NIB = math.radians(38)  # the nib's angle: strokes across it are thickest
-WMAX, WMIN = 8.6, 1.0
+WMAX, WMIN = 5.0, 1.5
 
 
 def catmull(pts, per=14):
@@ -85,16 +85,16 @@ def widths(c, taper_in=0.05, taper_out=0.2):
     w = WMIN + (WMAX - WMIN) * np.abs(np.sin(ang - NIB)) ** 1.3
     # the pen presses on the way down and barely touches on the way up
     down = d[:, 1] / (np.linalg.norm(d, axis=1) + 1e-9)
-    w *= np.interp(down, [-1, -0.2, 0.3, 1], [0.32, 0.45, 0.9, 1.0])
+    w *= np.interp(down, [-1, -0.2, 0.3, 1], [0.55, 0.65, 0.92, 1.0])
     # and lifts into every sharp turn, so each one ends in a point
     t = d / (np.linalg.norm(d, axis=1, keepdims=True) + 1e-9)
     k = 3
     turn = np.zeros(len(c))
     turn[k:-k] = np.degrees(np.arccos(np.clip(np.sum(t[:-2 * k] * t[2 * k:], axis=1), -1, 1)))
-    corners = np.where(turn > 75)[0]
+    corners = np.where(turn > 150)[0]
     if len(corners):
         dist = np.min(np.abs(np.arange(len(c))[:, None] - corners[None, :]), axis=1) * 1.6  # in px
-        w *= 0.12 + 0.88 * np.clip(dist / 11, 0, 1) ** 0.75
+        w *= 0.6 + 0.4 * np.clip(dist / 11, 0, 1) ** 0.75
     w = np.convolve(np.r_[[w[0]] * 3, w, [w[-1]] * 3], np.ones(7) / 7, "valid")
     u = np.linspace(0, 1, len(c))
     ease = lambda x: x * x * (3 - 2 * x)
@@ -105,7 +105,7 @@ def widths(c, taper_in=0.05, taper_out=0.2):
 def shape_widths(i, c):
     if i == len(STROKES) - 1:  # the underline: light
         return widths(c, 0.12, 0.45) * 0.62
-    return widths(c, 0.03, 0.12 if i == 0 else 0.22)
+    return widths(c, 0.04, 0.16)
 
 
 def outline(c, w, chunk=36):
