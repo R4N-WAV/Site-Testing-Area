@@ -184,8 +184,8 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - [x] a. Sound: round-5 sounds back (louder), Isai-rendered samples where possible; FIX no audio on phones (done: assets/sound/*.mp3 from scripts/isai-sounds.cpp; unlock on pointerup/touchend/click, silent buffer, audioSession; tested iPhone/Pixel profiles)
        (unlock on pointerup/touchend/click, silent buffer, audioSession playback, resume)
 - [x] b. Hint: straight line, no dot
-- [~] c. (built; tuning sizes on phones) Passport texts as DOM over the page (morph, fixed size), "PÅ SCENEN / ON STAGE", new copy incl. sound-system note
-- [~] d. (built: hangs below the lower edge on both; checking) Close tab outside the pages (below on phones, right edge on wide), big touch target
-- [~] e. (scripts/make-signature.py -> js/signature.js; wired; checking) Signature: filled calligraphic R4N (Kendrick-like), revealed by a mask
-- [ ] f. Full QA matrix phone/tablet/desktop x EN/NO x all states; fix until clean
-- [ ] g. Deploy
+- [x] c. Passport texts as DOM over the page (morph, fixed size), "PÅ SCENEN / ON STAGE", new copy incl. sound-system note
+- [x] d. Close tab outside the pages (below on phones, right edge on wide), big touch target
+- [x] e. Signature: filled calligraphic R4N (Kendrick-like), revealed by a mask
+- [x] f. Full QA (booksweep: all booking states, 11 viewports, EN/NO, clean) matrix phone/tablet/desktop x EN/NO x all states; fix until clean
+- [x] g. Deploy
