@@ -51,7 +51,7 @@ let current = initial();
 const listeners = new Set();
 
 export const lang = () => current;
-export const t = (key) => STRINGS[current][key] ?? STRINGS.en[key] ?? key;
+export const t = (key, l = current) => STRINGS[l][key] ?? STRINGS.en[key] ?? key;
 export function onLang(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
 // ---- the morph: each letter scrambles and lands on its new one, a little after the one before ----

@@ -28,7 +28,8 @@ Opened, the passport is about R4N live: two printed entries (what R4N live is, w
 you book), the UKM stamp (click it for its story) and a film. The words are all in
 `js/memories.js`, in Norwegian and English. The releases are postage stamps on the pages that riffle
 past as it opens (they come from `releases/` by themselves). The ticket, BOOK NOW, turns the page to
-a booking form; the red tab in the corner closes the passport.
+a booking form; the red tab hanging under the passport closes it. On phones the two entries show a
+short version (a tap opens the full text in a card).
 
 The form sends straight to r4nmusic@outlook.com through [FormSubmit](https://formsubmit.co) (no
 account, nothing opens on the visitor's side). **The first time, FormSubmit sends r4nmusic@outlook.com
@@ -37,12 +38,17 @@ until then requests can't arrive.
 
 The film is `assets/film/r4n-live.mp4`, made from R4N's footage with `scripts/make-film.sh`
 (stop-motion, black and white, paper-cut look; see the top of that file). The cover's textures are
-images in `assets/passport/`, made by `scripts/bake-passport.mjs`.
+images in `assets/passport/`, made by `scripts/bake-passport.mjs`. R4N's signature on a stamped
+request is `js/signature.js`, made by `scripts/make-signature.py` (change its strokes there).
 
 ## Sound
 
-Everything you touch makes a small sound (`js/sound.js`, all made in code, no files). The speaker
-button beside the language picker turns it off (remembered).
+Everything you touch makes a small sound (`js/sound.js`). The small ones are made in code; the
+bigger ones (into the tunnel and back, records opening and closing, switching, the language, the
+thank-you, the passport's rattle) are short recordings of R4N's synth Isai in `assets/sound/`,
+rendered with `scripts/isai-sounds.cpp` (how, at its top). The speaker button beside the language
+picker turns it off (remembered). On iPhones, sound plays even with the ringer switch on silent
+from iOS 17.
 
 ## Language
 

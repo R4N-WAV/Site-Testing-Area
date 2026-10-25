@@ -29,7 +29,7 @@ export function initBooking({ space, releases = [] }) {
   // the passport's code and textures are only fetched and made when someone heads there
   const getPassport = () => (making ||= import("./booking.js")
     .then(({ createPassport }) => createPassport(layer, { releases }))
-    .then((p) => (passport = p))
+    .then((p) => (passport = window.__passport = p)) // (__passport: for automated tests)
     .catch((err) => { making = null; throw err; }));
 
   async function showPassport() {

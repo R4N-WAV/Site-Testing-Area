@@ -520,8 +520,8 @@ export async function createPassport(layer, { releases = [] } = {}) {
   const tab = new THREE.Mesh(new THREE.PlaneGeometry(TAB.w * (1 + 2 * PAD), TAB.h * (1 + 2 * PAD)), new THREE.MeshStandardMaterial({ map: tabTex[0], transparent: true, roughness: 0.8, depthWrite: false, opacity: 0 }));
   tab.renderOrder = 15;
   // and a larger, unseen area round it that a finger finds easily
-  const tabHit = new THREE.Mesh(new THREE.PlaneGeometry(TAB.w * 1.3, TAB.h * 1.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }));
-  tabHit.position.set(0, -TAB.h * 0.1, 0.01);
+  const tabHit = new THREE.Mesh(new THREE.PlaneGeometry(TAB.w * 1.3, TAB.h * 1.4), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }));
+  tabHit.position.set(0, 0, 0.01);
   tab.add(tabHit);
   spreadFrame.add(tab);
   const isTab = (o) => o === tab || o === tabHit;
@@ -552,6 +552,18 @@ export async function createPassport(layer, { releases = [] } = {}) {
     composer.setPixelRatio(pixelRatio);
     composer.setSize(w, h);
     bloom.resolution.set(w, h);
+    measureBand();
+  }
+  // the free height between the site's top bar and the links along the bottom (px): the open
+  // passport, with its close tab, fits in there
+  let band = [0, 1];
+  function measureBand() {
+    const h = size[1];
+    let top = 0, bot = h;
+    for (const e of document.querySelectorAll(".top a, .top button")) { const r = e.getBoundingClientRect(); if (r.height && r.bottom < h * 0.3) top = Math.max(top, r.bottom); }
+    const so = document.getElementById("siteSocials")?.getBoundingClientRect();
+    if (so && so.height && so.top > h * 0.6) bot = so.top;
+    band = [top + 8, bot - 8];
   }
   function distanceFor(w, h, shareW, shareH) {
     const tn = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
@@ -628,7 +640,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
   // the words on top of the passport; on a change of language they morph, like the rest of the site
   const say = (e, text, animate) => (animate ? morph(e, text) : (e.textContent = text));
   // a printed entry: its small heading, its title, its text (a paragraph, or points)
-  function fillText(sec, { head, title, paras, points, cut, more: tell }, animate = false) {
+  function fillText(sec, { head, title, paras, points, cut, more: tell }, animate = false, l = lang()) {
     sec.classList.toggle("is-short", cut);
     say(sec.querySelector(".ptext__head"), head, animate);
     say(sec.querySelector(".ptext__title"), title, animate);
@@ -640,10 +652,10 @@ export async function createPassport(layer, { releases = [] } = {}) {
     paras.forEach((p, i) => say(list.children[i], p, animate));
     const more = sec.querySelector(".ptext__more");
     more.hidden = !tell;
-    if (tell) say(more, t(coarse ? "readMoreTap" : "readMoreClick"), animate);
+    if (tell) say(more, t(coarse ? "readMoreTap" : "readMoreClick", l), animate);
   }
   // (on a phone, held either way, the short version: a tap opens it in full)
-  const shortNow = () => vertical || size[1] < 560;
+  const shortNow = () => Math.min(size[0], size[1]) < 600;
   const entryNow = (id, l = lang(), short = shortNow()) => liveEntry(id, l, short);
   // One type size per entry, the largest at which both languages fit its box, so switching never
   // makes it jump. Found for the passport's size on screen (in steps of 2 %, so not on every frame
@@ -660,14 +672,16 @@ export async function createPassport(layer, { releases = [] } = {}) {
       let size = Infinity;
       for (const l of ["no", "en"]) {
         const sec = texts[id].cloneNode(true);
-        fillText(sec, entryNow(id, l, short));
-        Object.assign(sec.style, { position: "absolute", left: "0", top: "0", width: `${w}px`, height: "auto", opacity: "1" });
+        fillText(sec, entryNow(id, l, short), false, l);
+        // (a touch narrower than the box: type never scales quite evenly, and a line that only just
+        // fits here mustn't wrap over there)
+        Object.assign(sec.style, { position: "absolute", left: "0", top: "0", width: `${w * 0.96}px`, height: "auto", opacity: "1" });
         probe.appendChild(sec);
         let lo = 3, hi = 60;
         for (let i = 0; i < 12; i++) {
           const f = (lo + hi) / 2;
           sec.style.fontSize = `${f}px`;
-          if (sec.offsetHeight <= h * 0.97 && sec.scrollWidth <= w + 0.5) lo = f; else hi = f;
+          if (sec.offsetHeight <= h * (f < 9 ? 0.92 : 0.97) && sec.scrollWidth <= w * 0.96 + 0.5) lo = f; else hi = f;
         }
         size = Math.min(size, lo);
         sec.remove();
@@ -811,12 +825,12 @@ export async function createPassport(layer, { releases = [] } = {}) {
   // The close tab hangs from under the open passport's lower edge, outside the pages, so it never
   // covers anything: in the middle on a tall screen, below the right page on a wide one. On a
   // phone it's made big enough for a thumb (at least 46 px tall).
-  let tabRoom = TAB.h * 1.15; // the room left for it under the passport on a wide screen
+  let tabRoom = TAB.h * 1.15; // the room it takes under the passport
   function placeTab(hoverK) {
     const [x, y] = vertical ? [0, -(PW + OV)] : [PW * 0.7, -(PH / 2 + OV)];
     const [, ay] = toScreen(0, 0), [, by] = toScreen(0, -TAB.h);
     const s = clamp(46 / Math.max(1, Math.abs(by - ay)), 1, 1.9);
-    tabRoom = TAB.h * (s + 0.15);
+    tabRoom = TAB.h * (s * 1.2 + 0.1); // (its touch area included)
     tab.scale.setScalar(s * (1 + hoverK * 0.04));
     // tucked a little under the cover's edge, and coming out a touch further under the pointer
     tab.position.set(x, y - TAB.h * s * 0.5 + 0.014 - hoverK * 0.008, LIFT - 0.003);
@@ -927,11 +941,19 @@ export async function createPassport(layer, { releases = [] } = {}) {
     tab.material.opacity = tabIn;
     if (tab.visible) placeTab(tabHover);
 
-    // pose: tilted and floating when closed; flat, facing you, turned for the screen when open.
-    // On tall screens it sits a little above the middle (the hint and the links are below it).
+    // the camera: the closed booklet takes a good part of the screen; open, it fills it, as much
+    // as the room between the top bar and the links at the bottom allows, the close tab under it
+    const tn = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const closedD = distanceFor(W * 1.1, H * 1.05, 0.62, 0.56);
+    const shareH = (band[1] - band[0]) / size[1];
+    const openD = vertical ? distanceFor(H, 2 * W + tabRoom, 1.0, shareH) : distanceFor(2 * W, H + tabRoom, 0.98, shareH * 0.97);
+    // pose: tilted and floating when closed (on a tall screen a little above the middle, the hint
+    // and the links are below it); flat, facing you, turned for the screen when open, in the
+    // middle of that room
     const float = Math.sin(time * 1.1) * 0.01 * (1 - k);
-    const viewH = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    passport.position.set(0, float + (tall() ? viewH * mix(0.06, 0.035, k) : (vertical ? 0 : tabRoom * 0.5 * k)), (1 - appear) * -5);
+    const closedY = tall() ? 2 * closedD * tn * 0.06 : 0;
+    const openY = (size[1] / 2 - (band[0] + band[1]) / 2) / size[1] * 2 * openD * tn + tabRoom / 2;
+    passport.position.set(0, float + mix(closedY, openY, k), (1 - appear) * -5);
     passport.rotation.set(
       mix(POSE.x + Math.sin(time * 0.7) * 0.02 + pointer.y * 0.05 * hover, -0.02, k),
       mix(POSE.y + Math.sin(time * 0.55) * 0.03 + pointer.x * 0.07 * hover, 0, k),
@@ -945,9 +967,6 @@ export async function createPassport(layer, { releases = [] } = {}) {
     back.position.z = mix(-PAGES / 2, LIFT - 0.0012, coverK);
     spreadFrame.rotation.z = vertical ? Math.PI / 2 : 0;
 
-    // the camera: the closed booklet takes a good part of the screen; open, it fills it
-    const closedD = distanceFor(W * 1.1, H * 1.05, 0.62, 0.56);
-    const openD = vertical ? distanceFor(H, 2 * W, 1.0, 0.9) : distanceFor(2 * W, H + tabRoom, 0.98, 0.95);
     camera.position.set(0, 0, mix(closedD, openD, k));
     camera.lookAt(0, 0, 0);
 
@@ -1231,10 +1250,17 @@ export async function createPassport(layer, { releases = [] } = {}) {
     canvas,
     get isOpen() { return opening; },
     get onSpread() { return spreadUp(); }, // open and settled on the spread
+    get tabBox() { // where the close tab is on screen (for automated tests): [left, top, right, bottom]
+      if (!tab.visible) return null;
+      const b = new THREE.Box3().setFromObject(tabHit), xs = [], ys = [];
+      for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) { v3.set(x, y, b.max.z).project(camera); xs.push((v3.x * 0.5 + 0.5) * size[0]); ys.push((-v3.y * 0.5 + 0.5) * size[1]); }
+      return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    },
     show(animate = true) {
       appearGoal = 1;
       if (!animate) appear = 1;
       nextEvent = 1.0; paused = false; last = performance.now(); shownAt = time;
+      measureBand();
     },
     // leaving: it sinks straight back into the dark and fades, as it came
     hide(animate = true) {

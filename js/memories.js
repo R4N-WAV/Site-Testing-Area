@@ -62,7 +62,7 @@ export function liveEntry(id, lang, short = false) {
   const pick = (o) => o[lang] || o.en;
   const cut = short && !!e.short;
   const paras = e.points ? pick(cut ? e.short : e.points) : [pick(cut ? e.short : e.text)];
-  return { head: e.head, title: pick(e.title), paras, points: !!e.points, cut, more: cut && !!e.points };
+  return { head: e.head, title: pick(e.title), paras, points: !!e.points, cut, more: cut };
 }
 
 // the cards: what opens when a stamp is clicked
