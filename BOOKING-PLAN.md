@@ -179,3 +179,13 @@ Work happens in this repo (Site-Testing-Area), pushed to `main` after every step
 - [x] i. Film caption: "FLAWLESS FASADE VISUALIZER · R4N PÅ UKM 2025", ticket clear of it
 - [x] j. Tests, deploy
 - Round 6 deployed to R4N-SITE.
+
+## Round 7 (R4N's feedback), steps (full plan: /root/.claude/plans/jolly-shimmying-alpaca.md)
+- [ ] a. Sound: round-5 sounds back (louder), Isai-rendered samples where possible; FIX no audio on phones
+       (unlock on pointerup/touchend/click, silent buffer, audioSession playback, resume)
+- [ ] b. Hint: straight line, no dot
+- [ ] c. Passport texts as DOM over the page (morph, fixed size), "PÅ SCENEN / ON STAGE", new copy incl. sound-system note
+- [ ] d. Close tab outside the pages (below on phones, right edge on wide), big touch target
+- [ ] e. Signature: filled calligraphic R4N (Kendrick-like), revealed by a mask
+- [ ] f. Full QA matrix phone/tablet/desktop x EN/NO x all states; fix until clean
+- [ ] g. Deploy
