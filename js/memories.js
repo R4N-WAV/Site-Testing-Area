@@ -15,6 +15,10 @@ export const LIVE_TEXT = {
       no: "Fra skolescener og kommunale arrangementer til UKM-festivalen i Trondheim i 2025: R4N har stått på mange scener, og tar med seg noe nytt fra hver eneste en. Målet er alltid det samme – en opptreden publikum snakker om etterpå.",
       en: "From school stages and municipal events to the UKM national festival in Trondheim in 2025: R4N has played a lot of stages, and takes something new from every one. The goal never changes: a show the audience talks about afterwards.",
     },
+    short: {
+      no: "Fra skolescener og kommunale arrangementer til UKM-festivalen i Trondheim i 2025. Målet er alltid en opptreden publikum snakker om etterpå.",
+      en: "From school stages and municipal events to the UKM national festival in Trondheim in 2025. The goal: a show the audience talks about afterwards.",
+    },
   },
   // right page, lower: what you get when you book
   book: {
@@ -34,13 +38,31 @@ export const LIVE_TEXT = {
         "For schools, municipalities, festivals and private events.",
       ],
     },
+    // on a phone the page has room for less: the points in short (a tap opens them in full)
+    short: {
+      no: [
+        "Skreddersydd for ditt publikum.",
+        "Egen musikk, skrevet og produsert av R4N.",
+        "Lydkyndig: med et anlegg som holder mål, låter det som det skal.",
+        "Skoler, kommuner, festivaler og private arrangementer.",
+      ],
+      en: [
+        "Tailored to your audience.",
+        "Original music, written and produced by R4N.",
+        "Sound-minded: give it a decent sound system and it sounds the way it should.",
+        "Schools, municipalities, festivals and private events.",
+      ],
+    },
   },
 };
-// one entry in one language: { head, title, paras, points } (points: the paragraphs are a list)
-export function liveEntry(id, lang) {
+// one entry in one language: { head, title, paras, points, cut, more } (points: the paragraphs are
+// a list; cut: in short, the rest in its card; more: say so)
+export function liveEntry(id, lang, short = false) {
   const e = LIVE_TEXT[id];
   const pick = (o) => o[lang] || o.en;
-  return { head: e.head, title: pick(e.title), paras: e.points ? pick(e.points) : [pick(e.text)], points: !!e.points };
+  const cut = short && !!e.short;
+  const paras = e.points ? pick(cut ? e.short : e.points) : [pick(cut ? e.short : e.text)];
+  return { head: e.head, title: pick(e.title), paras, points: !!e.points, cut, more: cut && !!e.points };
 }
 
 // the cards: what opens when a stamp is clicked

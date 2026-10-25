@@ -747,8 +747,8 @@ const LAYOUT = {
   tall: {
     live: { ukm: [-0.475, 0.26, 0.25, 0.25, -0.18] },
     decor: [["pass", 0.47, 0.3, 0.24, 0.158, 0.08], ["crown", 0.48, -0.1, 0.14, 0.175, -0.09]],
-    about: [-0.56, 0.84, 0.56, 0.53],
-    book: [-0.56, -0.52, 0.56, -0.79],
+    about: [-0.56, 0.84, 0.56, 0.5],
+    book: [-0.56, -0.37, 0.56, -0.81],
   },
 };
 // where the printed entries go: [left, top, right, bottom] in spread units

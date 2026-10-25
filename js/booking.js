@@ -607,7 +607,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
   writer.hidden = true;
   // the two printed entries on the open spread: real text over the paper, so a new language morphs
   // into place like everywhere else, and stays sharp
-  const entry = (id) => `<section class="ptext ptext--${id}"><p class="ptext__head"></p><h3 class="ptext__title"></h3><div class="ptext__body"></div></section>`;
+  const entry = (id) => `<section class="ptext ptext--${id}"><p class="ptext__head"></p><h3 class="ptext__title"></h3><div class="ptext__body"></div><p class="ptext__more" hidden></p></section>`;
   const texts = { about: el("div", "ptexts", entry("about")).firstChild, book: el("div", "ptexts", entry("book")).firstChild };
   const textLayer = el("div", "ptexts");
   textLayer.append(texts.about, texts.book);
@@ -628,7 +628,8 @@ export async function createPassport(layer, { releases = [] } = {}) {
   // the words on top of the passport; on a change of language they morph, like the rest of the site
   const say = (e, text, animate) => (animate ? morph(e, text) : (e.textContent = text));
   // a printed entry: its small heading, its title, its text (a paragraph, or points)
-  function fillText(sec, { head, title, paras, points }, animate = false) {
+  function fillText(sec, { head, title, paras, points, cut, more: tell }, animate = false) {
+    sec.classList.toggle("is-short", cut);
     say(sec.querySelector(".ptext__head"), head, animate);
     say(sec.querySelector(".ptext__title"), title, animate);
     const body = sec.querySelector(".ptext__body"), tag = points ? "li" : "p";
@@ -637,53 +638,64 @@ export async function createPassport(layer, { releases = [] } = {}) {
     while (list.children.length > paras.length) list.lastElementChild.remove();
     while (list.children.length < paras.length) list.appendChild(document.createElement(tag));
     paras.forEach((p, i) => say(list.children[i], p, animate));
+    const more = sec.querySelector(".ptext__more");
+    more.hidden = !tell;
+    if (tell) say(more, t(coarse ? "readMoreTap" : "readMoreClick"), animate);
   }
+  // (on a phone, held either way, the short version: a tap opens it in full)
+  const shortNow = () => vertical || size[1] < 560;
+  const entryNow = (id, l = lang(), short = shortNow()) => liveEntry(id, l, short);
   // One type size per entry, the largest at which both languages fit its box, so switching never
-  // makes it jump. Found once for each way of holding it, at a reference scale (everything in the
-  // entry is sized in em, so it holds at any size): in spread units.
-  const textSize = {};
-  function fitTexts(v) {
-    if (textSize[v]) return textSize[v];
-    const REF = 1000, boxes = textBoxes(v), out = {};
+  // makes it jump. Found for the passport's size on screen (in steps of 2 %, so not on every frame
+  // while it moves), in px for that size.
+  const textSize = new Map();
+  function fitTexts(v, short, unit) {
+    const key = `${v},${short},${unit.toFixed(1)}`;
+    if (textSize.has(key)) return textSize.get(key);
+    const boxes = textBoxes(v), out = {};
     const probe = el("div", "ptexts ptexts--probe");
     layer.appendChild(probe);
     for (const id in texts) {
-      const [x0, y0, x1, y1] = boxes[id], w = (x1 - x0) * REF, h = (y0 - y1) * REF;
+      const [x0, y0, x1, y1] = boxes[id], w = (x1 - x0) * unit, h = (y0 - y1) * unit;
       let size = Infinity;
       for (const l of ["no", "en"]) {
         const sec = texts[id].cloneNode(true);
-        fillText(sec, liveEntry(id, l));
+        fillText(sec, entryNow(id, l, short));
         Object.assign(sec.style, { position: "absolute", left: "0", top: "0", width: `${w}px`, height: "auto", opacity: "1" });
         probe.appendChild(sec);
-        let lo = 4, hi = 80;
-        for (let i = 0; i < 14; i++) {
+        let lo = 3, hi = 60;
+        for (let i = 0; i < 12; i++) {
           const f = (lo + hi) / 2;
           sec.style.fontSize = `${f}px`;
-          if (sec.offsetHeight <= h && sec.scrollWidth <= w + 0.5) lo = f; else hi = f;
+          if (sec.offsetHeight <= h * 0.97 && sec.scrollWidth <= w + 0.5) lo = f; else hi = f;
         }
         size = Math.min(size, lo);
         sec.remove();
       }
-      out[id] = size / REF;
+      out[id] = size;
     }
     probe.remove();
-    return (textSize[v] = out);
+    textSize.set(key, out);
+    return out;
   }
-  if (document.fonts) document.fonts.ready.then(() => { for (const k in textSize) delete textSize[k]; textKey = ""; });
+  if (document.fonts) document.fonts.ready.then(() => { textSize.clear(); textKey = ""; });
   let textKey = "";
   function placeTexts(opacity) {
     textLayer.style.opacity = opacity.toFixed(3);
     const z = LIFT + STEP * (LEAVES + 2);
     const [ox, oy] = toScreen(0, 0, z), [ux, uy] = toScreen(1, 0, z);
     const unit = Math.hypot(ux - ox, uy - oy);
-    const key = `${vertical},${ox.toFixed(1)},${oy.toFixed(1)},${unit.toFixed(2)}`;
+    const short = shortNow();
+    const key = `${vertical},${short},${ox.toFixed(1)},${oy.toFixed(1)},${unit.toFixed(2)}`;
     if (key === textKey) return;
+    if (!textKey.startsWith(`${vertical},${short},`)) for (const id in texts) fillText(texts[id], entryNow(id));
     textKey = key;
-    const boxes = textBoxes(vertical), fit = fitTexts(vertical);
+    const step = Math.exp(Math.floor(Math.log(unit) * 50) / 50);
+    const boxes = textBoxes(vertical), fit = fitTexts(vertical, short, step);
     for (const id in texts) {
       const [x0, y0, x1, y1] = boxes[id];
       pin(texts[id], x0, y0, x1 - x0, y0 - y1, z);
-      texts[id].style.fontSize = `${fit[id] * unit}px`;
+      texts[id].style.fontSize = `${fit[id] * unit / step}px`;
     }
   }
   function words(animate = false) {
@@ -697,7 +709,7 @@ export async function createPassport(layer, { releases = [] } = {}) {
     say(thanks.querySelector(".bthanks__text"), t("thanksText"), animate);
     say(writer.querySelector(".pwrite__done"), t("done"), animate);
     if (cardShown) showCard(cardShown, false, animate);
-    for (const id in texts) fillText(texts[id], liveEntry(id, lang()), animate);
+    for (const id in texts) fillText(texts[id], entryNow(id), animate);
   }
   words();
   const offLang = onLang(() => words(true));
@@ -814,7 +826,8 @@ export async function createPassport(layer, { releases = [] } = {}) {
   const tall = () => size[1] > size[0] * 1.05;
   function tick(now) {
     raf = requestAnimationFrame(tick);
-    const raw = (now - last) / 1000, dt = Math.min(0.05, raw);
+    // (a frame's time can come out a hair earlier than a moment stamped just before it: never step back)
+    const raw = Math.max(0, (now - last) / 1000), dt = Math.min(0.05, raw);
     last = now;
     if (paused) return;
     keepSmooth(raw);
@@ -884,7 +897,9 @@ export async function createPassport(layer, { releases = [] } = {}) {
     for (const m of centreMats) m.opacity = centreIn;
     filmMat.uniforms.opacity.value = centreIn;
     filmMat.uniforms.time.value = time;
-    centre.scale.setScalar(1 + (1 - ease(centreIn)) * 0.04);
+    // (on a tall screen a little smaller and higher, to leave the printed entries room)
+    centre.scale.setScalar((vertical ? 0.86 : 1) * (1 + (1 - ease(centreIn)) * 0.04));
+    centre.position.y = vertical ? 0.05 : 0;
     textLayer.hidden = centreIn === 0;
     if (centreIn > 0) placeTexts(centreIn);
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.6);
