@@ -1122,7 +1122,11 @@ export async function createPassport(layer, { releases = [] } = {}) {
     sending = false;
     resetForm();
     // the form page clean again for next time
-    f.canvasL.getContext("2d").drawImage(f.clean, 0, 0);
+    // (straight on: a tall page's pen is still turned for its drawing)
+    const g = f.canvasL.getContext("2d");
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "copy"; g.globalAlpha = 1;
+    g.drawImage(f.clean, 0, 0);
+    g.restore();
     f.L.needsUpdate = true;
     showThanks();
   });
