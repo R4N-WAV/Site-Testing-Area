@@ -14,7 +14,7 @@
 const VAULT = "vault/";
 const BG = "#f6f6f4";
 const INK = [26, 26, 28];
-const FOIL = [[184, 51, 143], [255, 127, 207], [233, 92, 182], [210, 56, 159]]; // pink holo: never a rainbow
+const FOIL = [[236, 156, 198], [249, 205, 226], [240, 170, 205], [245, 186, 215]]; // light pink holo: never a rainbow
 const TAU = Math.PI * 2;
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -535,10 +535,21 @@ export function initAccess({ space }) {
     const cs = getComputedStyle(words);
     const wr = words.getBoundingClientRect(), mr = mark.getBoundingClientRect();
     ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-    if ("letterSpacing" in ctx) ctx.letterSpacing = cs.letterSpacing;
-    ctx.textBaseline = "middle";
+    ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#000";
-    ctx.fillText(words.textContent.toUpperCase(), wr.left, wr.top + wr.height / 2);
+    // each letter exactly where the page puts it (one run of canvas text drifts from the page's:
+    // letter spacing and the baseline aren't drawn the same everywhere)
+    const node = words.firstChild, range = document.createRange();
+    for (let i = 0; node && i < node.length; i++) {
+      const ch = node.data[i];
+      if (!ch.trim()) continue;
+      range.setStart(node, i); range.setEnd(node, i + 1);
+      const cr = range.getBoundingClientRect();
+      const m = ctx.measureText(ch.toUpperCase());
+      const ascent = m.fontBoundingBoxAscent, descent = m.fontBoundingBoxDescent;
+      const base = ascent ? cr.top + (cr.height - ascent - descent) / 2 + ascent : cr.top + cr.height * 0.78;
+      ctx.fillText(ch.toUpperCase(), cr.left, base);
+    }
     const logo = document.querySelector("#wordmark img");
     if (logo?.complete) ctx.drawImage(logo, mr.left, mr.top, mr.width, mr.height);
     const st = clamp(Math.round(parseFloat(cs.fontSize) / 16), 4, 8);
@@ -591,6 +602,7 @@ export function initAccess({ space }) {
   let wantLeave = false;
   async function arrive(keepHead) {
     // 1. the bar's dots fly into the headline, turning pink
+    await document.fonts?.ready;
     const head = makeHeadline(hubModule.title || "");
     keepHead(head);
     const { pts, r: pr, x0, x1 } = headlinePoints(head);

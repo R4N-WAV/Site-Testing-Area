@@ -401,15 +401,15 @@ body.detail-open .accessBtn,body.index-open .accessBtn,body.access-open .accessB
   display:inline-block;height:1.7em;width:calc(1.7em * 800 / 364);
   -webkit-mask:url("../assets/logo-white.png") center/contain no-repeat;mask:url("../assets/logo-white.png") center/contain no-repeat;
 }
-/* flashy: pink holo foil sweeping across, with a soft glow */
+/* light pink holo foil sweeping across, with a soft glow */
 .flyTitle__layer--foil .flyTitle__words,.flyTitle__layer--foil .flyTitle__mark{
   background:
     linear-gradient(100deg,transparent 0 38%,rgba(255,240,250,.95) 47%,#fff 50%,rgba(255,240,250,.95) 53%,transparent 62% 100%) 0 0/300% 100% no-repeat,
-    linear-gradient(100deg,#8c1f6e 0%,#d2389f 18%,#ff7fcf 34%,#f7bfe2 46%,#e0459f 60%,#ff66c4 76%,#9e2a7c 100%) 0 0/220% 100%;
+    linear-gradient(100deg,#e9a9c9 0%,#f4bcd8 18%,#fbe3ef 34%,#f9d3e6 46%,#efb2d1 60%,#f8cde2 76%,#e6a3c4 100%) 0 0/220% 100%;
   animation:foil 2.4s cubic-bezier(.45,0,.55,1) infinite;
 }
 .flyTitle__layer--foil .flyTitle__words{-webkit-background-clip:text;background-clip:text;color:transparent;}
-.flyTitle__layer--foil{filter:drop-shadow(0 0 18px rgba(255,80,190,.35));}
+.flyTitle__layer--foil{filter:drop-shadow(0 0 16px rgba(255,170,210,.25));}
 /* settled: exactly the private page's logo */
 .flyTitle__layer--plain .flyTitle__words{color:rgba(17,17,18,.42);}
 .flyTitle__layer--plain .flyTitle__mark{background:rgba(17,17,18,.32);}
