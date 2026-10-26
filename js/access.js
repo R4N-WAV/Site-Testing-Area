@@ -323,6 +323,8 @@ export function initAccess({ space }) {
   async function open() {
     if (phase !== "idle") return;
     phase = "opening";
+    // a step in the browser's history: Back closes the field (and, once in, leaves the page)
+    if (history.state?.r4n !== "access") history.pushState({ r4n: "access" }, "");
     loadHubBytes().catch(() => {});
     W = window.innerWidth; H = window.innerHeight; S = Math.min(window.devicePixelRatio || 1, 2);
     touch = touchScreen();
@@ -368,6 +370,7 @@ export function initAccess({ space }) {
   async function close() {
     if (phase !== "locked" && phase !== "unlocked") return;
     phase = "closing";
+    if (history.state?.r4n === "access") history.back();
     forget();
     root.classList.remove("is-ready");
     input.blur();
@@ -569,6 +572,7 @@ export function initAccess({ space }) {
   async function enter() {
     if (phase !== "unlocked") return;
     phase = "entering";
+    history.replaceState({ r4n: "hub" }, "");
     root.classList.remove("is-ready");
     try { await loadHub(); } catch (err) {
       // (nothing was shown yet: undo what loaded and stay on the field)
@@ -648,6 +652,9 @@ export function initAccess({ space }) {
     if (phase === "entering") { wantLeave = true; return; }
     if (phase !== "hub") return;
     phase = "leaving";
+    // (left by EXIT or Esc: take the page's steps out of the history too)
+    const steps = { hub: 1, detail: 2 }[history.state?.r4n] || 0;
+    if (steps) history.go(-steps);
     const logo = hubInstance?.logo?.getBoundingClientRect();
     const sameSize = W === window.innerWidth && (touch || H === window.innerHeight);
     root.hidden = false;
@@ -685,6 +692,13 @@ export function initAccess({ space }) {
 
   // ---------------------------------------------------------------- wiring
   btn.addEventListener("click", open);
+  // the browser's Back: one step at a time (an open plugin is closed by the page itself)
+  window.addEventListener("popstate", () => {
+    const at = history.state?.r4n;
+    if ((phase === "locked" || phase === "unlocked") && at !== "access") close();
+    else if (phase === "hub" && at !== "hub" && at !== "detail") leave();
+    else if (phase === "entering" && at !== "hub" && at !== "detail") wantLeave = true;
+  });
   form.addEventListener("submit", (e) => { e.preventDefault(); submit(); });
   goBtn.addEventListener("click", enter);
   root.addEventListener("pointerdown", (e) => {
