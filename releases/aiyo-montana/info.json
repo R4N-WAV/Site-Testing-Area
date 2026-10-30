@@ -1,0 +1,33 @@
+{
+  "title": "AIYO MONTANA",
+  "artist": [
+    {
+      "name": "Aiyo Rasa",
+      "url": "https://www.instagram.com/aiyorasa/"
+    }
+  ],
+  "category": "worked-on",
+  "type": "Single",
+  "date": "30.10.2026",
+  "cover": "cover.jpg",
+  "description": "",
+  "credits": [
+    {
+      "role": "Prod",
+      "people": [
+        {
+          "name": "R4N",
+          "url": "https://www.instagram.com/r4n.wav/"
+        },
+        {
+          "name": "RumblinMusic",
+          "url": "https://www.instagram.com/rumblinmusic/"
+        }
+      ]
+    }
+  ],
+  "links": {
+    "spotify": "https://open.spotify.com/track/6kW7dktar356K3jpu0xtzh",
+    "apple": "https://music.apple.com/us/song/aiyo-montana/6822858368"
+  }
+}
